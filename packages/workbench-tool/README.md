@@ -1,3 +1,3 @@
 # @repo/workbench-tool
 
- = tool workbench scaffold package.
+Tool IDE production workbench package (editing, schema management, and run panel).

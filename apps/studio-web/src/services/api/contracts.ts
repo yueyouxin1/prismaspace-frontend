@@ -195,6 +195,84 @@ export interface ResourceDetailRead extends ResourceRead {
 
 export type AnyInstanceRead = JsonRecord
 
+export type ToolHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+export type ToolSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
+
+export interface ToolParameterValueRefContent {
+  blockID: string
+  path: string
+  source?: string
+}
+
+export type ToolParameterValue =
+  | {
+      type: 'literal'
+      content: unknown
+    }
+  | {
+      type: 'expr'
+      content: string
+    }
+  | {
+      type: 'ref'
+      content: ToolParameterValueRefContent
+    }
+
+export interface ToolSchemaBlueprint {
+  type: ToolSchemaType
+  uid?: number
+  description?: string
+  enum?: unknown[]
+  default?: unknown
+  properties?: ToolParameterSchema[]
+  items?: ToolSchemaBlueprint
+}
+
+export interface ToolParameterSchema extends ToolSchemaBlueprint {
+  name: string
+  required: boolean
+  open: boolean
+  role?: string
+  label?: string
+  value?: ToolParameterValue
+  meta?: JsonRecord
+}
+
+export interface ToolInstanceRead {
+  uuid: string
+  version_tag: string
+  status: string
+  created_at: string
+  creator: CreatorInfo
+  url?: string | null
+  method: ToolHttpMethod
+  inputs_schema: ToolParameterSchema[]
+  outputs_schema: ToolParameterSchema[]
+  llm_function_schema?: JsonRecord | null
+}
+
+export interface ToolInstanceUpdateRequest {
+  visibility?: string
+  url?: string | null
+  method?: ToolHttpMethod
+  inputs_schema?: ToolParameterSchema[]
+  outputs_schema?: ToolParameterSchema[]
+  llm_function_schema?: JsonRecord | null
+}
+
+export interface ToolExecutionRequest {
+  meta?: {
+    return_raw_response?: boolean
+  }
+  inputs: JsonRecord
+}
+
+export interface ToolExecutionResponse {
+  success?: boolean
+  error_message?: string | null
+  data: JsonRecord
+}
+
 export interface InstancePublishRequest {
   version_tag: string
   version_notes?: string

@@ -14,6 +14,10 @@ export const platformQueryKeys = {
   workspaceResources: (workspaceUuid: string | null | undefined) => workspaceScopedQueryKey(workspaceUuid, 'resources'),
   resourceDetail: (resourceUuid: string) => ['resource', resourceUuid] as const,
   resourceInstances: (resourceUuid: string) => ['resource', resourceUuid, 'instances'] as const,
+  toolResourceDetail: (workspaceUuid: string | null | undefined, resourceUuid: string | null | undefined) =>
+    workspaceScopedQueryKey(workspaceUuid, 'tool', 'resource', resourceUuid ?? 'none'),
+  toolInstance: (workspaceUuid: string | null | undefined, instanceUuid: string | null | undefined) =>
+    workspaceScopedQueryKey(workspaceUuid, 'tool', 'instance', instanceUuid ?? 'none'),
   knowledgeDocuments: (instanceUuid: string, page: number, limit: number) =>
     ['knowledge', instanceUuid, 'documents', page, limit] as const,
   tenantTables: (instanceUuid: string) => ['tenantdb', instanceUuid, 'tables'] as const,

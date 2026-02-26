@@ -286,6 +286,14 @@ const zhCN = {
         create: {
           title: '创建资源',
           description: '创建后将自动初始化工作区版本实例。',
+          toolTitle: '创建工具',
+          toolDescription: '创建成功后会自动进入 Tool IDE，继续配置路径、方法与参数。',
+          validation: {
+            nameRequired: '请输入资源名称。',
+            nameTooLong: '资源名称不能超过 {max} 个字符。',
+            toolDescriptionRequired: '工具描述为必填项。',
+            descriptionTooLong: '资源描述不能超过 {max} 个字符。',
+          },
         },
         edit: {
           title: '编辑资源',

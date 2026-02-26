@@ -286,6 +286,14 @@ const enUS = {
         create: {
           title: 'Create resource',
           description: 'A workspace instance will be initialized automatically.',
+          toolTitle: 'Create tool',
+          toolDescription: 'After creation, you will be redirected to Tool IDE to continue configuration.',
+          validation: {
+            nameRequired: 'Resource name is required.',
+            nameTooLong: 'Resource name cannot exceed {max} characters.',
+            toolDescriptionRequired: 'Tool description is required.',
+            descriptionTooLong: 'Resource description cannot exceed {max} characters.',
+          },
         },
         edit: {
           title: 'Edit resource',

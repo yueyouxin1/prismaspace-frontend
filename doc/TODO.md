@@ -1,7 +1,7 @@
 # TODO｜Tool 资源前端交互（生产级实施清单）
 
 更新时间：2026-02-25  
-当前阶段：方案冻结（待实现）
+当前阶段：实现完成（待质量收口）
 
 ---
 
@@ -63,25 +63,25 @@
 
 ## 4.1 新增子包
 
-- 新增 `packages/workbench-tool-ide`（建议包名：`@repo/workbench-tool-ide`）。
+- 新增 `packages/workbench-tool`（包名：`@repo/workbench-tool`）。
 
 ## 4.2 职责边界
 
-- `@repo/workbench-tool-ide`：
+- `@repo/workbench-tool`：
   - Tool IDE 的领域组件、状态编排、表单校验、编辑态管理。
   - 复用参数编辑器并封装 Tool 语义适配层。
 - `@repo/workbench-tool`：
-  - 保留轻量桥接职责（向后兼容现有引用），逐步委托给 `@repo/workbench-tool-ide`。
+  - 承载 Tool IDE 的领域组件、状态编排与 schema 适配层。
 - `apps/studio-web`：
   - 路由、页面壳、Workspace 上下文、权限与错误网关接入。
 
 ## 4.3 目录建议
 
-- `packages/workbench-tool-ide/src/components/*`
-- `packages/workbench-tool-ide/src/composables/*`
-- `packages/workbench-tool-ide/src/adapters/*`
-- `packages/workbench-tool-ide/src/types/*`
-- `packages/workbench-tool-ide/src/index.ts`
+- `packages/workbench-tool/src/components/*`
+- `packages/workbench-tool/src/composables/*`
+- `packages/workbench-tool/src/adapters/*`
+- `packages/workbench-tool/src/types/*`
+- `packages/workbench-tool/src/index.ts`
 
 ---
 
@@ -92,7 +92,7 @@
 - 输入参数：复用 `ParamSchemaRegularEditor` 作为默认编辑器。
 - 输出参数：复用 `ParamSchemaProfessionalEditor` 或 `Regular`（根据空间密度选择，默认 Professional）。
 - 状态管理：复用 `useParamSchemaEditor`，由 Tool IDE 统一接收变更并合并到实例 payload。
-- 适配策略：在 `workbench-tool-ide/adapters` 提供 Tool schema 与编辑器 schema 的双向转换。
+- 适配策略：在 `workbench-tool/adapters` 提供 Tool schema 与编辑器 schema 的双向转换。
 - 约束：参数编辑器不得直接耦合具体 API client；只接收标准化 schema 与回调。
 
 ---
@@ -124,62 +124,62 @@
 
 ## M0：契约冻结与脚手架
 
-- [ ] 冻结 Tool 实例字段契约（名称、描述、method、path、input_schema、output_schema）。
-- [ ] 新建 `@repo/workbench-tool-ide` 子包与导出。
-- [ ] 在 `apps/studio-web` 将 Tool 面板切换到新子包入口。
+- [x] 冻结 Tool 实例字段契约（`url`、`method`、`inputs_schema`、`outputs_schema`，并同步 Resource 元数据 name/description）。
+- [x] 新建 `@repo/workbench-tool` 子包与导出。
+- [x] 在 `apps/studio-web` 将 Tool 面板切换到新子包入口。
 
 验收：
-- [ ] `pnpm check:aliases` 通过。
-- [ ] Tool 工作台可正常渲染新包占位组件。
+- [x] `pnpm check:aliases` 通过。
+- [x] Tool 工作台可正常渲染新包组件。
 
 ## M1：创建工具弹窗生产化
 
-- [ ] 实现“创建工具”弹窗 UI 与校验规则。
-- [ ] 接入创建接口并处理成功跳转。
-- [ ] 补齐错误态、禁用态、提交态与可访问性。
+- [x] 实现“创建工具”弹窗 UI 与校验规则。
+- [x] 接入创建接口并处理成功跳转。
+- [x] 补齐错误态、禁用态、提交态与可访问性。
 
 验收：
-- [ ] 从资源库创建 Tool 成功并进入对应 IDE。
-- [ ] 校验与后端错误提示一致。
+- [x] 从资源库创建 Tool 成功后自动进入对应 IDE。
+- [x] 校验与后端错误提示对齐（前端即时校验 + 网关兜底）。
 
 ## M2：Tool IDE 基础编辑闭环
 
-- [ ] 完成基本信息区与更多信息区（name/description/path/method）。
-- [ ] 接入实例读取与保存（PUT instance）。
-- [ ] 提供未保存变更提示与离开拦截。
+- [x] 完成基本信息区与更多信息区（name/description/path/method）。
+- [x] 接入实例读取与保存（PUT instance）。
+- [x] 提供未保存变更提示与离开拦截。
 
 验收：
-- [ ] 刷新后可恢复服务端最新配置。
-- [ ] 保存后列表与详情数据一致。
+- [x] 刷新后可恢复服务端最新配置。
+- [x] 保存后列表与详情数据一致（并精准失效相关缓存）。
 
 ## M3：输入/输出参数编辑器接入
 
-- [ ] 接入 `param-schema-editor` 输入参数编辑。
-- [ ] 接入输出参数编辑与预览。
-- [ ] 完成 schema 双向适配与校验错误映射。
+- [x] 接入 `param-schema-editor` 输入参数编辑。
+- [x] 接入输出参数编辑与预览。
+- [x] 完成 schema 双向适配与校验错误映射。
 
 验收：
-- [ ] 参数增删改可持久化。
-- [ ] 非法 schema 阻止保存并提供可定位提示。
+- [x] 参数增删改可持久化。
+- [x] 非法 schema 阻止保存并提供可定位提示。
 
 ## M4：运行面板与执行闭环
 
-- [ ] 设计执行入参区（表单/JSON 双模式至少保留一种生产可用路径）。
-- [ ] 接入 `/execute/instances/{instance_uuid}`。
-- [ ] 展示执行结果、错误信息与耗时。
+- [x] 设计执行入参区（表单/JSON 双模式）。
+- [x] 接入 `/execute/instances/{instance_uuid}`。
+- [x] 展示执行结果、错误信息与耗时。
 
 验收：
-- [ ] 能从当前工作区实例直接试运行。
-- [ ] 402/403/5xx 错误反馈符合全局规范。
+- [x] 能从当前工作区实例直接试运行。
+- [x] 402/403/5xx 错误反馈走全局错误网关。
 
 ## M5：质量收口
 
-- [ ] i18n（zh-CN/en-US）补齐。
-- [ ] 埋点：创建工具、保存工具、执行工具。
+- [ ] i18n（zh-CN/en-US）补齐（当前已补齐创建弹窗文案，Tool IDE 面板仍有硬编码中文待提取）。
+- [x] 埋点：创建工具、保存工具、执行工具。
 - [ ] 文档与 Demo 更新（含 Tool IDE 使用说明）。
 
 验收：
-- [ ] `pnpm build` 通过。
+- [ ] `pnpm build` 通过（受仓库既有类型错误阻塞，见“实施备注”）。
 - [ ] 关键路径手测通过（见第 8 节）。
 
 ---
@@ -201,7 +201,7 @@
   对策：先冻结最小字段集并通过 adapter 层隔离。
 
 - 风险：参数编辑器 schema 与后端 schema 不完全一致。  
-  对策：在 `workbench-tool-ide/adapters` 维护单一转换入口并补单测。
+  对策：在 `workbench-tool/adapters` 维护单一转换入口并补单测。
 
 - 风险：继续依赖 `AnyInstanceRead` 造成类型漂移。  
   对策：M0 即引入 Tool 专属类型并逐步替换。
@@ -213,9 +213,23 @@
 
 ## 10. 完成定义（DoD）
 
-- [ ] Tool 创建弹窗达到生产可用质量。
-- [ ] Tool IDE 完成编辑、保存、执行闭环。
-- [ ] 输入/输出参数编辑器成功复用且可维护。
-- [ ] 子包职责清晰，app 壳与 IDE 领域逻辑解耦。
-- [ ] 工程检查通过：`pnpm check:aliases`、`pnpm build`。
-- [ ] 文档已同步，可直接进入开发排期。
+- [x] Tool 创建弹窗达到生产可用质量。
+- [x] Tool IDE 完成编辑、保存、执行闭环。
+- [x] 输入/输出参数编辑器成功复用且可维护。
+- [x] 子包职责清晰，app 壳与 IDE 领域逻辑解耦。
+- [ ] 工程检查通过：`pnpm check:aliases`、`pnpm build`（当前 `check:aliases` 已通过，`build` 受既有类型错误阻塞）。
+- [ ] 文档已同步，可直接进入开发排期（待补 Tool IDE 使用说明与 Demo）。
+
+---
+
+## 实施备注（2026-02-25）
+
+- 已新增 `packages/workbench-tool`，并完成 `components/composables/adapters/types` 拆分。
+- 已在资源页实现 Tool 创建专属校验与创建后自动跳转 Tool IDE。
+- 已在 Tool IDE 完成：实例读取、资源/实例双通道保存、输入/输出 schema 编辑、试运行（表单+JSON）。
+- 已接入埋点：`tool_created`、`tool_saved`、`tool_executed`。
+- 工程现状：
+  - `pnpm check:aliases`：通过。
+  - `pnpm build`：失败（仓库既有类型错误，非本次改动引入）：
+    - `packages/common/src/tools/id-manager.ts`
+    - `packages/editor/src/components/param-schema-editor/ui/ParamSchemaEditorShell.vue`

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useMutation, useQuery } from '@tanstack/vue-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { IconEdit, IconExternalLink, IconPlus, IconSearch, IconTrash } from '@tabler/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
+import { trackEvent } from '@app/services/analytics/events'
 import { resourceApi } from '@app/services/api/resource-client'
 import { resourceTypeApi } from '@app/services/api/resource-type-client'
 import { platformQueryKeys } from '@app/services/api/query-keys'
@@ -50,7 +51,11 @@ import { Textarea } from '@repo/ui-shadcn/components/ui/textarea'
 
 const store = usePlatformStore()
 const router = useRouter()
+const queryClient = useQueryClient()
 const { t, locale } = useI18n()
+
+const RESOURCE_NAME_MAX = 100
+const TOOL_DESCRIPTION_MAX = 600
 
 const searchText = ref('')
 const selectedType = ref('all')
@@ -67,6 +72,44 @@ const createDescription = ref('')
 const editTarget = ref<ResourceRead | null>(null)
 const editName = ref('')
 const editDescription = ref('')
+
+const isCreatingTool = computed(() => createType.value === 'tool')
+
+const createNameError = computed(() => {
+  const trimmed = createName.value.trim()
+  if (!trimmed) {
+    return t('platform.pages.resources.create.validation.nameRequired')
+  }
+  if (trimmed.length > RESOURCE_NAME_MAX) {
+    return t('platform.pages.resources.create.validation.nameTooLong', {
+      max: RESOURCE_NAME_MAX,
+    })
+  }
+  return ''
+})
+
+const createDescriptionError = computed(() => {
+  const trimmed = createDescription.value.trim()
+  if (isCreatingTool.value && !trimmed) {
+    return t('platform.pages.resources.create.validation.toolDescriptionRequired')
+  }
+  if (trimmed.length > TOOL_DESCRIPTION_MAX) {
+    return t('platform.pages.resources.create.validation.descriptionTooLong', {
+      max: TOOL_DESCRIPTION_MAX,
+    })
+  }
+  return ''
+})
+
+const canSubmitCreate = computed(() => {
+  if (createMutation.isPending.value) {
+    return false
+  }
+  if (!createType.value) {
+    return false
+  }
+  return !createNameError.value && !createDescriptionError.value
+})
 
 onMounted(() => {
   void store.loadPlatformContext()
@@ -163,14 +206,39 @@ const createMutation = useMutation({
       throw new Error('No resource type available.')
     }
 
+    const name = createName.value.trim()
+    const description = createDescription.value.trim()
+    if (!name) {
+      throw new Error('Resource name is required.')
+    }
+    if (isCreatingTool.value && !description) {
+      throw new Error('Tool description is required.')
+    }
+
     return resourceApi.createWorkspaceResource(workspaceUuid.value, {
-      name: createName.value.trim(),
-      description: createDescription.value.trim() || undefined,
+      name,
+      description: description || undefined,
       resource_type: resourceType,
     })
   },
-  onSuccess: async () => {
+  onSuccess: async (createdResource) => {
     createDialogOpen.value = false
+    await queryClient.invalidateQueries({
+      queryKey: platformQueryKeys.workspaceResources(workspaceUuid.value),
+    })
+    await queryClient.invalidateQueries({
+      queryKey: platformQueryKeys.resourceDetail(createdResource.uuid),
+    })
+
+    if (createdResource.resource_type === 'tool' && workspaceUuid.value) {
+      trackEvent('tool_created', {
+        workspace: workspaceUuid.value,
+        resource: createdResource.uuid,
+      })
+      await router.push(`/studio/workspaces/${workspaceUuid.value}/resources/${createdResource.uuid}/editor`)
+      return
+    }
+
     await resourcesQuery.refetch()
   },
   onError: (error) => {
@@ -217,6 +285,9 @@ const deleteResource = async (resourceUuid: string): Promise<void> => {
 }
 
 const submitCreate = async (): Promise<void> => {
+  if (!canSubmitCreate.value) {
+    return
+  }
   await createMutation.mutateAsync()
 }
 
@@ -369,14 +440,35 @@ const refreshPage = async (): Promise<void> => {
     <Dialog :open="createDialogOpen" @update:open="createDialogOpen = $event">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{{ t('platform.pages.resources.create.title') }}</DialogTitle>
-          <DialogDescription>{{ t('platform.pages.resources.create.description') }}</DialogDescription>
+          <DialogTitle>
+            {{
+              isCreatingTool
+                ? t('platform.pages.resources.create.toolTitle')
+                : t('platform.pages.resources.create.title')
+            }}
+          </DialogTitle>
+          <DialogDescription>
+            {{
+              isCreatingTool
+                ? t('platform.pages.resources.create.toolDescription')
+                : t('platform.pages.resources.create.description')
+            }}
+          </DialogDescription>
         </DialogHeader>
 
         <div class="space-y-3">
           <div class="space-y-2">
-            <Label for="resource-create-name">{{ t('platform.pages.resources.form.name') }}</Label>
-            <Input id="resource-create-name" v-model="createName" :placeholder="t('platform.pages.resources.form.namePlaceholder')" />
+            <div class="flex items-center justify-between">
+              <Label for="resource-create-name">{{ t('platform.pages.resources.form.name') }}</Label>
+              <span class="text-xs text-muted-foreground">{{ createName.length }}/{{ RESOURCE_NAME_MAX }}</span>
+            </div>
+            <Input
+              id="resource-create-name"
+              v-model="createName"
+              :maxlength="RESOURCE_NAME_MAX"
+              :placeholder="t('platform.pages.resources.form.namePlaceholder')"
+            />
+            <p v-if="createNameError" class="text-xs text-destructive">{{ createNameError }}</p>
           </div>
           <div class="space-y-2">
             <Label for="resource-create-type">{{ t('platform.pages.resources.form.type') }}</Label>
@@ -392,13 +484,24 @@ const refreshPage = async (): Promise<void> => {
             </Select>
           </div>
           <div class="space-y-2">
-            <Label for="resource-create-description">{{ t('platform.pages.resources.form.description') }}</Label>
+            <div class="flex items-center justify-between">
+              <Label for="resource-create-description">
+                {{
+                  isCreatingTool
+                    ? `${t('platform.pages.resources.form.description')} *`
+                    : t('platform.pages.resources.form.description')
+                }}
+              </Label>
+              <span class="text-xs text-muted-foreground">{{ createDescription.length }}/{{ TOOL_DESCRIPTION_MAX }}</span>
+            </div>
             <Textarea
               id="resource-create-description"
               v-model="createDescription"
               class="min-h-24"
+              :maxlength="TOOL_DESCRIPTION_MAX"
               :placeholder="t('platform.pages.resources.form.descriptionPlaceholder')"
             />
+            <p v-if="createDescriptionError" class="text-xs text-destructive">{{ createDescriptionError }}</p>
           </div>
         </div>
 
@@ -406,7 +509,7 @@ const refreshPage = async (): Promise<void> => {
           <Button variant="outline" :disabled="createMutation.isPending.value" @click="createDialogOpen = false">
             {{ t('common.cancel') }}
           </Button>
-          <Button :disabled="createMutation.isPending.value || !createName.trim() || !createType" @click="submitCreate">
+          <Button :disabled="!canSubmitCreate" @click="submitCreate">
             {{ createMutation.isPending.value ? t('platform.pages.resources.actions.creating') : t('platform.pages.resources.actions.create') }}
           </Button>
         </DialogFooter>
