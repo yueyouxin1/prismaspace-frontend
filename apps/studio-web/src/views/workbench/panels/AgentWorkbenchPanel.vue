@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useMutation, useQuery } from '@tanstack/vue-query'
 import { agentApi } from '@app/services/api/agent-client'
 import { chatApi } from '@app/services/api/chat-client'
-import { emitBusinessError } from '@app/services/http/error-gateway'
 import { platformQueryKeys } from '@app/services/api/query-keys'
-import { AgentWorkbenchScaffold } from '@repo/workbench-agent'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { resourceApi } from '@app/services/api/resource-client'
+import { serviceModuleApi } from '@app/services/api/service-module-client'
+import { emitBusinessError } from '@app/services/http/error-gateway'
+import { useResourceWorkbenchContext } from '@app/views/workbench/workbench-context'
+import type {
+  AnyInstanceRead,
+  ChatMessageRead,
+  ServiceModuleProviderRead,
+} from '@app/services/api/contracts'
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
-import { Input } from '@repo/ui-shadcn/components/ui/input'
+  AgentIdeWorkbench,
+  type AgentIdeSeed,
+  type AgentInstancePatchPayload,
+  type AgentModelOption,
+} from '@repo/workbench-agent'
 
 const props = defineProps<{
   resourceName: string
@@ -21,75 +26,271 @@ const props = defineProps<{
   latestPublishedInstanceUuid?: string | null
 }>()
 
-const inputQuery = ref('Hello, please introduce yourself briefly.')
-const executionResult = ref('')
+const workbenchContext = useResourceWorkbenchContext()
+const workspaceUuid = computed(() => workbenchContext.workspaceUuid.value)
+const resourceUuid = computed(() => workbenchContext.resourceUuid.value)
+const instanceUuid = computed(() => props.workspaceInstanceUuid ?? workbenchContext.workspaceInstanceUuid.value)
 
-const runMutation = useMutation({
-  mutationFn: async () => {
-    if (!props.workspaceInstanceUuid) {
+const activeSessionUuid = ref<string | null>(null)
+const lastSavedAt = ref<string | null>(null)
+const inlineError = ref<string | null>(null)
+
+const resourceDetailQuery = useQuery({
+  queryKey: computed(() => platformQueryKeys.resourceDetail(resourceUuid.value)),
+  enabled: computed(() => Boolean(resourceUuid.value)),
+  queryFn: async () => resourceApi.getResource(resourceUuid.value),
+})
+
+const sessionsQuery = useQuery({
+  queryKey: computed(() => platformQueryKeys.chatSessions(instanceUuid.value ?? 'none', 1, 50)),
+  enabled: computed(() => Boolean(instanceUuid.value)),
+  queryFn: async () => chatApi.listSessions(instanceUuid.value as string, 1, 50),
+})
+
+watch(
+  () => sessionsQuery.data.value,
+  (sessions) => {
+    if (!sessions?.length) {
+      activeSessionUuid.value = null
+      return
+    }
+    const stillExists = activeSessionUuid.value
+      ? sessions.some(session => session.uuid === activeSessionUuid.value)
+      : false
+    if (!stillExists) {
+      activeSessionUuid.value = sessions[0]?.uuid ?? null
+    }
+  },
+  { immediate: true },
+)
+
+const messagesQuery = useQuery({
+  queryKey: computed(() => platformQueryKeys.chatMessages(activeSessionUuid.value ?? 'none', 0, 100)),
+  enabled: computed(() => Boolean(activeSessionUuid.value)),
+  queryFn: async () => chatApi.listMessages(activeSessionUuid.value as string, 0, 100),
+})
+
+const modelCatalogQuery = useQuery({
+  queryKey: computed(() => platformQueryKeys.serviceModulesAvailable(workspaceUuid.value, 'llm')),
+  enabled: computed(() => Boolean(workspaceUuid.value)),
+  queryFn: async () => {
+    const [providers, modules] = await Promise.all([
+      serviceModuleApi.listModuleProviders(),
+      serviceModuleApi.listAvailableModules(workspaceUuid.value, 'llm'),
+    ])
+    return { providers, modules }
+  },
+})
+
+const providerMap = computed(() => {
+  const map = new Map<number, ServiceModuleProviderRead>()
+  ;(modelCatalogQuery.data.value?.providers ?? []).forEach((provider) => {
+    map.set(provider.id, provider)
+  })
+  return map
+})
+
+const modelOptions = computed<AgentModelOption[]>(() => {
+  const modules = modelCatalogQuery.data.value?.modules ?? []
+  const options: AgentModelOption[] = []
+  modules.forEach((module) => {
+    const provider = providerMap.value.get(module.provider_id)
+    module.versions.forEach((version) => {
+      options.push({
+        modelUuid: version.uuid,
+        displayName: `${module.label} · ${version.version_tag}`,
+        provider: provider?.name ?? 'unknown',
+        providerLabel: provider?.label ?? provider?.name ?? 'Unknown',
+        moduleName: module.name,
+        moduleLabel: module.label,
+        versionTag: version.version_tag,
+        description: version.description,
+      })
+    })
+  })
+  return options
+})
+
+const asRecord = (value: unknown): Record<string, unknown> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  return value as Record<string, unknown>
+}
+
+const toAgentSeed = (resourceName: string, instance: AnyInstanceRead | null | undefined): AgentIdeSeed | null => {
+  if (!instance || typeof instance !== 'object') {
+    return null
+  }
+  const raw = instance as Record<string, unknown>
+  if (typeof raw.system_prompt !== 'string') {
+    return null
+  }
+  return {
+    resourceName,
+    systemPrompt: raw.system_prompt,
+    llmModuleVersionUuid: typeof raw.llm_module_version_uuid === 'string' ? raw.llm_module_version_uuid : null,
+    agentConfig: asRecord(raw.agent_config),
+  }
+}
+
+const ideSeed = computed(() => {
+  return toAgentSeed(
+    resourceDetailQuery.data.value?.name ?? props.resourceName,
+    resourceDetailQuery.data.value?.workspace_instance,
+  )
+})
+
+const saveMutation = useMutation({
+  mutationFn: async (payload: AgentInstancePatchPayload) => {
+    if (!instanceUuid.value) {
       throw new Error('No workspace instance uuid found.')
     }
-
-    return agentApi.execute(props.workspaceInstanceUuid, {
-      inputs: {
-        input_query: inputQuery.value,
-      },
-    })
+    return resourceApi.updateInstance(instanceUuid.value, payload as Record<string, unknown>)
   },
-  onSuccess: (result) => {
-    executionResult.value = JSON.stringify(result, null, 2)
+  onSuccess: async () => {
+    inlineError.value = null
+    lastSavedAt.value = new Date().toISOString()
+    await Promise.all([
+      resourceDetailQuery.refetch(),
+      workbenchContext.refresh(),
+    ])
   },
   onError: (error) => {
+    inlineError.value = error instanceof Error ? error.message : '保存失败，请稍后重试。'
     emitBusinessError(error)
   },
 })
 
-const sessionsQuery = useQuery({
-  queryKey: computed(() => platformQueryKeys.chatSessions(props.workspaceInstanceUuid ?? 'none', 1, 5)),
-  enabled: computed(() => Boolean(props.workspaceInstanceUuid)),
-  queryFn: async () => chatApi.listSessions(props.workspaceInstanceUuid as string, 1, 5),
+const createSessionMutation = useMutation({
+  mutationFn: async () => {
+    if (!instanceUuid.value) {
+      throw new Error('No workspace instance uuid found.')
+    }
+    return chatApi.createSession({
+      agent_instance_uuid: instanceUuid.value,
+    })
+  },
+  onError: (error) => {
+    inlineError.value = error instanceof Error ? error.message : '会话创建失败，请稍后重试。'
+    emitBusinessError(error)
+  },
 })
 
-const runAgent = async (): Promise<void> => {
-  await runMutation.mutateAsync()
+const ensureSessionUuid = async (): Promise<string> => {
+  if (activeSessionUuid.value) {
+    return activeSessionUuid.value
+  }
+  const created = await createSessionMutation.mutateAsync()
+  activeSessionUuid.value = created.uuid
+  await sessionsQuery.refetch()
+  return created.uuid
 }
+
+const executeMutation = useMutation({
+  mutationFn: async (inputText: string) => {
+    if (!instanceUuid.value) {
+      throw new Error('No workspace instance uuid found.')
+    }
+    const sessionUuid = await ensureSessionUuid()
+    return agentApi.execute(instanceUuid.value, {
+      inputs: {
+        input_query: inputText,
+        session_uuid: sessionUuid,
+      },
+    })
+  },
+  onSuccess: async () => {
+    inlineError.value = null
+    await Promise.all([
+      sessionsQuery.refetch(),
+      messagesQuery.refetch(),
+    ])
+  },
+  onError: (error) => {
+    inlineError.value = error instanceof Error ? error.message : '执行失败，请稍后重试。'
+    emitBusinessError(error)
+  },
+})
+
+const handleSave = async (payload: AgentInstancePatchPayload): Promise<void> => {
+  await saveMutation.mutateAsync(payload)
+}
+
+const handleCreateSession = async (): Promise<void> => {
+  const session = await createSessionMutation.mutateAsync()
+  activeSessionUuid.value = session.uuid
+  inlineError.value = null
+  await sessionsQuery.refetch()
+}
+
+const handleSelectSession = (sessionUuid: string): void => {
+  activeSessionUuid.value = sessionUuid
+  inlineError.value = null
+}
+
+const handleSendMessage = async (text: string): Promise<void> => {
+  await executeMutation.mutateAsync(text)
+}
+
+const sessionItems = computed(() => {
+  return (sessionsQuery.data.value ?? []).map(session => ({
+    uuid: session.uuid,
+    title: session.title,
+    messageCount: session.message_count,
+    updatedAt: session.updated_at,
+  }))
+})
+
+const messageItems = computed(() => {
+  return (messagesQuery.data.value ?? []).map((message: ChatMessageRead) => ({
+    uuid: message.uuid,
+    role: message.role,
+    content: message.content,
+    createdAt: message.created_at,
+    meta: message.meta as Record<string, unknown> | null,
+    toolCalls: message.tool_calls as Record<string, unknown>[] | null,
+  }))
+})
+
+watch(
+  () => resourceDetailQuery.error.value,
+  (error) => {
+    if (error) {
+      emitBusinessError(error)
+    }
+  },
+)
+
+watch(
+  () => modelCatalogQuery.error.value,
+  (error) => {
+    if (error) {
+      emitBusinessError(error)
+    }
+  },
+)
 </script>
 
 <template>
-  <AgentWorkbenchScaffold
-    :resource-name="resourceName"
-    :workspace-instance-uuid="workspaceInstanceUuid"
-    :latest-published-instance-uuid="latestPublishedInstanceUuid"
-  >
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-base">Quick Run</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-3">
-          <Input v-model="inputQuery" placeholder="Ask this agent..." />
-          <Button :disabled="runMutation.isPending.value" @click="runAgent">
-            {{ runMutation.isPending.value ? 'Running...' : 'Execute Agent' }}
-          </Button>
-          <pre class="max-h-80 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">{{ executionResult || 'No execution result yet.' }}</pre>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-base">Recent Sessions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p v-if="sessionsQuery.isLoading.value" class="text-sm text-muted-foreground">Loading sessions...</p>
-          <ul v-else-if="sessionsQuery.data.value?.length" class="space-y-2 text-sm">
-            <li v-for="session in sessionsQuery.data.value" :key="session.uuid" class="rounded-md border p-2">
-              <p class="font-medium">{{ session.title || session.uuid }}</p>
-              <p class="text-xs text-muted-foreground">Messages: {{ session.message_count }}</p>
-            </li>
-          </ul>
-          <p v-else class="text-sm text-muted-foreground">No sessions yet.</p>
-        </CardContent>
-      </Card>
-    </div>
-  </AgentWorkbenchScaffold>
+  <AgentIdeWorkbench
+    :seed="ideSeed"
+    :model-options="modelOptions"
+    :sessions="sessionItems"
+    :active-session-uuid="activeSessionUuid"
+    :messages="messageItems"
+    :loading="resourceDetailQuery.isLoading.value"
+    :saving="saveMutation.isPending.value"
+    :models-loading="modelCatalogQuery.isLoading.value"
+    :loading-sessions="sessionsQuery.isLoading.value"
+    :loading-messages="messagesQuery.isLoading.value"
+    :creating-session="createSessionMutation.isPending.value"
+    :executing="executeMutation.isPending.value"
+    :last-saved-at="lastSavedAt"
+    :error-message="inlineError"
+    @save="handleSave"
+    @create-session="handleCreateSession"
+    @select-session="handleSelectSession"
+    @send-message="handleSendMessage"
+  />
 </template>

@@ -91,6 +91,8 @@ src/app/
 ### 3.4 流式与实时协议
 
 - SSE：`POST /api/v1/agent/{uuid}/sse`、`POST /api/v1/workflow/{uuid}/sse`、`GET /api/v1/knowledge/tasks/{task_id}/progress`
+  - 协议核心：`prismaspace-frontend/packages/common/src/tools/sse.ts`（`connectSseStream`）。
+  - App 适配层：`prismaspace-frontend/apps/studio-web/src/services/http/sse.ts`（`connectApiSseStream`，负责 baseUrl + token + workspace header）。
 - WebSocket：`GET /api/v1/agent/chat?token=...`、`GET /api/v1/workflow/ws?token=...`
 - WS 包协议：`{ action, data, request_id }`，服务端回包 `{ event, data, request_id }`。
 

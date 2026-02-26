@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { trackEvent } from '@app/services/analytics/events'
 import { platformQueryKeys } from '@app/services/api/query-keys'
 import { resourceApi } from '@app/services/api/resource-client'
@@ -10,8 +10,9 @@ import { emitBusinessError } from '@app/services/http/error-gateway'
 import {
   ToolIdeWorkbench,
   toToolInstanceDraft,
-  type ToolExecutePayload,
-  type ToolIdeSavePayload,
+  type ToolExecuteRequest,
+  type ToolIdeSaveRequest,
+  type ToolPublishRequest,
   type ToolRunFeedback,
 } from '@repo/workbench-tool'
 import { Button } from '@repo/ui-shadcn/components/ui/button'
@@ -30,6 +31,7 @@ const props = defineProps<{
 }>()
 
 const route = useRoute()
+const router = useRouter()
 const queryClient = useQueryClient()
 
 const workspaceUuid = computed(() => String(route.params.workspaceUuid ?? ''))
@@ -38,6 +40,8 @@ const instanceUuid = computed(() => props.workspaceInstanceUuid ?? null)
 
 const runFeedback = ref<ToolRunFeedback | null>(null)
 const hasUnsavedChanges = ref(false)
+const skipLeaveConfirm = ref(false)
+const lastSavedAt = ref<string | null>(null)
 
 const resourceDetailQuery = useQuery({
   queryKey: computed(() => platformQueryKeys.toolResourceDetail(workspaceUuid.value, resourceUuid.value)),
@@ -66,8 +70,34 @@ const ideSeed = computed(() => {
   }
 })
 
+const invalidateWorkbenchQueries = async (): Promise<void> => {
+  const invalidations: Promise<unknown>[] = [
+    queryClient.invalidateQueries({
+      queryKey: platformQueryKeys.toolResourceDetail(workspaceUuid.value, resourceUuid.value),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: platformQueryKeys.resourceDetail(resourceUuid.value),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: platformQueryKeys.workspaceResources(workspaceUuid.value),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: platformQueryKeys.resourceInstances(resourceUuid.value),
+    }),
+  ]
+  if (instanceUuid.value) {
+    invalidations.push(
+      queryClient.invalidateQueries({
+        queryKey: platformQueryKeys.toolInstance(workspaceUuid.value, instanceUuid.value),
+      }),
+    )
+  }
+  await Promise.all(invalidations)
+}
+
 const saveMutation = useMutation({
-  mutationFn: async (payload: ToolIdeSavePayload) => {
+  mutationFn: async (request: ToolIdeSaveRequest) => {
+    const payload = request.payload
     if (!resourceUuid.value || !instanceUuid.value) {
       throw new Error('Missing resource or workspace instance uuid.')
     }
@@ -93,43 +123,25 @@ const saveMutation = useMutation({
     }
 
     if (!actions.length) {
-      return payload
+      return request
     }
 
     await Promise.all(actions)
-    return payload
+    return request
   },
-  onSuccess: async (payload) => {
+  onSuccess: async (request) => {
     hasUnsavedChanges.value = false
-    trackEvent('tool_saved', {
+    lastSavedAt.value = new Date().toISOString()
+
+    trackEvent(request.trigger === 'autosave' ? 'tool_autosaved' : 'tool_saved', {
       workspace: workspaceUuid.value,
       resource: resourceUuid.value,
-      resource_changed: payload.hasResourceChanges,
-      instance_changed: payload.hasInstanceChanges,
+      resource_changed: request.payload.hasResourceChanges,
+      instance_changed: request.payload.hasInstanceChanges,
+      trigger: request.trigger,
     })
 
-    const invalidations: Promise<unknown>[] = [
-      queryClient.invalidateQueries({
-        queryKey: platformQueryKeys.toolResourceDetail(workspaceUuid.value, resourceUuid.value),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: platformQueryKeys.resourceDetail(resourceUuid.value),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: platformQueryKeys.workspaceResources(workspaceUuid.value),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: platformQueryKeys.resourceInstances(resourceUuid.value),
-      }),
-    ]
-    if (instanceUuid.value) {
-      invalidations.push(
-        queryClient.invalidateQueries({
-          queryKey: platformQueryKeys.toolInstance(workspaceUuid.value, instanceUuid.value),
-        }),
-      )
-    }
-    await Promise.all(invalidations)
+    await invalidateWorkbenchQueries()
   },
   onError: (error) => {
     emitBusinessError(error)
@@ -137,7 +149,7 @@ const saveMutation = useMutation({
 })
 
 const runMutation = useMutation({
-  mutationFn: async (payload: ToolExecutePayload) => {
+  mutationFn: async (payload: ToolExecuteRequest['run']) => {
     if (!instanceUuid.value) {
       throw new Error('Missing workspace instance uuid.')
     }
@@ -158,6 +170,7 @@ const runMutation = useMutation({
       success: response.success !== false,
       durationMs,
       payload: response.data,
+      errorMessage: response.error_message ?? undefined,
       at: new Date().toISOString(),
     }
     trackEvent('tool_executed', {
@@ -174,6 +187,34 @@ const runMutation = useMutation({
       errorMessage: error instanceof Error ? error.message : 'Tool execution failed.',
       at: new Date().toISOString(),
     }
+    emitBusinessError(error)
+  },
+})
+
+const buildPublishVersionTag = (): string => {
+  const now = new Date()
+  const pad = (value: number, length = 2): string => String(value).padStart(length, '0')
+  return `v${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`
+}
+
+const publishMutation = useMutation({
+  mutationFn: async () => {
+    if (!instanceUuid.value) {
+      throw new Error('Missing workspace instance uuid.')
+    }
+    return resourceApi.publishInstance(instanceUuid.value, {
+      version_tag: buildPublishVersionTag(),
+    })
+  },
+  onSuccess: async () => {
+    trackEvent('tool_published', {
+      workspace: workspaceUuid.value,
+      resource: resourceUuid.value,
+      instance: instanceUuid.value ?? '',
+    })
+    await invalidateWorkbenchQueries()
+  },
+  onError: (error) => {
     emitBusinessError(error)
   },
 })
@@ -207,6 +248,10 @@ onBeforeUnmount(() => {
 })
 
 onBeforeRouteLeave((_to, _from, next) => {
+  if (skipLeaveConfirm.value) {
+    next()
+    return
+  }
   if (!hasUnsavedChanges.value) {
     next()
     return
@@ -223,12 +268,43 @@ const refreshToolData = async (): Promise<void> => {
   await Promise.all([resourceDetailQuery.refetch(), toolInstanceQuery.refetch()])
 }
 
-const handleSave = async (payload: ToolIdeSavePayload): Promise<void> => {
-  await saveMutation.mutateAsync(payload)
+const handleBack = async (): Promise<void> => {
+  if (hasUnsavedChanges.value) {
+    const confirmed = window.confirm('工具配置尚未保存，确认返回资源列表吗？')
+    if (!confirmed) {
+      return
+    }
+  }
+  skipLeaveConfirm.value = true
+  await router.push('/resources')
 }
 
-const handleExecute = async (payload: ToolExecutePayload): Promise<void> => {
-  await runMutation.mutateAsync(payload)
+const handleSave = async (request: ToolIdeSaveRequest): Promise<void> => {
+  await saveMutation.mutateAsync(request)
+}
+
+const handleExecute = async (request: ToolExecuteRequest): Promise<void> => {
+  try {
+    await saveMutation.mutateAsync({
+      payload: request.save,
+      trigger: 'execute',
+    })
+  } catch {
+    return
+  }
+  await runMutation.mutateAsync(request.run)
+}
+
+const handlePublish = async (request: ToolPublishRequest): Promise<void> => {
+  try {
+    await saveMutation.mutateAsync({
+      payload: request.save,
+      trigger: 'publish',
+    })
+  } catch {
+    return
+  }
+  await publishMutation.mutateAsync()
 }
 </script>
 
@@ -267,12 +343,17 @@ const handleExecute = async (payload: ToolExecutePayload): Promise<void> => {
         :loading="loading"
         :saving="saveMutation.isPending.value"
         :running="runMutation.isPending.value"
+        :publishing="publishMutation.isPending.value"
         :workspace-instance-uuid="workspaceInstanceUuid"
         :latest-published-instance-uuid="latestPublishedInstanceUuid"
+        :latest-updated-at="resourceDetailQuery.data.value?.updated_at ?? null"
+        :saved-at="lastSavedAt"
         :run-feedback="runFeedback"
+        @back="handleBack"
         @dirty-change="hasUnsavedChanges = $event"
         @save="handleSave"
         @execute="handleExecute"
+        @publish="handlePublish"
       />
     </template>
   </div>

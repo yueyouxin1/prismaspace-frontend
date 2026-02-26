@@ -377,18 +377,36 @@ export interface UiAppMetadataRead {
   pages: UiPageMetaRead[]
 }
 
+export type TenantDataType = 'text' | 'number' | 'integer' | 'boolean' | 'timestamp' | 'json'
+
 export interface TenantColumnRead {
   uuid: string
   name: string
   label: string
   description?: string | null
-  data_type: string
+  data_type: TenantDataType
   is_nullable: boolean
   is_unique: boolean
   is_indexed: boolean
   is_vector_enabled: boolean
   is_primary_key: boolean
   default_value?: unknown
+}
+
+export interface TenantColumnCreate {
+  name: string
+  label: string
+  description?: string
+  data_type: TenantDataType
+  is_nullable?: boolean
+  is_unique?: boolean
+  is_indexed?: boolean
+  is_vector_enabled?: boolean
+  default_value?: unknown
+}
+
+export interface TenantColumnUpdate extends TenantColumnCreate {
+  uuid: string
 }
 
 export interface TenantTableRead {
@@ -399,13 +417,56 @@ export interface TenantTableRead {
   columns: TenantColumnRead[]
 }
 
+export interface TenantTableCreateRequest {
+  name: string
+  label: string
+  description?: string
+  columns: TenantColumnCreate[]
+}
+
+export interface TenantTableUpdateRequest {
+  name?: string
+  label?: string
+  description?: string
+  columns?: Array<TenantColumnUpdate | TenantColumnCreate>
+}
+
+export type TenantDbExecutionAction = 'query' | 'get_one' | 'insert' | 'update' | 'delete' | 'raw_sql'
+export type TenantDbFilterOperator = '=' | '!=' | '>' | '<' | '>=' | '<=' | 'like' | 'in' | 'not in'
+export type TenantDbFilterTuple = [string, TenantDbFilterOperator, unknown]
+export type TenantDbFilters = JsonRecord | TenantDbFilterTuple[]
+
+export interface TenantDbExecutionParams {
+  action: TenantDbExecutionAction
+  table_name: string
+  filters?: TenantDbFilters
+  columns?: string[]
+  payload?: JsonRecord | JsonRecord[]
+  page?: number
+  limit?: number
+  order_by?: string
+  raw_sql?: string
+}
+
+export interface TenantDbExecutionRequest {
+  meta?: JsonRecord
+  inputs: TenantDbExecutionParams
+}
+
+export interface TenantDbExecutionResponse {
+  success: boolean
+  data: JsonRecord[] | JsonRecord | number
+  count?: number | null
+  error_message?: string | null
+}
+
 export interface DocumentRead {
   uuid: string
   file_name: string
   source_uri: string
   file_type?: string | null
   file_size?: number | null
-  status: string
+  status: DocumentProcessingStatus
   error_message?: string | null
   chunk_count: number
   created_at: string
@@ -421,6 +482,94 @@ export interface PaginatedDocumentsRead {
 export interface DocumentCreateRequest {
   source_uri: string
   file_name?: string
+}
+
+export type DocumentProcessingStatus = 'pending' | 'uploading' | 'processing' | 'completed' | 'failed'
+
+export interface DocumentUpdateRequest {
+  source_uri?: string
+  file_name?: string
+}
+
+export interface BatchChunkUpdateRequest {
+  updates: Record<string, string>
+}
+
+export interface DocumentTaskProgressRead {
+  status: DocumentProcessingStatus
+  message: string
+  progress: number
+  total: number
+  error?: string | null
+}
+
+export type KnowledgeSearchStrategy = 'keyword' | 'semantic' | 'hybrid'
+
+export interface RAGConfigRead {
+  max_recall_num: number
+  min_match_score: number
+  search_strategy: KnowledgeSearchStrategy
+  query_rewrite: boolean
+  result_rerank: boolean
+}
+
+export interface KnowledgeBaseExecutionParams {
+  query: string
+  config: RAGConfigRead
+}
+
+export interface KnowledgeBaseExecutionRequest {
+  meta?: JsonRecord
+  inputs: KnowledgeBaseExecutionParams
+}
+
+export interface KnowledgeSearchResultChunkRead {
+  uuid: string
+  content: string
+  score: number
+  context?: JsonRecord | null
+}
+
+export interface KnowledgeGroupedSearchResultRead {
+  instance_uuid: string
+  chunks: KnowledgeSearchResultChunkRead[]
+}
+
+export interface KnowledgeBaseExecutionResponse {
+  success: boolean
+  data: KnowledgeGroupedSearchResultRead
+  error_message?: string | null
+}
+
+export interface ParserPolicyConfigRead {
+  parser_name: string
+  allowed_mime_types: string[]
+  params: JsonRecord
+}
+
+export interface ChunkerPolicyConfigRead {
+  chunker_name: string
+  params: JsonRecord
+}
+
+export interface KnowledgeBaseInstanceConfigRead {
+  parser_policy?: ParserPolicyConfigRead | null
+  chunker_policies: ChunkerPolicyConfigRead[]
+}
+
+export interface KnowledgeBaseInstanceRead {
+  uuid: string
+  name: string
+  version_tag: string
+  status: string
+  config: KnowledgeBaseInstanceConfigRead
+  document_count: number
+}
+
+export interface KnowledgeBaseInstanceUpdateRequest {
+  name?: string
+  description?: string
+  config?: KnowledgeBaseInstanceConfigRead
 }
 
 export interface WorkflowNodeDefRead {
@@ -466,6 +615,74 @@ export interface AgentExecutionResponse {
     session_uuid?: string | null
     trace_id?: string | null
   }
+}
+
+export type AgentDiversityMode = 'precise' | 'balanced' | 'creative' | 'custom'
+export type AgentResponseFormatType = 'text' | 'json_object'
+
+export interface AgentModelParamsRead {
+  temperature: number
+  top_p: number
+  presence_penalty: number
+  frequency_penalty: number
+}
+
+export interface AgentIoConfigRead {
+  history_turns: number
+  max_response_tokens: number
+  enable_deep_thinking: boolean
+  max_thinking_tokens?: number | null
+  response_format?: {
+    type?: string
+    [key: string]: unknown
+  } | null
+}
+
+export interface AgentConfigRead {
+  diversity_mode: AgentDiversityMode
+  model_params: AgentModelParamsRead
+  io_config: AgentIoConfigRead
+  [key: string]: unknown
+}
+
+export interface AgentInstanceRead {
+  uuid: string
+  version_tag: string
+  status: string
+  created_at: string
+  creator: CreatorInfo
+  system_prompt: string
+  llm_module_version_uuid?: string | null
+  agent_config: AgentConfigRead
+}
+
+export interface ServiceModuleTypeRead {
+  id: number
+  name: string
+  label: string
+  description?: string | null
+}
+
+export interface ServiceModuleProviderRead {
+  id: number
+  name: string
+  label: string
+  description?: string | null
+}
+
+export interface ServiceModuleVersionRead {
+  uuid: string
+  version_tag: string
+  description?: string | null
+  attributes: JsonRecord
+  config: JsonRecord
+}
+
+export interface ServiceModuleRead {
+  name: string
+  label: string
+  provider_id: number
+  versions: ServiceModuleVersionRead[]
 }
 
 export interface ChatSessionRead {
