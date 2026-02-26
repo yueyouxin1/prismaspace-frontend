@@ -11,7 +11,6 @@
  */
 
 export interface IdManagerNode {
-  [key: string]: unknown;
   children?: IdManagerNode[];
 }
 
@@ -76,8 +75,11 @@ class MinHeap {
     let i = a.length - 1;
     while (i > 0) {
       const p = (i - 1) >> 1;
-      if (a[p] <= a[i]) break;
-      [a[p], a[i]] = [a[i], a[p]];
+      const parent = a[p]!;
+      const current = a[i]!;
+      if (parent <= current) break;
+      a[p] = current;
+      a[i] = parent;
       i = p;
     }
   }
@@ -95,10 +97,13 @@ class MinHeap {
         const l = i * 2 + 1;
         const r = l + 1;
         let m = i;
-        if (l < a.length && a[l] < a[m]) m = l;
-        if (r < a.length && a[r] < a[m]) m = r;
+        if (l < a.length && a[l]! < a[m]!) m = l;
+        if (r < a.length && a[r]! < a[m]!) m = r;
         if (m === i) break;
-        [a[i], a[m]] = [a[m], a[i]];
+        const current = a[i]!;
+        const next = a[m]!;
+        a[i] = next;
+        a[m] = current;
         i = m;
       }
     }
@@ -119,7 +124,7 @@ export default class IdManager {
     const {
       typeKey,
       idKey = 'key',
-      validateId = (id: unknown) => Number.isInteger(id) && id > 0,
+      validateId = (id: unknown) => typeof id === 'number' && Number.isInteger(id) && id > 0,
       onDuplicate = 'throw',
     } = options;
 
@@ -147,7 +152,7 @@ export default class IdManager {
   _bucketOf(node: IdManagerNode): string {
     const typeKey = this.typeKey;
     if (!typeKey) return 'default';
-    const t = node?.[typeKey];
+    const t = (node as Record<string, unknown>)[typeKey];
     return (t === undefined || t === null || t === '') ? 'default' : String(t);
   }
   
@@ -212,7 +217,8 @@ export default class IdManager {
       const bucket = this._bucketOf(node);
       this._ensureBucket(bucket);
 
-      const rawId = node[this.idKey];
+      const record = node as Record<string, unknown>;
+      const rawId = record[this.idKey];
 
       if (rawId !== undefined && rawId !== null) {
         const ok = this.validateId(rawId);
@@ -221,7 +227,7 @@ export default class IdManager {
             throw new Error(`Invalid id "${rawId}" on node. key="${this.idKey}", bucket="${bucket}"`);
           }
           // treat as missing
-          node[this.idKey] = null;
+          record[this.idKey] = null;
         } else {
           const id = Number(rawId);
           const usedSet = this._getUsedSet(bucket);
@@ -232,10 +238,10 @@ export default class IdManager {
               throw new Error(`Duplicate id "${id}" in bucket "${bucket}"`);
             }
             if (this.onDuplicate === 'keepFirst') {
-              node[this.idKey] = null; // mark as missing; assign later
+              record[this.idKey] = null; // mark as missing; assign later
             }
             if (this.onDuplicate === 'reassign') {
-              node[this.idKey] = null; // mark missing now, assign later
+              record[this.idKey] = null; // mark missing now, assign later
             }
           } else {
             usedSet.add(id);
@@ -273,7 +279,7 @@ export default class IdManager {
     for (const node of nodes) {
       if (!node || typeof node !== 'object') continue;
 
-      const rawId = node[this.idKey];
+      const rawId = (node as Record<string, unknown>)[this.idKey];
       if (rawId === undefined || rawId === null) {
         this.assign(node);
       }
@@ -339,7 +345,7 @@ export default class IdManager {
     }
     const bucket = this._bucketOf(node);
     const id = this.allocate(bucket);
-    node[this.idKey] = id;
+    (node as Record<string, unknown>)[this.idKey] = id;
     if (typeof callback === 'function') callback(id, node);
     return id;
   }
@@ -363,7 +369,7 @@ export default class IdManager {
     const { force = false } = resolvedOpts;
     if (!node || typeof node !== 'object') return;
 
-    const cur = node[this.idKey];
+    const cur = (node as Record<string, unknown>)[this.idKey];
     const hasValid = (cur !== undefined && cur !== null && this.validateId(cur));
 
     if (force || !hasValid) {
@@ -389,7 +395,7 @@ export default class IdManager {
     if (!node || typeof node !== 'object') return;
 
     const bucket = this._bucketOf(node);
-    const id = node[this.idKey];
+    const id = (node as Record<string, unknown>)[this.idKey];
     if (id !== undefined && id !== null && this.validateId(id)) {
       this.release(Number(id), bucket);
     }

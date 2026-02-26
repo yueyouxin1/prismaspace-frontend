@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import ResourceWorkbenchShell from '@app/components/workbench/ResourceWorkbenchShell.vue'
 import AgentWorkbenchPanel from '@app/views/workbench/panels/AgentWorkbenchPanel.vue'
 import KnowledgeWorkbenchPanel from '@app/views/workbench/panels/KnowledgeWorkbenchPanel.vue'
 import TenantDbWorkbenchPanel from '@app/views/workbench/panels/TenantDbWorkbenchPanel.vue'
@@ -14,7 +12,7 @@ import { platformQueryKeys } from '@app/services/api/query-keys'
 import { resourceApi } from '@app/services/api/resource-client'
 import { usePlatformStore } from '@app/stores/platform'
 import { emitBusinessError } from '@app/services/http/error-gateway'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
+import { provideResourceWorkbenchContext } from '@app/views/workbench/workbench-context'
 import {
   Card,
   CardContent,
@@ -28,12 +26,18 @@ const SUPPORTED_PANELS = ['editor', 'run', 'versions', 'refs'] as const
 const route = useRoute()
 const router = useRouter()
 const store = usePlatformStore()
-const { locale } = useI18n()
 
 const workspaceUuidParam = computed(() => String(route.params.workspaceUuid ?? ''))
 const resourceUuid = computed(() => String(route.params.resourceUuid ?? ''))
+const projectUuidParam = computed(() => {
+  const raw = route.query.projectUuid
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' && value ? value : null
+})
 const panelParam = computed(() => String(route.params.panel ?? 'editor'))
-const activePanel = computed(() => (SUPPORTED_PANELS.includes(panelParam.value as (typeof SUPPORTED_PANELS)[number]) ? panelParam.value : 'editor'))
+const activePanel = computed(() => {
+  return SUPPORTED_PANELS.includes(panelParam.value as (typeof SUPPORTED_PANELS)[number]) ? panelParam.value : 'editor'
+})
 
 const workspaceExists = computed(() => store.workspaces.some((workspace) => workspace.uuid === workspaceUuidParam.value))
 const canonicalResolving = ref(false)
@@ -77,76 +81,16 @@ const resourceQuery = useQuery({
   queryFn: async () => resourceApi.getResource(resourceUuid.value),
 })
 
-const instancesQuery = useQuery({
-  queryKey: computed(() => platformQueryKeys.resourceInstances(resourceUuid.value)),
-  enabled: computed(() => Boolean(resourceUuid.value && workspaceExists.value)),
-  queryFn: async () => resourceApi.listResourceInstances(resourceUuid.value),
-})
-
 const resourceInWorkspace = computed(() => {
   return workspaceResourcesQuery.data.value?.find((resource) => resource.uuid === resourceUuid.value) ?? null
 })
 
-const resolveCanonicalWorkspace = async (): Promise<void> => {
-  if (canonicalResolving.value || resolveTried.value || !resourceUuid.value) {
-    return
-  }
+const workspaceInstanceUuid = computed(() => {
+  return resourceQuery.data.value?.workspace_instance_uuid ?? resourceInWorkspace.value?.workspace_instance_uuid ?? null
+})
 
-  resolveTried.value = true
-  canonicalResolving.value = true
-
-  try {
-    for (const workspace of store.workspaces) {
-      if (workspace.uuid === workspaceUuidParam.value) {
-        continue
-      }
-
-      const resources = await resourceApi.listWorkspaceResources(workspace.uuid)
-      const matched = resources.some((resource) => resource.uuid === resourceUuid.value)
-      if (matched) {
-        await router.replace(`/studio/workspaces/${workspace.uuid}/resources/${resourceUuid.value}/${activePanel.value}`)
-        return
-      }
-    }
-
-    notFoundReason.value = 'resource_not_found_in_accessible_workspaces'
-  } catch (error) {
-    emitBusinessError(error)
-  } finally {
-    canonicalResolving.value = false
-  }
-}
-
-watch(
-  [() => workspaceResourcesQuery.isLoading.value, () => workspaceResourcesQuery.data.value, () => resourceQuery.isSuccess.value],
-  async ([loading, resources, resourceReady]) => {
-    if (loading || !resourceReady || !resources) {
-      return
-    }
-
-    if (!resources.some((resource) => resource.uuid === resourceUuid.value)) {
-      await resolveCanonicalWorkspace()
-    }
-  },
-  { immediate: true },
-)
-
-watch(
-  workspaceUuidParam,
-  () => {
-    resolveTried.value = false
-    notFoundReason.value = ''
-  },
-)
-
-const panelLinks = computed(() => {
-  const base = `/studio/workspaces/${workspaceUuidParam.value}/resources/${resourceUuid.value}`
-  return [
-    { key: 'editor', label: 'Editor', to: `${base}/editor` },
-    { key: 'run', label: 'Run', to: `${base}/run` },
-    { key: 'versions', label: 'Versions', to: `${base}/versions` },
-    { key: 'refs', label: 'Refs', to: `${base}/refs` },
-  ]
+const latestPublishedInstanceUuid = computed(() => {
+  return resourceQuery.data.value?.latest_published_instance_uuid ?? null
 })
 
 const workbenchComponent = computed(() => {
@@ -154,7 +98,6 @@ const workbenchComponent = computed(() => {
   if (!type) {
     return null
   }
-
   if (type === 'uiapp') {
     return UiAppWorkbenchPanel
   }
@@ -181,46 +124,86 @@ const workbenchProps = computed(() => {
   if (!data) {
     return null
   }
-
-  const workspaceInstanceUuidFromSummary = resourceInWorkspace.value?.workspace_instance_uuid ?? null
-  const workspaceInstanceUuidFromDetail = data.workspace_instance_uuid ?? null
-
   return {
     resourceName: data.name,
-    workspaceInstanceUuid: workspaceInstanceUuidFromDetail || workspaceInstanceUuidFromSummary,
-    latestPublishedInstanceUuid: data.latest_published_instance_uuid,
+    workspaceInstanceUuid: workspaceInstanceUuid.value,
+    latestPublishedInstanceUuid: latestPublishedInstanceUuid.value,
     workspaceInstance: data.workspace_instance,
   }
 })
-
-const formatDate = (value: string): string => {
-  return new Intl.DateTimeFormat(locale.value, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
-}
-
-const goBack = async (): Promise<void> => {
-  await router.push('/resources')
-}
 
 const refreshAll = async (): Promise<void> => {
   await Promise.all([
     store.loadPlatformContext(),
     workspaceResourcesQuery.refetch(),
     resourceQuery.refetch(),
-    instancesQuery.refetch(),
   ])
 }
 
+provideResourceWorkbenchContext({
+  workspaceUuid: workspaceUuidParam,
+  projectUuid: projectUuidParam,
+  resourceUuid,
+  panel: activePanel,
+  resource: computed(() => resourceQuery.data.value ?? null),
+  workspaceInstanceUuid,
+  latestPublishedInstanceUuid,
+  workspaceInstance: computed(() => resourceQuery.data.value?.workspace_instance ?? null),
+  refresh: refreshAll,
+})
+
+const resolveCanonicalWorkspace = async (): Promise<void> => {
+  if (canonicalResolving.value || resolveTried.value || !resourceUuid.value) {
+    return
+  }
+
+  resolveTried.value = true
+  canonicalResolving.value = true
+
+  try {
+    for (const workspace of store.workspaces) {
+      if (workspace.uuid === workspaceUuidParam.value) {
+        continue
+      }
+
+      const resources = await resourceApi.listWorkspaceResources(workspace.uuid)
+      const matched = resources.some((resource) => resource.uuid === resourceUuid.value)
+      if (matched) {
+        await router.replace(`/studio/workspaces/${workspace.uuid}/resources/${resourceUuid.value}/${activePanel.value}`)
+        return
+      }
+    }
+    notFoundReason.value = 'resource_not_found_in_accessible_workspaces'
+  } catch (error) {
+    emitBusinessError(error)
+  } finally {
+    canonicalResolving.value = false
+  }
+}
+
+watch(
+  [() => workspaceResourcesQuery.isLoading.value, () => workspaceResourcesQuery.data.value, () => resourceQuery.isSuccess.value],
+  async ([loading, resources, resourceReady]) => {
+    if (loading || !resourceReady || !resources) {
+      return
+    }
+    if (!resources.some((resource) => resource.uuid === resourceUuid.value)) {
+      await resolveCanonicalWorkspace()
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  workspaceUuidParam,
+  () => {
+    resolveTried.value = false
+    notFoundReason.value = ''
+  },
+)
+
 const loading = computed(() => {
-  return (
-    store.loading ||
-    workspaceResourcesQuery.isLoading.value ||
-    resourceQuery.isLoading.value ||
-    instancesQuery.isLoading.value ||
-    canonicalResolving.value
-  )
+  return store.loading || workspaceResourcesQuery.isLoading.value || resourceQuery.isLoading.value || canonicalResolving.value
 })
 
 const shouldShowMissing = computed(() => {
@@ -244,54 +227,14 @@ const shouldShowMissing = computed(() => {
 </script>
 
 <template>
-  <ResourceWorkbenchShell
-    :resource-name="resourceQuery.data.value?.name ?? 'Resource Workbench'"
-    :resource-type="resourceQuery.data.value?.resource_type ?? '-'"
-    :workspace-label="store.currentWorkspace?.name ?? workspaceUuidParam"
-    :loading="loading"
-    :panels="panelLinks"
-    :active-panel="activePanel"
-    @back="goBack"
-    @refresh="refreshAll"
-  >
-    <template #left>
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-sm">Versions</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-2">
-          <template v-if="instancesQuery.isLoading.value">
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
-          </template>
-          <template v-else>
-            <div
-              v-for="instance in instancesQuery.data.value ?? []"
-              :key="instance.uuid"
-              class="rounded-md border px-2 py-1.5"
-            >
-              <p class="truncate text-xs font-medium">{{ instance.version_tag }}</p>
-              <div class="mt-1 flex items-center justify-between gap-2">
-                <Badge variant="outline" class="text-[10px]">{{ instance.status }}</Badge>
-                <span class="text-[10px] text-muted-foreground">{{ formatDate(instance.created_at) }}</span>
-              </div>
-            </div>
-            <p v-if="!(instancesQuery.data.value ?? []).length" class="text-xs text-muted-foreground">No versions found.</p>
-          </template>
-        </CardContent>
-      </Card>
-    </template>
-
-    <template v-if="loading">
-      <div class="space-y-3">
+  <div class="min-h-screen bg-background p-4 md:p-6">
+    <div class="mx-auto max-w-[1600px] space-y-4">
+      <template v-if="loading">
         <Skeleton class="h-24 w-full" />
         <Skeleton class="h-52 w-full" />
-      </div>
-    </template>
+      </template>
 
-    <template v-else-if="shouldShowMissing">
-      <Card>
+      <Card v-else-if="shouldShowMissing">
         <CardHeader>
           <CardTitle>Resource Not Available</CardTitle>
         </CardHeader>
@@ -302,14 +245,14 @@ const shouldShowMissing = computed(() => {
           <p v-else>Resource is unavailable for this route.</p>
         </CardContent>
       </Card>
-    </template>
 
-    <template v-else-if="workbenchComponent && workbenchProps">
-      <component :is="workbenchComponent" v-bind="workbenchProps" />
-    </template>
+      <component
+        :is="workbenchComponent"
+        v-else-if="workbenchComponent && workbenchProps"
+        v-bind="workbenchProps"
+      />
 
-    <template v-else>
-      <Card>
+      <Card v-else>
         <CardHeader>
           <CardTitle>Unsupported Resource Type</CardTitle>
         </CardHeader>
@@ -317,41 +260,6 @@ const shouldShowMissing = computed(() => {
           The resource type <code>{{ resourceQuery.data.value?.resource_type }}</code> is not supported by current workbench packages.
         </CardContent>
       </Card>
-    </template>
-
-    <template #right>
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-sm">Resource Metadata</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-2 text-xs">
-          <div>
-            <p class="text-muted-foreground">Resource UUID</p>
-            <p class="break-all font-mono">{{ resourceUuid }}</p>
-          </div>
-          <div>
-            <p class="text-muted-foreground">Workspace UUID</p>
-            <p class="break-all font-mono">{{ workspaceUuidParam }}</p>
-          </div>
-          <div>
-            <p class="text-muted-foreground">Updated At</p>
-            <p>{{ resourceQuery.data.value?.updated_at ? formatDate(resourceQuery.data.value.updated_at) : '-' }}</p>
-          </div>
-          <div>
-            <p class="text-muted-foreground">Creator</p>
-            <p>{{ resourceQuery.data.value?.creator?.nick_name || resourceQuery.data.value?.creator?.uuid || '-' }}</p>
-          </div>
-        </CardContent>
-      </Card>
-    </template>
-
-    <template #footer>
-      <div class="flex items-center justify-between">
-        <span>Immersive workbench mode enabled.</span>
-        <span>
-          {{ resourceQuery.data.value?.latest_published_instance_uuid ? 'Published version available' : 'Draft only' }}
-        </span>
-      </div>
-    </template>
-  </ResourceWorkbenchShell>
+    </div>
+  </div>
 </template>

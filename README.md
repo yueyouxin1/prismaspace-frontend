@@ -17,6 +17,7 @@
 - `prismaspace-frontend/doc/prisma-space-ui.md`：UI 美学规范（全局项目视野）
 - `prismaspace-frontend/doc/prisma-space-pages-ui.md`：UI 美学规范（细节与模块）
 - `prismaspace-frontend/doc/prisma-space-runtime.md`：资源运行时面板前端架构指导
+- `prismaspace-frontend/doc/resource-workbench-boundary.md`：Resource Workbench 宿主与资源子包职责边界
 - `prismaspace-frontend/doc/ui-development-guidelines.md`：UI 组件选型与兜底路径
 - `prismaspace-frontend/doc/Vue通用架构与开发规范指南.md`：Vue 工程结构与编码规范
 
@@ -108,6 +109,14 @@ src/app/
 - 一切资源编辑默认作用于 `WORKSPACE` 实例。
 - 发布与编辑必须分离，禁止在发布态写入编辑数据。
 - 路由参数、缓存键、引用关系统一使用 UUID，禁止依赖自增 ID。
+
+### 4.1 资源工作台实现规范（强制）
+
+- 资源具体实现是非普适性的，不应由宿主工作台提供固定门面 UI。
+- `apps/studio-web/src/views/workbench` 应作为纯路由容器使用，不承载固定顶部导航、固定 tabs、固定 Versions/Metadata 面板等统一布局。
+- 每一种资源应基于自身特性独立设计与实现工作台 UI，确保体验与资源语义一致。
+- 宿主层可以沉淀可复用的通用非 UI 能力（如 autosave、versions、refs 等），由资源子包按需接入并自行完成 UI 呈现。
+- 在开始资源工作台 UI 设计前，必须先回答“该资源如何为用户带来更好的沉浸式与友好体验”，再进入视觉与交互实现。
 
 ---
 

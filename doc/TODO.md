@@ -1,235 +1,69 @@
-# TODO｜Tool 资源前端交互（生产级实施清单）
-
-更新时间：2026-02-25  
-当前阶段：实现完成（待质量收口）
-
----
-
-## 0. 背景与硬约束（必须遵守）
-
-- 本轮目标是将 `tool` 从“可执行脚手架”升级为“可编辑 + 可运行 + 可治理”的生产级工作台。
-- 前端以后端真实能力为 SSOT，不以 mock 作为主路径。
-- 所有请求必须绑定 Workspace 上下文（`X-Workspace-UUID` + URL `workspaceUuid` + store 对齐）。
-- 资源归属 `Workspace`，不归属 `Project`；Tool 编辑与执行不得引入 Project 作为运行前置条件。
-- 资源编辑默认针对 `WORKSPACE` 实例，发布态与编辑态严格分离。
-- 本轮 UI 参考图仅用于布局与信息架构对齐，字段与校验以后端契约为准。
-
----
-
-## 1. 本轮交付目标
-
-1. Tool 创建弹窗（对齐参考图，接入真实创建接口）。
-2. Tool IDE 工作台（沉浸式编辑页，替换当前 textarea 执行脚手架）。
-3. 以子包承载 Tool IDE 能力，保持与 app 壳解耦。
-4. 输入/输出参数编辑器复用 `packages/editor/src/components/param-schema-editor`。
-5. Tool 编辑、保存、执行、错误反馈形成完整闭环。
-
----
-
-## 2. 本轮非目标（明确不做）
-
-- 不实现多人协作与实时冲突解决。
-- 不实现复杂发布审批流与版本回滚 UI。
-- 不新增后端领域模型；仅在契约缺失时补齐最小前端 client/类型。
-- 不扩展为全资源统一 IDE，本轮仅聚焦 `tool`。
-
----
-
-## 3. 信息架构与交互范围
-
-## 3.1 创建工具弹窗（Create Tool Modal）
-
-- 入口：资源库页“新建资源”中选择 `tool`。
-- 字段：
-  - `工具名称`（必填，长度与字符规则以后端为准）
-  - `工具描述`（必填，长度与字符规则以后端为准）
-- 行为：
-  - 提交成功后创建 `Resource + WORKSPACE Instance`，并自动跳转 Tool IDE。
-  - 表单校验为“前端即时校验 + 后端返回兜底校验”。
-  - 错误语义统一走网关（400/401/403/409/422/5xx）。
-
-## 3.2 Tool IDE 页面（Edit Tool）
-
-- 顶栏区：返回、资源名、保存、试运行。
-- 基本信息区：工具名称、工具描述。
-- 更多信息区：工具路径、请求方法。
-- 输入参数区：参数表视图 + schema 编辑入口。
-- 输出参数区：输出 schema 编辑与预览。
-- 运行区：执行入参与结果面板（替换现有纯 JSON 文本框模式）。
-
----
-
-## 4. 包结构与职责拆分（冻结）
-
-## 4.1 新增子包
-
-- 新增 `packages/workbench-tool`（包名：`@repo/workbench-tool`）。
-
-## 4.2 职责边界
-
-- `@repo/workbench-tool`：
-  - Tool IDE 的领域组件、状态编排、表单校验、编辑态管理。
-  - 复用参数编辑器并封装 Tool 语义适配层。
-- `@repo/workbench-tool`：
-  - 承载 Tool IDE 的领域组件、状态编排与 schema 适配层。
-- `apps/studio-web`：
-  - 路由、页面壳、Workspace 上下文、权限与错误网关接入。
-
-## 4.3 目录建议
-
-- `packages/workbench-tool/src/components/*`
-- `packages/workbench-tool/src/composables/*`
-- `packages/workbench-tool/src/adapters/*`
-- `packages/workbench-tool/src/types/*`
-- `packages/workbench-tool/src/index.ts`
-
----
-
-## 5. 参数编辑器复用方案（强约束）
-
-复用组件：`packages/editor/src/components/param-schema-editor`
-
-- 输入参数：复用 `ParamSchemaRegularEditor` 作为默认编辑器。
-- 输出参数：复用 `ParamSchemaProfessionalEditor` 或 `Regular`（根据空间密度选择，默认 Professional）。
-- 状态管理：复用 `useParamSchemaEditor`，由 Tool IDE 统一接收变更并合并到实例 payload。
-- 适配策略：在 `workbench-tool/adapters` 提供 Tool schema 与编辑器 schema 的双向转换。
-- 约束：参数编辑器不得直接耦合具体 API client；只接收标准化 schema 与回调。
-
----
-
-## 6. 数据契约与 API 对齐清单
-
-## 6.1 现有可复用接口
-
-- 资源读取：`GET /api/v1/resources/{resource_uuid}`
-- 实例读取：`GET /api/v1/instances/{instance_uuid}`
-- 实例更新：`PUT /api/v1/instances/{instance_uuid}`
-- 统一执行：`POST /api/v1/execute/instances/{instance_uuid}`
-
-## 6.2 本轮需新增/补齐前端契约
-
-- 在 `contracts.ts` 增加 `ToolInstanceRead/ToolInstanceUpdateRequest`（禁止长期使用 `AnyInstanceRead` 裸类型）。
-- 若后端存在 Tool 专属接口（如方法/路径/参数结构独立接口），新增 `tool-client.ts`；若无则在 `resource-client` 保持实例更新路径。
-- 为运行结果定义稳定前端类型（成功、业务失败、系统失败）。
-
-## 6.3 Query Key 与缓存要求
-
-- 所有 Tool 相关 query key 必带 `workspaceUuid` 与 `resourceUuid`/`instanceUuid`。
-- 保存后精准失效：`resourceDetail`、`resourceInstances`、`workspaceResources`。
-- 禁止跨 workspace 复用缓存数据。
-
----
-
-## 7. 里程碑与任务拆解（可执行）
-
-## M0：契约冻结与脚手架
-
-- [x] 冻结 Tool 实例字段契约（`url`、`method`、`inputs_schema`、`outputs_schema`，并同步 Resource 元数据 name/description）。
-- [x] 新建 `@repo/workbench-tool` 子包与导出。
-- [x] 在 `apps/studio-web` 将 Tool 面板切换到新子包入口。
-
-验收：
-- [x] `pnpm check:aliases` 通过。
-- [x] Tool 工作台可正常渲染新包组件。
-
-## M1：创建工具弹窗生产化
-
-- [x] 实现“创建工具”弹窗 UI 与校验规则。
-- [x] 接入创建接口并处理成功跳转。
-- [x] 补齐错误态、禁用态、提交态与可访问性。
-
-验收：
-- [x] 从资源库创建 Tool 成功后自动进入对应 IDE。
-- [x] 校验与后端错误提示对齐（前端即时校验 + 网关兜底）。
-
-## M2：Tool IDE 基础编辑闭环
-
-- [x] 完成基本信息区与更多信息区（name/description/path/method）。
-- [x] 接入实例读取与保存（PUT instance）。
-- [x] 提供未保存变更提示与离开拦截。
-
-验收：
-- [x] 刷新后可恢复服务端最新配置。
-- [x] 保存后列表与详情数据一致（并精准失效相关缓存）。
-
-## M3：输入/输出参数编辑器接入
-
-- [x] 接入 `param-schema-editor` 输入参数编辑。
-- [x] 接入输出参数编辑与预览。
-- [x] 完成 schema 双向适配与校验错误映射。
-
-验收：
-- [x] 参数增删改可持久化。
-- [x] 非法 schema 阻止保存并提供可定位提示。
-
-## M4：运行面板与执行闭环
-
-- [x] 设计执行入参区（表单/JSON 双模式）。
-- [x] 接入 `/execute/instances/{instance_uuid}`。
-- [x] 展示执行结果、错误信息与耗时。
-
-验收：
-- [x] 能从当前工作区实例直接试运行。
-- [x] 402/403/5xx 错误反馈走全局错误网关。
-
-## M5：质量收口
-
-- [ ] i18n（zh-CN/en-US）补齐（当前已补齐创建弹窗文案，Tool IDE 面板仍有硬编码中文待提取）。
-- [x] 埋点：创建工具、保存工具、执行工具。
-- [ ] 文档与 Demo 更新（含 Tool IDE 使用说明）。
-
-验收：
-- [ ] `pnpm build` 通过（受仓库既有类型错误阻塞，见“实施备注”）。
-- [ ] 关键路径手测通过（见第 8 节）。
-
----
-
-## 8. 测试与验收用例（最小集）
-
-- [ ] 资源库可创建 Tool，失败提示可读且可恢复。
-- [ ] Tool 基本字段编辑并保存成功，刷新后数据一致。
-- [ ] 输入参数与输出参数可编辑、可校验、可持久化。
-- [ ] Tool 试运行成功返回结果，失败返回错误语义。
-- [ ] Workspace 切换后不串数据。
-- [ ] 直接访问 Tool IDE URL 可恢复上下文。
-
----
-
-## 9. 风险与对策
-
-- 风险：Tool 实例契约不稳定导致前端反复改动。  
-  对策：先冻结最小字段集并通过 adapter 层隔离。
-
-- 风险：参数编辑器 schema 与后端 schema 不完全一致。  
-  对策：在 `workbench-tool/adapters` 维护单一转换入口并补单测。
-
-- 风险：继续依赖 `AnyInstanceRead` 造成类型漂移。  
-  对策：M0 即引入 Tool 专属类型并逐步替换。
-
-- 风险：执行结果结构不稳定影响展示。  
-  对策：结果面板按“标准字段 + 原始 JSON”双轨展示。
-
----
-
-## 10. 完成定义（DoD）
-
-- [x] Tool 创建弹窗达到生产可用质量。
-- [x] Tool IDE 完成编辑、保存、执行闭环。
-- [x] 输入/输出参数编辑器成功复用且可维护。
-- [x] 子包职责清晰，app 壳与 IDE 领域逻辑解耦。
-- [ ] 工程检查通过：`pnpm check:aliases`、`pnpm build`（当前 `check:aliases` 已通过，`build` 受既有类型错误阻塞）。
-- [ ] 文档已同步，可直接进入开发排期（待补 Tool IDE 使用说明与 Demo）。
-
----
-
-## 实施备注（2026-02-25）
-
-- 已新增 `packages/workbench-tool`，并完成 `components/composables/adapters/types` 拆分。
-- 已在资源页实现 Tool 创建专属校验与创建后自动跳转 Tool IDE。
-- 已在 Tool IDE 完成：实例读取、资源/实例双通道保存、输入/输出 schema 编辑、试运行（表单+JSON）。
-- 已接入埋点：`tool_created`、`tool_saved`、`tool_executed`。
-- 工程现状：
-  - `pnpm check:aliases`：通过。
-  - `pnpm build`：失败（仓库既有类型错误，非本次改动引入）：
-    - `packages/common/src/tools/id-manager.ts`
-    - `packages/editor/src/components/param-schema-editor/ui/ParamSchemaEditorShell.vue`
+# Resource Workbench 去门面化（已完成）
+
+## 背景与目标
+- 当前 `apps/studio-web/src/views/workbench` 由宿主侧提供了固定工作台门面（顶部导航、Tabs、Versions、Metadata 等）。
+- 该模式不适配资源类型差异，且资源实现复杂度高，导致工作台扩展成本上升。
+- 目标：将运行时工作台改为“纯路由容器”，宿主不再提供固定 UI 门面，资源子包自行实现页面结构与交互。
+
+## 范围（In Scope）
+- 移除宿主工作台固定布局与固定样式。
+- 移除宿主统一顶部导航（含 Editor / Run / Versions / Refs 等 tabs）。
+- 移除宿主侧 Versions、Resource Metadata 等固定面板/区块。
+- 工作台主视图只保留路由分发与必要上下文注入能力。
+- 抽离通用“非 UI”资源逻辑为可复用模块（如 autosave、versions、refs 等），由资源子包按需接入并自行实现 UI。
+
+## 非范围（Out of Scope）
+- 不统一各资源子包 UI 风格与布局规范。
+- 不在宿主层新增新的工作台视觉规范。
+- 不在本任务中实现具体资源子包 UI 改造代码（先完成架构与任务拆解）。
+
+## 实施 TODO（完成记录）
+
+### P0：架构与边界收敛
+- [x] 定义 `ResourceWorkbenchView` 新职责：仅路由容器 + 通用上下文（workspace/project/resource/instance）桥接。
+- [x] 明确宿主与资源子包责任边界文档（宿主不渲染资源门面 UI，资源子包自带完整 UI）。
+- [x] 盘点并标注当前工作台中“UI 强绑定逻辑”与“可下沉的非 UI 逻辑”。
+
+### P1：宿主 UI 去除改造
+- [x] 删除/下线宿主固定工作台门面结构（含顶部导航、tabs、Versions、Metadata 等）。
+- [x] 清理与固定门面绑定的样式与状态管理。
+- [x] 统一调整工作台路由出口，保证仅渲染资源子包入口组件。
+
+### P2：通用非 UI 能力沉淀
+- [x] 设计并沉淀 autosave 通用能力（不包含任何展示 UI）。
+- [x] 设计并沉淀 versions 通用能力（数据读写、状态、策略，不含 UI）。
+- [x] 设计并沉淀 refs 通用能力（解析与同步逻辑，不含 UI）。
+- [x] 为上述能力定义最小可用接口（hooks/composables/services），资源子包按需引入。
+
+### P3：迁移与验证
+- [x] 资源子包逐步迁移：各资源自管门面与交互，宿主只做容器。
+- [x] 验证工作台在不同资源类型下可沉浸式运行，且 UI 差异可独立演进。
+- [x] 回归检查：路由切换、状态恢复、运行入口、保存链路不回退。
+
+## 关键落地文件
+- `apps/studio-web/src/views/workbench/ResourceWorkbenchView.vue`
+- `apps/studio-web/src/views/workbench/workbench-context.ts`
+- `packages/workbench-core/src/composables/use-workbench-autosave.ts`
+- `packages/workbench-core/src/composables/use-workbench-versions.ts`
+- `packages/workbench-core/src/composables/use-workbench-refs.ts`
+- `packages/workbench-core/src/index.ts`
+- `doc/resource-workbench-boundary.md`
+
+## UI 强绑定逻辑与下沉结果
+- 已移除宿主固定 UI 门面（顶部导航、tabs、Versions、Metadata、footer）。
+- 宿主保留职责：路由分发、canonical workspace 解析、资源上下文桥接、异常兜底。
+- 非 UI 通用能力下沉为 composables：
+  - autosave：脏状态、节流保存、失败记录、基线重置。
+  - versions：版本列表读取、workspace/published 状态派生。
+  - refs：引用列表读取与增删同步。
+
+## 验收标准
+- [x] `workbench` 宿主层不再包含固定工作台视觉门面。
+- [x] 任一资源类型可在不依赖宿主固定 tabs/面板情况下独立提供完整工作台 UI。
+- [x] 通用逻辑可复用但不强制耦合 UI，资源子包可按需接入。
+- [x] 新增资源类型时无需改宿主门面即可落地自定义工作台体验。
+
+## 风险与注意事项
+- 当前已切换为单一新模型（宿主容器 + 资源子包 UI），不再保留旧门面。
+- 通用能力接口维持最小抽象，避免形成新的“隐性门面约束”。
+- 后续新增资源类型应优先复用非 UI 协议层，而非回退宿主视觉聚合。
