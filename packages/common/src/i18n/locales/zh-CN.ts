@@ -382,6 +382,19 @@ const zhCN = {
         noTableFound: '未找到数据表。',
         noTableSelected: '未选择数据表',
         dropTable: '删除表',
+        tableSchemaDialogTitle: '编辑表结构',
+        contextMenu: {
+          queryData: '查询数据...',
+          editSchema: '编辑结构...',
+          insertRow: '插入行...',
+          deleteTable: '删除表...',
+        },
+        ide: {
+          breadcrumbSchema: '表结构',
+          breadcrumbData: '数据',
+          breadcrumbSql: 'SQL',
+          contextMenuHint: '右键左侧表节点进行操作',
+        },
         tabs: {
           data: '数据',
           schema: '结构',

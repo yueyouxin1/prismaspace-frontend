@@ -383,6 +383,19 @@ const enUS = {
         noTableFound: 'No table found.',
         noTableSelected: 'No table selected',
         dropTable: 'Drop Table',
+        tableSchemaDialogTitle: 'Edit Table Schema',
+        contextMenu: {
+          queryData: 'Query Data...',
+          editSchema: 'Edit Schema...',
+          insertRow: 'Insert Row...',
+          deleteTable: 'Delete Table...',
+        },
+        ide: {
+          breadcrumbSchema: 'Schema',
+          breadcrumbData: 'Data',
+          breadcrumbSql: 'SQL',
+          contextMenuHint: 'Right-click table nodes in explorer for actions',
+        },
         tabs: {
           data: 'Data',
           schema: 'Schema',

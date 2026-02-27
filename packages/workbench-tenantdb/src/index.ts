@@ -1,1 +1,8 @@
 export { default as TenantDbWorkbenchScaffold } from './TenantDbWorkbenchScaffold.vue'
+export { default as TenantDbIdeWorkbench } from './TenantDbIdeWorkbench.vue'
+export { default as TenantDbExplorerTree } from './sections/TenantDbExplorerTree.vue'
+export { default as TenantDbDataWorkspace } from './sections/TenantDbDataWorkspace.vue'
+export { default as TenantDbTableContextMenu } from './components/TenantDbTableContextMenu.vue'
+export { default as TenantDbQueryBuilderDialog } from './dialogs/TenantDbQueryBuilderDialog.vue'
+export { default as TenantDbTableSchemaDialog } from './dialogs/TenantDbTableSchemaDialog.vue'
+export type * from './types/tenantdb-ide'

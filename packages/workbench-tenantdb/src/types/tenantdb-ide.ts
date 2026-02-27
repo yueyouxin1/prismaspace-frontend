@@ -41,6 +41,8 @@ export interface TenantDataQueryApplied {
   filters?: JsonRecord | [string, TenantDbFilterOperator, unknown][]
 }
 
+export type TenantWorkspaceTab = 'data' | 'sql'
+
 export type TenantExplorerNodeKind = 'table' | 'column'
 
 export interface TenantExplorerNode {
@@ -86,6 +88,9 @@ export interface TenantPageState {
   totalCount: number
   pageCount: number
   visibleColumns: string[]
+  currentPage: number
+  canPreviousPage: boolean
+  canNextPage: boolean
 }
 
 export interface TenantSqlState {
@@ -97,11 +102,12 @@ export interface TenantSqlState {
 
 export interface TenantWorkspaceViewModel {
   selectedTable: TenantTableRead | null
-  activeTab: 'data' | 'sql'
+  activeTab: TenantWorkspaceTab
   loadingRows: boolean
   pageState: TenantPageState
-  appliedQuery: {
-    page: number
-  }
+  tablesLoading: boolean
+  selectedTableUuid: string
+  tableSearchText: string
+  appliedQuery: TenantDataQueryApplied
   sql: TenantSqlState
 }

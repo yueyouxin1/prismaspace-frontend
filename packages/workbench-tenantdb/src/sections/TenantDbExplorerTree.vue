@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import type { HTMLAttributes } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronRight, IconDatabase, IconPlus, IconSearch, IconTable } from '@tabler/icons-vue'
 import { Badge } from '@repo/ui-shadcn/components/ui/badge'
@@ -12,6 +13,7 @@ import {
 import { Input } from '@repo/ui-shadcn/components/ui/input'
 import { ScrollArea } from '@repo/ui-shadcn/components/ui/scroll-area'
 import { Skeleton } from '@repo/ui-shadcn/components/ui/skeleton'
+import { cn } from '@repo/ui-shadcn/lib/utils'
 import type { TenantTableRead } from '@app/services/api/contracts'
 import TenantDbTableContextMenu from '../components/TenantDbTableContextMenu.vue'
 import type { TenantExplorerActionPayload } from '../types/tenantdb-ide'
@@ -22,10 +24,12 @@ const props = withDefaults(
     selectedTableUuid: string
     loading?: boolean
     searchText?: string
+    class?: HTMLAttributes['class']
   }>(),
   {
     loading: false,
     searchText: '',
+    class: undefined,
   },
 )
 
@@ -83,8 +87,8 @@ watch(
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 flex-col border-r bg-muted/20">
-    <div class="border-b px-3 py-3">
+  <section :class="cn('flex h-full min-h-0 flex-col bg-muted/20', props.class)">
+    <div class="border-b bg-background/60 px-3 py-3">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <IconDatabase class="size-4 text-muted-foreground" />
@@ -124,7 +128,7 @@ watch(
               :table-uuid="table.uuid"
               @action="openAction"
             >
-              <div class="group/tree-item rounded-md border border-transparent bg-background transition-colors hover:bg-accent/60">
+              <div class="group/tree-item rounded-md border border-transparent bg-background/90 transition-colors hover:bg-accent/60">
                 <CollapsibleTrigger as-child>
                   <button
                     type="button"
@@ -166,4 +170,3 @@ watch(
     </ScrollArea>
   </section>
 </template>
-

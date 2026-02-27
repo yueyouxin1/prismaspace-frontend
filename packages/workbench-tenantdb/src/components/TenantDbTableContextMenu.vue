@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { IconEdit, IconPlus, IconSearch, IconTrash } from '@tabler/icons-vue'
 import {
   ContextMenu,
@@ -16,6 +17,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'action', payload: { tableUuid: string; action: TenantTableContextAction }): void
 }>()
+const { t } = useI18n()
 
 const emitAction = (action: TenantTableContextAction): void => {
   emit('action', {
@@ -33,22 +35,21 @@ const emitAction = (action: TenantTableContextAction): void => {
     <ContextMenuContent class="w-48">
       <ContextMenuItem class="gap-2" @select="emitAction('query')">
         <IconSearch class="size-4" />
-        <span>Query Data...</span>
+        <span>{{ t('platform.workbench.tenantdb.contextMenu.queryData') }}</span>
       </ContextMenuItem>
       <ContextMenuItem class="gap-2" @select="emitAction('schema')">
         <IconEdit class="size-4" />
-        <span>Edit Schema...</span>
+        <span>{{ t('platform.workbench.tenantdb.contextMenu.editSchema') }}</span>
       </ContextMenuItem>
       <ContextMenuItem class="gap-2" @select="emitAction('insert')">
         <IconPlus class="size-4" />
-        <span>Insert Row...</span>
+        <span>{{ t('platform.workbench.tenantdb.contextMenu.insertRow') }}</span>
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem variant="destructive" class="gap-2" @select="emitAction('delete')">
         <IconTrash class="size-4" />
-        <span>Delete Table...</span>
+        <span>{{ t('platform.workbench.tenantdb.contextMenu.deleteTable') }}</span>
       </ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>
 </template>
-
