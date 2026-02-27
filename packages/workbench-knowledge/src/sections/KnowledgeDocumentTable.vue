@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@repo/ui-shadcn/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui-shadcn/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -55,7 +56,11 @@ import {
 } from '@repo/ui-shadcn/components/ui/table'
 import KnowledgeDocumentActionsMenu from '../components/KnowledgeDocumentActionsMenu.vue'
 import KnowledgeTaskStatusBadge from '../components/KnowledgeTaskStatusBadge.vue'
-import type { KnowledgeDocumentItem, KnowledgeTaskProgress } from '../types/knowledge-ide'
+import type {
+  KnowledgeDocumentItem,
+  KnowledgeDocumentReplacePayload,
+  KnowledgeTaskProgress,
+} from '../types/knowledge-ide'
 
 const props = withDefaults(
   defineProps<{
@@ -80,7 +85,8 @@ const emit = defineEmits<{
   (event: 'refresh'): void
   (event: 'select-document', documentUuid: string): void
   (event: 'rename-document', payload: { documentUuid: string; fileName: string }): void
-  (event: 'replace-document', payload: { documentUuid: string; sourceUri: string; fileName?: string }): void
+  (event: 'replace-document-from-local', payload: { documentUuid: string }): void
+  (event: 'replace-document-from-url', payload: KnowledgeDocumentReplacePayload): void
   (event: 'remove-document', documentUuid: string): void
   (event: 'remove-documents', documentUuids: string[]): void
   (event: 'update:page', value: number): void
@@ -98,6 +104,7 @@ const rowSelection = ref<Record<string, boolean>>({})
 const rowActionDocument = ref<KnowledgeDocumentItem | null>(null)
 const renameDialogOpen = ref(false)
 const replaceDialogOpen = ref(false)
+const replaceMode = ref<'local' | 'url'>('local')
 const removeDialogOpen = ref(false)
 const bulkRemoveDialogOpen = ref(false)
 const renameValue = ref('')
@@ -116,6 +123,7 @@ const openRenameDialog = (document: KnowledgeDocumentItem): void => {
 
 const openReplaceDialog = (document: KnowledgeDocumentItem): void => {
   rowActionDocument.value = document
+  replaceMode.value = 'local'
   replaceSourceUri.value = document.source_uri
   replaceFileName.value = document.file_name
   replaceDialogOpen.value = true
@@ -317,10 +325,20 @@ const handleReplaceConfirm = (): void => {
   if (!sourceUri) {
     return
   }
-  emit('replace-document', {
+  emit('replace-document-from-url', {
     documentUuid: rowActionDocument.value.uuid,
     sourceUri,
     fileName: replaceFileName.value.trim() || undefined,
+  })
+  replaceDialogOpen.value = false
+}
+
+const handleReplaceFromLocal = (): void => {
+  if (!rowActionDocument.value) {
+    return
+  }
+  emit('replace-document-from-local', {
+    documentUuid: rowActionDocument.value.uuid,
   })
   replaceDialogOpen.value = false
 }
@@ -474,13 +492,33 @@ const handleBulkRemoveConfirm = (): void => {
           <DialogTitle>{{ t('platform.workbench.knowledge.dialogs.replaceTitle') }}</DialogTitle>
           <DialogDescription>{{ t('platform.workbench.knowledge.dialogs.replaceDescription') }}</DialogDescription>
         </DialogHeader>
-        <div class="space-y-2">
-          <Input v-model="replaceSourceUri" placeholder="source_uri" />
-          <Input v-model="replaceFileName" :placeholder="t('platform.workbench.knowledge.fileNameOptional')" />
-        </div>
+        <Tabs v-model="replaceMode" class="space-y-2">
+          <TabsList class="w-full">
+            <TabsTrigger value="local" class="flex-1">{{ t('platform.workbench.knowledge.sourceModes.local') }}</TabsTrigger>
+            <TabsTrigger value="url" class="flex-1">{{ t('platform.workbench.knowledge.sourceModes.url') }}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="local" class="space-y-2 rounded-md border border-dashed p-3">
+            <p class="text-xs text-muted-foreground">{{ t('platform.workbench.knowledge.sourceModes.localDescription') }}</p>
+            <Button class="w-full" :disabled="mutating" @click="handleReplaceFromLocal">
+              {{ t('platform.workbench.knowledge.sourceModes.chooseLocal') }}
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="url" class="space-y-2">
+            <Input v-model="replaceSourceUri" placeholder="source_uri" />
+            <Input v-model="replaceFileName" :placeholder="t('platform.workbench.knowledge.fileNameOptional')" />
+          </TabsContent>
+        </Tabs>
         <DialogFooter>
           <Button variant="outline" @click="replaceDialogOpen = false">{{ t('common.cancel') }}</Button>
-          <Button :disabled="mutating || !replaceSourceUri.trim()" @click="handleReplaceConfirm">{{ t('platform.workbench.knowledge.dialogs.replaceAction') }}</Button>
+          <Button
+            v-if="replaceMode === 'url'"
+            :disabled="mutating || !replaceSourceUri.trim()"
+            @click="handleReplaceConfirm"
+          >
+            {{ t('platform.workbench.knowledge.dialogs.replaceAction') }}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

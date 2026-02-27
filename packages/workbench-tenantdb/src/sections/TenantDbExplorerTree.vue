@@ -87,23 +87,28 @@ watch(
 </script>
 
 <template>
-  <section :class="cn('flex h-full min-h-0 flex-col bg-muted/20', props.class)">
-    <div class="border-b bg-background/60 px-3 py-3">
+  <section :class="cn('flex h-full min-h-0 flex-col bg-background', props.class)">
+    <div class="border-b bg-muted/30 px-3 py-3">
       <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-          <IconDatabase class="size-4 text-muted-foreground" />
-          <h3 class="text-sm font-semibold">{{ t('platform.workbench.tenantdb.databaseExplorer') }}</h3>
+        <div class="flex min-w-0 items-center gap-2">
+          <div class="inline-flex size-7 items-center justify-center rounded-md bg-background shadow-xs">
+            <IconDatabase class="size-4 text-muted-foreground" />
+          </div>
+          <div class="min-w-0">
+            <h3 class="truncate text-sm font-semibold">{{ t('platform.workbench.tenantdb.databaseExplorer') }}</h3>
+            <p class="text-[11px] text-muted-foreground">{{ filteredTables.length }}/{{ tables.length }}</p>
+          </div>
         </div>
-        <Button size="sm" class="h-8 gap-1 px-2" @click="emit('create-table')">
-          <IconPlus class="size-4" />
+        <Button size="sm" class="h-8 gap-1.5 px-2.5 shadow-xs" @click="emit('create-table')">
+          <IconPlus class="size-3.5" />
           <span class="text-xs">{{ t('platform.workbench.tenantdb.table') }}</span>
         </Button>
       </div>
       <div class="relative mt-3">
-        <IconSearch class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <IconSearch class="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           :model-value="searchText"
-          class="h-8 pl-8"
+          class="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
           :placeholder="t('platform.workbench.tenantdb.searchTable')"
           @update:model-value="emit('update:searchText', String($event))"
         />
@@ -111,11 +116,12 @@ watch(
     </div>
 
     <ScrollArea class="min-h-0 flex-1">
-      <div class="space-y-1 p-2">
+      <div class="space-y-1.5 p-2">
         <template v-if="loading">
-          <Skeleton class="h-8 w-full" />
-          <Skeleton class="h-8 w-full" />
-          <Skeleton class="h-8 w-full" />
+          <Skeleton class="h-9 w-full rounded-lg" />
+          <Skeleton class="h-9 w-full rounded-lg" />
+          <Skeleton class="h-9 w-full rounded-lg" />
+          <Skeleton class="h-9 w-full rounded-lg" />
         </template>
         <template v-else-if="filteredTables.length">
           <Collapsible
@@ -128,34 +134,38 @@ watch(
               :table-uuid="table.uuid"
               @action="openAction"
             >
-              <div class="group/tree-item rounded-md border border-transparent bg-background/90 transition-colors hover:bg-accent/60">
+              <div
+                class="group/tree-item overflow-hidden rounded-lg border bg-card transition-all duration-150"
+                :class="selectedTableUuid === table.uuid
+                  ? 'border-primary/35 bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.15)]'
+                  : 'border-border/80 hover:border-border hover:bg-muted/30'"
+              >
                 <CollapsibleTrigger as-child>
                   <button
                     type="button"
-                    class="flex h-9 w-full items-center gap-2 px-2 text-left"
-                    :class="selectedTableUuid === table.uuid ? 'bg-accent text-accent-foreground' : ''"
+                    class="flex h-8 w-full items-center gap-1.5 px-2.5 text-left"
                     @click="emit('select-table', table.uuid)"
                   >
                     <IconChevronRight
-                      class="size-4 shrink-0 text-muted-foreground transition-transform"
+                      class="size-3.5 shrink-0 text-muted-foreground transition-transform duration-150"
                       :class="isOpen(table.uuid) ? 'rotate-90' : ''"
                     />
-                    <IconTable class="size-4 shrink-0 text-muted-foreground" />
-                    <span class="min-w-0 flex-1 truncate font-mono text-xs">{{ table.name }}</span>
-                    <Badge variant="secondary" class="h-5 shrink-0 px-1.5 text-[10px]">
+                    <IconTable class="size-3.5 shrink-0 text-muted-foreground" />
+                    <span class="min-w-0 flex-1 truncate font-mono text-[12px]">{{ table.name }}</span>
+                    <Badge variant="secondary" class="h-4 shrink-0 rounded-sm px-1.5 text-[10px]">
                       {{ table.columns.length }}
                     </Badge>
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <ul class="space-y-1 px-2 pb-2">
+                  <ul class="space-y-0.5 px-2 pb-2">
                     <li
                       v-for="column in table.columns"
                       :key="column.uuid"
-                      class="flex items-center justify-between rounded-sm px-2 py-1 text-[11px] text-muted-foreground"
+                      class="grid grid-cols-[1fr_auto] items-center gap-2 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/45"
                     >
                       <span class="truncate font-mono">{{ column.name }}</span>
-                      <span class="ml-2 shrink-0 uppercase opacity-70">{{ column.data_type }}</span>
+                      <span class="rounded-sm bg-muted px-1.5 py-0.5 font-medium tracking-wide uppercase">{{ column.data_type }}</span>
                     </li>
                   </ul>
                 </CollapsibleContent>
@@ -163,7 +173,7 @@ watch(
             </TenantDbTableContextMenu>
           </Collapsible>
         </template>
-        <p v-else class="px-2 py-4 text-xs text-muted-foreground">
+        <p v-else class="rounded-lg border border-dashed px-3 py-4 text-xs text-muted-foreground">
           {{ t('platform.workbench.tenantdb.noTableFound') }}
         </p>
       </div>

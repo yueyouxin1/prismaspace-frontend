@@ -32,21 +32,21 @@ const emitAction = (action: TenantTableContextAction): void => {
     <ContextMenuTrigger as-child>
       <slot />
     </ContextMenuTrigger>
-    <ContextMenuContent class="w-48">
-      <ContextMenuItem class="gap-2" @select="emitAction('query')">
+    <ContextMenuContent class="w-52 rounded-lg border bg-popover/95 p-1 shadow-lg backdrop-blur">
+      <ContextMenuItem class="h-8 gap-2 rounded-md text-xs" @select="emitAction('query')">
         <IconSearch class="size-4" />
         <span>{{ t('platform.workbench.tenantdb.contextMenu.queryData') }}</span>
       </ContextMenuItem>
-      <ContextMenuItem class="gap-2" @select="emitAction('schema')">
+      <ContextMenuItem class="h-8 gap-2 rounded-md text-xs" @select="emitAction('schema')">
         <IconEdit class="size-4" />
         <span>{{ t('platform.workbench.tenantdb.contextMenu.editSchema') }}</span>
       </ContextMenuItem>
-      <ContextMenuItem class="gap-2" @select="emitAction('insert')">
+      <ContextMenuItem class="h-8 gap-2 rounded-md text-xs" @select="emitAction('insert')">
         <IconPlus class="size-4" />
         <span>{{ t('platform.workbench.tenantdb.contextMenu.insertRow') }}</span>
       </ContextMenuItem>
       <ContextMenuSeparator />
-      <ContextMenuItem variant="destructive" class="gap-2" @select="emitAction('delete')">
+      <ContextMenuItem variant="destructive" class="h-8 gap-2 rounded-md text-xs" @select="emitAction('delete')">
         <IconTrash class="size-4" />
         <span>{{ t('platform.workbench.tenantdb.contextMenu.deleteTable') }}</span>
       </ContextMenuItem>

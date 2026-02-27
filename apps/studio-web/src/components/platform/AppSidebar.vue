@@ -61,6 +61,11 @@ const navMain = computed(() => [
     icon: IconBriefcase,
   },
   {
+    title: t('platform.nav.assets'),
+    path: '/assets',
+    icon: IconFolder,
+  },
+  {
     title: t('platform.nav.teams'),
     path: '/teams',
     icon: IconUsers,

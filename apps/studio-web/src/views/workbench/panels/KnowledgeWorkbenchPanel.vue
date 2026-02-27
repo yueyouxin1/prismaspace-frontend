@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useMutation, useQuery } from '@tanstack/vue-query'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { knowledgeApi } from '@app/services/api/knowledge-client'
 import { resourceApi } from '@app/services/api/resource-client'
 import { emitBusinessError } from '@app/services/http/error-gateway'
 import { platformQueryKeys } from '@app/services/api/query-keys'
+import { studioAssetHubAdapter } from '@app/services/asset-hub/adapter'
 import type {
   DocumentProcessingStatus,
   DocumentRead,
@@ -21,6 +22,7 @@ import {
   type KnowledgeSearchRequest,
   type KnowledgeTaskProgress,
 } from '@repo/workbench-knowledge'
+import { AssetPickerDialog, type AssetRead } from '@repo/asset-hub'
 import type { SseConnection } from '@repo/common'
 
 const props = defineProps<{
@@ -31,6 +33,7 @@ const props = defineProps<{
   latestPublishedInstanceUuid?: string | null
 }>()
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 
 const page = ref(1)
@@ -41,8 +44,15 @@ const selectedDocumentUuid = ref<string | null>(null)
 const taskProgressMap = ref<Record<string, KnowledgeTaskProgress>>({})
 const searchResult = ref<KnowledgeGroupedSearchResultRead | null>(null)
 const searchErrorMessage = ref<string | null>(null)
+const assetPickerOpen = ref(false)
+const pickerMode = ref<'add' | 'replace'>('add')
+const replaceTargetDocumentUuid = ref<string | null>(null)
 
 const workspaceInstanceUuid = computed(() => props.workspaceInstanceUuid ?? null)
+const workspaceUuid = computed(() => {
+  const raw = route.params.workspaceUuid
+  return typeof raw === 'string' ? raw : null
+})
 
 const taskConnections = new Map<string, SseConnection>()
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
@@ -321,6 +331,16 @@ const handleAddDocument = async (payload: { sourceUri: string; fileName?: string
   await addDocumentMutation.mutateAsync(payload)
 }
 
+const handleAddDocumentFromLocal = (): void => {
+  pickerMode.value = 'add'
+  replaceTargetDocumentUuid.value = null
+  assetPickerOpen.value = true
+}
+
+const handleAddDocumentFromUrl = async (payload: { sourceUri: string; fileName?: string }): Promise<void> => {
+  await addDocumentMutation.mutateAsync(payload)
+}
+
 const handleRenameDocument = async (payload: { documentUuid: string; fileName: string }): Promise<void> => {
   await updateDocumentMutation.mutateAsync({
     documentUuid: payload.documentUuid,
@@ -328,7 +348,13 @@ const handleRenameDocument = async (payload: { documentUuid: string; fileName: s
   })
 }
 
-const handleReplaceDocument = async (payload: { documentUuid: string; sourceUri: string; fileName?: string }): Promise<void> => {
+const handleReplaceDocumentFromLocal = (payload: { documentUuid: string }): void => {
+  pickerMode.value = 'replace'
+  replaceTargetDocumentUuid.value = payload.documentUuid
+  assetPickerOpen.value = true
+}
+
+const handleReplaceDocumentFromUrl = async (payload: { documentUuid: string; sourceUri: string; fileName?: string }): Promise<void> => {
   await updateDocumentMutation.mutateAsync({
     documentUuid: payload.documentUuid,
     sourceUri: payload.sourceUri,
@@ -375,6 +401,30 @@ const documentMutating = computed(() => {
 const handleRefreshDocuments = async (): Promise<void> => {
   await Promise.all([documentsQuery.refetch(), instanceQuery.refetch()])
 }
+
+const handleAssetSelected = async (assets: AssetRead[]): Promise<void> => {
+  const selected = assets[0]
+  if (!selected) {
+    return
+  }
+
+  if (pickerMode.value === 'add') {
+    await handleAddDocument({
+      sourceUri: selected.url,
+      fileName: selected.name,
+    })
+    return
+  }
+
+  if (!replaceTargetDocumentUuid.value) {
+    return
+  }
+  await updateDocumentMutation.mutateAsync({
+    documentUuid: replaceTargetDocumentUuid.value,
+    sourceUri: selected.url,
+    fileName: selected.name,
+  })
+}
 </script>
 
 <template>
@@ -403,12 +453,14 @@ const handleRefreshDocuments = async (): Promise<void> => {
     :search-result="searchResult"
     :search-error-message="searchErrorMessage"
     @refresh-documents="handleRefreshDocuments"
-    @add-document="handleAddDocument"
+    @add-document-from-local="handleAddDocumentFromLocal"
+    @add-document-from-url="handleAddDocumentFromUrl"
     @update:status-filter="statusFilter = $event"
     @update:keyword="keyword = $event"
     @select-document="selectedDocumentUuid = $event"
     @rename-document="handleRenameDocument"
-    @replace-document="handleReplaceDocument"
+    @replace-document-from-local="handleReplaceDocumentFromLocal"
+    @replace-document-from-url="handleReplaceDocumentFromUrl"
     @remove-document="handleRemoveDocument"
     @remove-documents="handleRemoveDocuments"
     @update:page="page = $event"
@@ -417,5 +469,13 @@ const handleRefreshDocuments = async (): Promise<void> => {
     @run-search="handleRunSearch"
     @back="router.push('/resources')"
     @publish="handlePublish"
+  />
+
+  <AssetPickerDialog
+    v-model:open="assetPickerOpen"
+    :workspace-uuid="workspaceUuid"
+    :adapter="studioAssetHubAdapter"
+    :multiple="false"
+    @selected="handleAssetSelected"
   />
 </template>

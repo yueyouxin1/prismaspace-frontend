@@ -7,6 +7,8 @@ import KnowledgeDocumentTable from './sections/KnowledgeDocumentTable.vue'
 import KnowledgeSearchDebugger from './sections/KnowledgeSearchDebugger.vue'
 import type {
   KnowledgeDocumentItem,
+  KnowledgeDocumentReplacePayload,
+  KnowledgeDocumentSourcePayload,
   KnowledgeDocumentStatus,
   KnowledgeExplorerSummary,
   KnowledgeInstanceConfig,
@@ -64,12 +66,14 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'back'): void
   (event: 'refresh-documents'): void
-  (event: 'add-document', payload: { sourceUri: string; fileName?: string }): void
+  (event: 'add-document-from-local'): void
+  (event: 'add-document-from-url', payload: KnowledgeDocumentSourcePayload): void
   (event: 'update:status-filter', value: KnowledgeDocumentStatus | 'all'): void
   (event: 'update:keyword', value: string): void
   (event: 'select-document', documentUuid: string): void
   (event: 'rename-document', payload: { documentUuid: string; fileName: string }): void
-  (event: 'replace-document', payload: { documentUuid: string; sourceUri: string; fileName?: string }): void
+  (event: 'replace-document-from-local', payload: { documentUuid: string }): void
+  (event: 'replace-document-from-url', payload: KnowledgeDocumentReplacePayload): void
   (event: 'remove-document', documentUuid: string): void
   (event: 'remove-documents', documentUuids: string[]): void
   (event: 'update:page', value: number): void
@@ -133,7 +137,8 @@ const handleSaveFromHeader = (): void => {
         :keyword="keyword"
         :adding="documentMutating"
         :refreshing="loadingDocuments"
-        @add-document="emit('add-document', $event)"
+        @add-document-from-local="emit('add-document-from-local')"
+        @add-document-from-url="emit('add-document-from-url', $event)"
         @update:status-filter="emit('update:status-filter', $event)"
         @update:keyword="emit('update:keyword', $event)"
         @refresh="emit('refresh-documents')"
@@ -151,7 +156,8 @@ const handleSaveFromHeader = (): void => {
         @refresh="emit('refresh-documents')"
         @select-document="emit('select-document', $event)"
         @rename-document="emit('rename-document', $event)"
-        @replace-document="emit('replace-document', $event)"
+        @replace-document-from-local="emit('replace-document-from-local', $event)"
+        @replace-document-from-url="emit('replace-document-from-url', $event)"
         @remove-document="emit('remove-document', $event)"
         @remove-documents="emit('remove-documents', $event)"
         @update:page="emit('update:page', $event)"

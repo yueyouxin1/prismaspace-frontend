@@ -43,4 +43,10 @@ export const platformQueryKeys = {
   serviceModuleProviders: ['service-module-providers'] as const,
   serviceModulesAvailable: (workspaceUuid: string | null | undefined, moduleType: string) =>
     workspaceScopedQueryKey(workspaceUuid, 'service-modules', 'available', moduleType),
+  assetFoldersTree: (workspaceUuid: string | null | undefined) => workspaceScopedQueryKey(workspaceUuid, 'assets', 'folders', 'tree'),
+  assetFolders: (workspaceUuid: string | null | undefined, parentUuid: string | null | undefined) =>
+    workspaceScopedQueryKey(workspaceUuid, 'assets', 'folders', parentUuid ?? 'root'),
+  assetList: (workspaceUuid: string | null | undefined, querySignature: string) =>
+    workspaceScopedQueryKey(workspaceUuid, 'assets', 'list', querySignature),
+  assetDetail: (assetUuid: string | null | undefined) => ['assets', 'detail', assetUuid ?? 'none'] as const,
 }

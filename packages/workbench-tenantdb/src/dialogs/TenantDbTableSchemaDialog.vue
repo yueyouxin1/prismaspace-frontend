@@ -57,129 +57,135 @@ const { t } = useI18n()
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-[1120px]">
+    <DialogContent class="flex h-[92vh] max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1120px]">
       <DialogHeader>
-        <DialogTitle>{{ t('platform.workbench.tenantdb.tableSchemaDialogTitle') }}</DialogTitle>
-        <DialogDescription>
-          {{ schemaDraft ? schemaDraft.name : t('platform.workbench.tenantdb.noTableSelected') }}
-        </DialogDescription>
+        <div class="border-b bg-muted/20 px-6 py-4">
+          <DialogTitle>{{ t('platform.workbench.tenantdb.tableSchemaDialogTitle') }}</DialogTitle>
+          <DialogDescription class="mt-1 font-mono text-xs">
+            {{ schemaDraft ? schemaDraft.name : t('platform.workbench.tenantdb.noTableSelected') }}
+          </DialogDescription>
+        </div>
       </DialogHeader>
 
-      <Alert v-if="errorText" variant="destructive">
-        <AlertTitle>{{ t('platform.workbench.tenantdb.schemaValidationFailed') }}</AlertTitle>
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
+      <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <Alert v-if="errorText" variant="destructive">
+          <AlertTitle>{{ t('platform.workbench.tenantdb.schemaValidationFailed') }}</AlertTitle>
+          <AlertDescription>{{ errorText }}</AlertDescription>
+        </Alert>
 
-      <div v-if="schemaDraft" class="space-y-4">
-        <div class="grid gap-2 md:grid-cols-3">
-          <div class="space-y-1">
-            <Label>{{ t('platform.workbench.tenantdb.tableName') }}</Label>
-            <Input v-model="schemaDraft.name" class="font-mono" />
+        <div v-if="schemaDraft" class="space-y-4">
+          <div class="rounded-lg border bg-card p-3">
+            <div class="grid gap-2 md:grid-cols-3">
+              <div class="space-y-1">
+                <Label>{{ t('platform.workbench.tenantdb.tableName') }}</Label>
+                <Input v-model="schemaDraft.name" class="font-mono" />
+              </div>
+              <div class="space-y-1">
+                <Label>{{ t('platform.workbench.tenantdb.label') }}</Label>
+                <Input v-model="schemaDraft.label" />
+              </div>
+              <div class="space-y-1">
+                <Label>{{ t('platform.workbench.tenantdb.description') }}</Label>
+                <Input v-model="schemaDraft.description" />
+              </div>
+            </div>
           </div>
-          <div class="space-y-1">
-            <Label>{{ t('platform.workbench.tenantdb.label') }}</Label>
-            <Input v-model="schemaDraft.label" />
-          </div>
-          <div class="space-y-1">
-            <Label>{{ t('platform.workbench.tenantdb.description') }}</Label>
-            <Input v-model="schemaDraft.description" />
-          </div>
-        </div>
 
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <Label>{{ t('platform.workbench.tenantdb.columnDefinitions') }}</Label>
-            <Button size="sm" variant="outline" class="gap-1" @click="emit('add-column')">
-              <IconPlus class="size-4" />
-              {{ t('platform.workbench.tenantdb.column') }}
-            </Button>
-          </div>
-          <div
-            v-for="(column, index) in schemaDraft.columns"
-            :key="column.uuid ?? `new-${index}`"
-            class="space-y-2 rounded-md border p-3"
-          >
-            <div class="grid gap-2 md:grid-cols-[1fr_1fr_150px_100px_100px_100px_auto]">
-              <Input
-                v-model="column.name"
-                class="font-mono"
-                :placeholder="t('platform.workbench.tenantdb.columnNamePlaceholder')"
-                @focus="emit('update:selectedColumnId', column.uuid ?? column.name)"
-              />
-              <Input
-                v-model="column.label"
-                :placeholder="t('platform.workbench.tenantdb.label')"
-                @focus="emit('update:selectedColumnId', column.uuid ?? column.name)"
-              />
-              <Select v-model="column.data_type">
-                <SelectTrigger>
-                  <SelectValue :placeholder="t('platform.workbench.tenantdb.type')" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="dataType in dataTypes" :key="dataType" :value="dataType">
-                    {{ dataType }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <label class="flex items-center gap-1 rounded-md border px-2 text-xs">
-                <Checkbox
-                  :model-value="column.is_nullable"
-                  @update:model-value="column.is_nullable = Boolean($event)"
-                />
-                {{ t('platform.workbench.tenantdb.nullable') }}
-              </label>
-              <label class="flex items-center gap-1 rounded-md border px-2 text-xs">
-                <Checkbox
-                  :model-value="column.is_unique"
-                  @update:model-value="column.is_unique = Boolean($event)"
-                />
-                {{ t('platform.workbench.tenantdb.unique') }}
-              </label>
-              <label class="flex items-center gap-1 rounded-md border px-2 text-xs">
-                <Checkbox
-                  :model-value="column.is_indexed"
-                  @update:model-value="column.is_indexed = Boolean($event)"
-                />
-                {{ t('platform.workbench.tenantdb.indexed') }}
-              </label>
-              <Button size="icon" variant="outline" class="size-8" @click="emit('remove-column', index)">
-                <IconTrash class="size-3.5" />
+          <div class="space-y-2 rounded-lg border bg-card p-3">
+            <div class="flex items-center justify-between">
+              <Label>{{ t('platform.workbench.tenantdb.columnDefinitions') }}</Label>
+              <Button size="sm" variant="outline" class="h-7 gap-1 px-2.5 text-xs" @click="emit('add-column')">
+                <IconPlus class="size-3.5" />
+                {{ t('platform.workbench.tenantdb.column') }}
               </Button>
             </div>
-            <div class="grid gap-2 md:grid-cols-[1fr_1fr]">
-              <Input
-                v-model="column.default_value_text"
-                class="font-mono"
-                :placeholder="t('platform.workbench.tenantdb.defaultValueTypeAware')"
-              />
-              <Input v-model="column.description" :placeholder="t('platform.workbench.tenantdb.description')" />
+            <div
+              v-for="(column, index) in schemaDraft.columns"
+              :key="column.uuid ?? `new-${index}`"
+              class="space-y-2 rounded-lg border border-border/80 bg-background p-3"
+            >
+              <div class="grid gap-2 md:grid-cols-[1fr_1fr_150px_92px_92px_92px_auto]">
+                <Input
+                  v-model="column.name"
+                  class="font-mono"
+                  :placeholder="t('platform.workbench.tenantdb.columnNamePlaceholder')"
+                  @focus="emit('update:selectedColumnId', column.uuid ?? column.name)"
+                />
+                <Input
+                  v-model="column.label"
+                  :placeholder="t('platform.workbench.tenantdb.label')"
+                  @focus="emit('update:selectedColumnId', column.uuid ?? column.name)"
+                />
+                <Select v-model="column.data_type">
+                  <SelectTrigger>
+                    <SelectValue :placeholder="t('platform.workbench.tenantdb.type')" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="dataType in dataTypes" :key="dataType" :value="dataType">
+                      {{ dataType }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <label class="flex items-center gap-1 rounded-md border border-border/80 px-2 text-[11px]">
+                  <Checkbox
+                    :model-value="column.is_nullable"
+                    @update:model-value="column.is_nullable = Boolean($event)"
+                  />
+                  {{ t('platform.workbench.tenantdb.nullable') }}
+                </label>
+                <label class="flex items-center gap-1 rounded-md border border-border/80 px-2 text-[11px]">
+                  <Checkbox
+                    :model-value="column.is_unique"
+                    @update:model-value="column.is_unique = Boolean($event)"
+                  />
+                  {{ t('platform.workbench.tenantdb.unique') }}
+                </label>
+                <label class="flex items-center gap-1 rounded-md border border-border/80 px-2 text-[11px]">
+                  <Checkbox
+                    :model-value="column.is_indexed"
+                    @update:model-value="column.is_indexed = Boolean($event)"
+                  />
+                  {{ t('platform.workbench.tenantdb.indexed') }}
+                </label>
+                <Button size="icon" variant="ghost" class="size-8 text-destructive hover:text-destructive" @click="emit('remove-column', index)">
+                  <IconTrash class="size-3.5" />
+                </Button>
+              </div>
+              <div class="grid gap-2 md:grid-cols-[1fr_1fr]">
+                <Input
+                  v-model="column.default_value_text"
+                  class="font-mono"
+                  :placeholder="t('platform.workbench.tenantdb.defaultValueTypeAware')"
+                />
+                <Input v-model="column.description" :placeholder="t('platform.workbench.tenantdb.description')" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <Separator />
+          <Separator />
 
-        <div class="space-y-3 text-sm">
-          <p>{{ t('platform.workbench.tenantdb.schemaChanged') }}: <strong>{{ schemaDiff.tableChanged ? t('platform.workbench.tenantdb.yes') : t('platform.workbench.tenantdb.no') }}</strong></p>
-          <p>{{ t('platform.workbench.tenantdb.addedColumns') }}: <strong>{{ schemaDiff.added.join(', ') || t('platform.workbench.tenantdb.none') }}</strong></p>
-          <p>{{ t('platform.workbench.tenantdb.updatedColumns') }}: <strong>{{ schemaDiff.updated.join(', ') || t('platform.workbench.tenantdb.none') }}</strong></p>
-          <p class="text-destructive">
-            {{ t('platform.workbench.tenantdb.removedColumns') }}: <strong>{{ schemaDiff.removed.join(', ') || t('platform.workbench.tenantdb.none') }}</strong>
-          </p>
-          <label
-            v-if="schemaDiff.removed.length"
-            class="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs"
-          >
-            <Checkbox
-              :model-value="deleteAcknowledge"
-              @update:model-value="emit('update:deleteAcknowledge', Boolean($event))"
-            />
-            <span>{{ t('platform.workbench.tenantdb.destructiveDeleteConfirm') }}</span>
-          </label>
+          <div class="space-y-3 rounded-lg border bg-card p-3 text-sm">
+            <p>{{ t('platform.workbench.tenantdb.schemaChanged') }}: <strong>{{ schemaDiff.tableChanged ? t('platform.workbench.tenantdb.yes') : t('platform.workbench.tenantdb.no') }}</strong></p>
+            <p>{{ t('platform.workbench.tenantdb.addedColumns') }}: <strong>{{ schemaDiff.added.join(', ') || t('platform.workbench.tenantdb.none') }}</strong></p>
+            <p>{{ t('platform.workbench.tenantdb.updatedColumns') }}: <strong>{{ schemaDiff.updated.join(', ') || t('platform.workbench.tenantdb.none') }}</strong></p>
+            <p class="text-destructive">
+              {{ t('platform.workbench.tenantdb.removedColumns') }}: <strong>{{ schemaDiff.removed.join(', ') || t('platform.workbench.tenantdb.none') }}</strong>
+            </p>
+            <label
+              v-if="schemaDiff.removed.length"
+              class="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs"
+            >
+              <Checkbox
+                :model-value="deleteAcknowledge"
+                @update:model-value="emit('update:deleteAcknowledge', Boolean($event))"
+              />
+              <span>{{ t('platform.workbench.tenantdb.destructiveDeleteConfirm') }}</span>
+            </label>
+          </div>
         </div>
       </div>
 
-      <DialogFooter>
+      <DialogFooter class="border-t bg-background px-6 py-3">
         <Button variant="outline" @click="emit('update:open', false)">
           {{ t('common.cancel') }}
         </Button>

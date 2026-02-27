@@ -13,7 +13,12 @@ import {
   SelectValue,
 } from '@repo/ui-shadcn/components/ui/select'
 import { Separator } from '@repo/ui-shadcn/components/ui/separator'
-import type { KnowledgeDocumentStatus, KnowledgeExplorerSummary } from '../types/knowledge-ide'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui-shadcn/components/ui/tabs'
+import type {
+  KnowledgeDocumentSourcePayload,
+  KnowledgeDocumentStatus,
+  KnowledgeExplorerSummary,
+} from '../types/knowledge-ide'
 
 const props = withDefaults(
   defineProps<{
@@ -30,13 +35,15 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  (event: 'add-document', payload: { sourceUri: string; fileName?: string }): void
+  (event: 'add-document-from-local'): void
+  (event: 'add-document-from-url', payload: KnowledgeDocumentSourcePayload): void
   (event: 'update:status-filter', value: KnowledgeDocumentStatus | 'all'): void
   (event: 'update:keyword', value: string): void
   (event: 'refresh'): void
 }>()
 const { t } = useI18n()
 
+const sourceMode = ref<'local' | 'url'>('local')
 const sourceUri = ref('')
 const fileName = ref('')
 
@@ -49,16 +56,16 @@ const statusOptions: Array<{ label: string; value: KnowledgeDocumentStatus | 'al
   { label: t('platform.workbench.knowledge.status.failed'), value: 'failed' },
 ]
 
-const canSubmit = computed(() => {
+const canSubmitUrl = computed(() => {
   return !props.adding && sourceUri.value.trim().length > 0
 })
 
-const handleSubmit = (): void => {
+const handleUrlSubmit = (): void => {
   const uri = sourceUri.value.trim()
   if (!uri) {
     return
   }
-  emit('add-document', {
+  emit('add-document-from-url', {
     sourceUri: uri,
     fileName: fileName.value.trim() || undefined,
   })
@@ -117,13 +124,30 @@ const handleSubmit = (): void => {
 
       <Separator />
 
-      <div class="space-y-2">
+      <div class="space-y-3">
         <Label class="text-xs text-muted-foreground">{{ t('platform.workbench.knowledge.addDocument') }}</Label>
-        <Input v-model="sourceUri" placeholder="source_uri" />
-        <Input v-model="fileName" :placeholder="t('platform.workbench.knowledge.fileNameOptional')" />
-        <Button class="w-full" :disabled="!canSubmit" @click="handleSubmit">
-          {{ adding ? t('platform.workbench.knowledge.submitting') : t('platform.workbench.knowledge.submitProcessing') }}
-        </Button>
+
+        <Tabs v-model="sourceMode" class="space-y-3">
+          <TabsList class="w-full">
+            <TabsTrigger value="local" class="flex-1">{{ t('platform.workbench.knowledge.sourceModes.local') }}</TabsTrigger>
+            <TabsTrigger value="url" class="flex-1">{{ t('platform.workbench.knowledge.sourceModes.url') }}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="local" class="space-y-2 rounded-md border border-dashed p-3">
+            <p class="text-xs text-muted-foreground">{{ t('platform.workbench.knowledge.sourceModes.localDescription') }}</p>
+            <Button class="w-full" :disabled="adding" @click="emit('add-document-from-local')">
+              {{ t('platform.workbench.knowledge.sourceModes.chooseLocal') }}
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="url" class="space-y-2">
+            <Input v-model="sourceUri" placeholder="source_uri" />
+            <Input v-model="fileName" :placeholder="t('platform.workbench.knowledge.fileNameOptional')" />
+            <Button class="w-full" :disabled="!canSubmitUrl" @click="handleUrlSubmit">
+              {{ adding ? t('platform.workbench.knowledge.submitting') : t('platform.workbench.knowledge.submitProcessing') }}
+            </Button>
+          </TabsContent>
+        </Tabs>
       </div>
     </CardContent>
   </Card>

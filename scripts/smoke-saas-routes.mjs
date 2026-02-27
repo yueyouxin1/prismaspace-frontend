@@ -23,6 +23,7 @@ const requiredPaths = [
   '/billing/result',
   '/console',
   '/projects',
+  '/assets',
   '/account/profile',
   '/account/security',
   '/settings/team',

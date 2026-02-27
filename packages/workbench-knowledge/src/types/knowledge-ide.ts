@@ -20,6 +20,17 @@ export interface KnowledgeTaskProgress {
   error?: string | null
 }
 
+export interface KnowledgeDocumentSourcePayload {
+  sourceUri: string
+  fileName?: string
+}
+
+export interface KnowledgeDocumentReplacePayload {
+  documentUuid: string
+  sourceUri: string
+  fileName?: string
+}
+
 export interface KnowledgeExplorerSummary {
   total: number
   processing: number

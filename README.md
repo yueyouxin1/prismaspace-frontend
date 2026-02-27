@@ -18,6 +18,7 @@
 - `prismaspace-frontend/doc/prisma-space-pages-ui.md`：UI 美学规范（细节与模块）
 - `prismaspace-frontend/doc/prisma-space-runtime.md`：资源运行时面板前端架构指导
 - `prismaspace-frontend/doc/resource-workbench-boundary.md`：Resource Workbench 宿主与资源子包职责边界
+- `prismaspace-frontend/doc/asset-library-boundary.md`：素材库与资源工作台职责边界
 - `prismaspace-frontend/doc/ui-development-guidelines.md`：UI 组件选型与兜底路径
 - `prismaspace-frontend/doc/Vue通用架构与开发规范指南.md`：Vue 工程结构与编码规范
 
@@ -134,7 +135,7 @@ src/app/
 | 项目 | `/workspaces/{workspace_uuid}/projects`, `/projects` | `src/app/api/v1/project.py` | 已接入 | 维持 |
 | 通用资源/实例 | `/workspaces/{workspace_uuid}/resources`, `/resources`, `/instances` | `src/app/api/v1/resource.py` | 已接入 | 维持 |
 | 商品与额度 | `/products/public`, `/entitlements/*` | `src/app/api/v1/product.py`, `src/app/api/v1/entitlement.py` | 已接入 | 维持 |
-| 资产中心 | `/assets` | `src/app/api/v1/asset.py` | 待接入 | 新增 `asset-client.ts` |
+| 资产中心 | `/assets` | `src/app/api/v1/asset.py` | 已接入 | `asset-client.ts` + `@repo/asset-hub`（统一上传/选库/管理面板） |
 | 凭证管理 | `/workspaces/{workspace_uuid}/credentials/service-modules`, `/credentials/supported-providers` | `src/app/api/v1/credential.py` | 待接入 | 新增 `credential-client.ts` |
 | 资源类型 | `/resource-types` | `src/app/api/v1/resource_type.py` | 待接入 | 新增 `resource-type-client.ts` |
 | TenantDB | `/tenantdb/{instance_uuid}/tables` | `src/app/api/v1/tenantdb.py` | 待接入 | 新增 `tenantdb-client.ts` |
@@ -195,6 +196,7 @@ src/app/
 ```txt
 prismaspace-frontend/
 ├── apps/studio-web/         # 应用壳：路由、布局、Provider、Playground
+├── packages/asset-hub/      # 素材库子包：统一上传能力 + 素材管理面板
 ├── packages/common/         # 通用能力（i18n、tools）
 ├── packages/editor/         # 编辑器能力
 ├── packages/generator/      # 动态表单生成
@@ -238,6 +240,7 @@ Playground：
 
 - `README.md`：统一架构白皮书（后端与领域模型）
 - `prismaspace-frontend/README.md`：前端对齐后端执行手册（本文件）
+- `prismaspace-frontend/doc/asset-library-boundary.md`：素材库职责边界
 - `prismaspace-frontend/doc/Vue通用架构与开发规范指南.md`：工程实现规范
 - `prismaspace-frontend/doc/ui-development-guidelines.md`：UI 与组件开发规范
 

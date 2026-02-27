@@ -46,6 +46,17 @@ export const consoleRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/assets',
+    name: 'platform-assets',
+    component: () => import('@app/views/platform/AssetsView.vue'),
+    meta: {
+      layout: 'blank',
+      requiresAuth: true,
+      section: 'workspace',
+      analyticsId: 'platform.assets',
+    },
+  },
+  {
     path: '/teams',
     name: 'platform-teams',
     component: () => import('@app/views/platform/TeamsView.vue'),

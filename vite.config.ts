@@ -67,6 +67,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './packages/workbench-tool/src'),
       },
       {
+        find: '@repo/asset-hub',
+        replacement: path.resolve(__dirname, './packages/asset-hub/src'),
+      },
+      {
         find: '@app',
         replacement: path.resolve(__dirname, './apps/studio-web/src'),
       },

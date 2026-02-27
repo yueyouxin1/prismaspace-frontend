@@ -33,7 +33,9 @@
       "@repo/workbench-tenantdb": ["./packages/workbench-tenantdb/src/index.ts"],
       "@repo/workbench-tenantdb/*": ["./packages/workbench-tenantdb/src/*"],
       "@repo/workbench-tool": ["./packages/workbench-tool/src/index.ts"],
-      "@repo/workbench-tool/*": ["./packages/workbench-tool/src/*"]
+      "@repo/workbench-tool/*": ["./packages/workbench-tool/src/*"],
+      "@repo/asset-hub": ["./packages/asset-hub/src/index.ts"],
+      "@repo/asset-hub/*": ["./packages/asset-hub/src/*"]
     },
 
     /* Linting */
@@ -73,6 +75,8 @@
     "packages/workbench-tenantdb/src/**/*.vue",
     "packages/workbench-tool/src/**/*.ts",
     "packages/workbench-tool/src/**/*.vue",
+    "packages/asset-hub/src/**/*.ts",
+    "packages/asset-hub/src/**/*.vue",
     "packages/workflow/src/**/*.ts",
     "packages/workflow/src/**/*.vue",
     "packages/workflow/playground/src/**/*.ts",
