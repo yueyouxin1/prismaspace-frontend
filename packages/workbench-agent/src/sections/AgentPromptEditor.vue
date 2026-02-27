@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { CodeMirrorMdEditor } from '@repo/editor'
 import AgentPromptVariablePanel from '../components/AgentPromptVariablePanel.vue'
 
@@ -15,6 +16,7 @@ withDefaults(
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void
 }>()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -27,8 +29,7 @@ const emit = defineEmits<{
     :height="'100%'"
     :popup-component="AgentPromptVariablePanel"
     :trigger-patterns="[/\\{\\{[^}\\n]*$/, /\\$\\{[^}\\n]*$/]"
-    placeholder="编写系统提示词。输入 {{ 或 ${ 可插入表达式变量。"
+    :placeholder="t('platform.workbench.agent.promptPlaceholder')"
     @update:model-value="emit('update:modelValue', $event)"
   />
 </template>
-

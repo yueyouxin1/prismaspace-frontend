@@ -1,4 +1,5 @@
 import { computed, shallowRef, toValue, watch, type ComputedRef, type MaybeRefOrGetter, type Ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 export interface WorkbenchVersionItem {
   uuid: string
@@ -32,6 +33,7 @@ const isWorkspace = (status: string): boolean => status.toLowerCase() === 'works
 export const useWorkbenchVersions = <TItem extends WorkbenchVersionItem>(
   options: UseWorkbenchVersionsOptions<TItem>,
 ): WorkbenchVersionsController<TItem> => {
+  const { t } = useI18n()
   const items = shallowRef<TItem[]>([])
   const loading = shallowRef(false)
   const error = shallowRef<string | null>(null)
@@ -50,7 +52,7 @@ export const useWorkbenchVersions = <TItem extends WorkbenchVersionItem>(
       items.value = await options.service.list(resourceUuid)
     } catch (err) {
       items.value = []
-      error.value = err instanceof Error ? err.message : 'Failed to load versions.'
+      error.value = err instanceof Error ? err.message : t('platform.workbench.core.versions.loadFailed')
     } finally {
       loading.value = false
     }

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { WorkbenchSurface, type WorkbenchSaveTrigger } from '@repo/workbench-core'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui-shadcn/components/ui/alert'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
 import AgentPromptEditor from './sections/AgentPromptEditor.vue'
 import AgentOrchestrationPanel from './sections/AgentOrchestrationPanel.vue'
 import AgentChatPanel from './sections/AgentChatPanel.vue'
@@ -18,6 +18,7 @@ import type {
 const props = withDefaults(
   defineProps<{
     seed: AgentIdeSeed | null
+    resourceDescription?: string
     modelOptions: AgentModelOption[]
     sessions: AgentSessionSummary[]
     activeSessionUuid?: string | null
@@ -29,10 +30,15 @@ const props = withDefaults(
     loadingMessages?: boolean
     creatingSession?: boolean
     executing?: boolean
+    publishing?: boolean
+    workspaceInstanceUuid?: string | null
+    latestPublishedInstanceUuid?: string | null
+    updatedAt?: string | null
     lastSavedAt?: string | null
     errorMessage?: string | null
   }>(),
   {
+    resourceDescription: '',
     activeSessionUuid: null,
     loading: false,
     saving: false,
@@ -41,18 +47,25 @@ const props = withDefaults(
     loadingMessages: false,
     creatingSession: false,
     executing: false,
+    publishing: false,
+    workspaceInstanceUuid: null,
+    latestPublishedInstanceUuid: null,
+    updatedAt: null,
     lastSavedAt: null,
     errorMessage: null,
   },
 )
 
 const emit = defineEmits<{
+  (event: 'back'): void
   (event: 'save', payload: AgentInstancePatchPayload): void
   (event: 'create-session'): void
   (event: 'select-session', sessionUuid: string): void
   (event: 'send-message', text: string): void
+  (event: 'publish'): void
   (event: 'dirty-change', value: boolean): void
 }>()
+const { t } = useI18n()
 
 const draftSystemPrompt = ref('')
 const draftLlmModuleVersionUuid = ref<string | null>(null)
@@ -195,31 +208,18 @@ watch(
 )
 
 const displayResourceName = computed(() => {
-  return props.seed?.resourceName || 'Agent'
+  return props.seed?.resourceName || t('platform.workbench.agent.defaultName')
 })
 
 const saveDisabled = computed(() => {
   return props.loading || props.saving || !props.seed || !isDirty.value
 })
 
-const formattedSavedAt = computed(() => {
-  if (!props.lastSavedAt) {
-    return '未保存'
-  }
-  const time = new Date(props.lastSavedAt)
-  if (Number.isNaN(time.getTime())) {
-    return props.lastSavedAt
-  }
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(time)
+const publishDisabled = computed(() => {
+  return props.loading || props.saving || props.publishing || !props.seed
 })
+
+const headerUpdatedAt = computed(() => props.lastSavedAt ?? props.updatedAt)
 
 const buildMergedAgentConfig = (): Record<string, unknown> => {
   const base = cloneRecord(rawAgentConfigBaseline.value)
@@ -277,32 +277,41 @@ const handleSave = (): void => {
   }
   emit('save', payload)
 }
+
+const handleSurfaceSave = (trigger: WorkbenchSaveTrigger): void => {
+  if (trigger === 'autosave' && !isDirty.value) {
+    return
+  }
+  handleSave()
+}
 </script>
 
 <template>
-  <div class="flex min-h-[calc(100vh-220px)] flex-col overflow-hidden rounded-xl border bg-background">
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-      <div class="min-w-0 space-y-1">
-        <h2 class="truncate text-base font-semibold">{{ displayResourceName }}</h2>
-        <div class="flex items-center gap-2 text-xs text-muted-foreground">
-          <Badge :variant="isDirty ? 'destructive' : 'outline'">
-            {{ isDirty ? '未保存' : '已保存' }}
-          </Badge>
-          <span>最近保存：{{ formattedSavedAt }}</span>
-        </div>
-      </div>
-      <Button :disabled="saveDisabled" @click="handleSave">
-        {{ saving ? '保存中...' : '保存配置' }}
-      </Button>
-    </div>
-
+  <WorkbenchSurface
+    :title="t('platform.workbench.agent.ideTitle')"
+    :description="resourceDescription || t('platform.workbench.agent.ideDescription')"
+    resource-type="agent"
+    :resource-name="displayResourceName"
+    :updated-at="headerUpdatedAt"
+    :workspace-instance-uuid="workspaceInstanceUuid"
+    :latest-published-instance-uuid="latestPublishedInstanceUuid"
+    :save-status-text="isDirty ? t('platform.workbench.agent.unsaved') : t('platform.workbench.agent.saved')"
+    :save-status-variant="isDirty ? 'destructive' : 'outline'"
+    :run-action="{ visible: false }"
+    :save-action="{ visible: true, label: t('platform.workbench.agent.saveConfig'), loadingLabel: t('platform.workbench.agent.savingConfig'), disabled: saveDisabled, loading: props.saving }"
+    :publish-action="{ visible: true, label: t('platform.workbench.header.actions.publish'), loadingLabel: t('platform.workbench.header.actions.publishing'), disabled: publishDisabled, loading: props.publishing }"
+    :autosave="{ enabled: true, debounceMs: 1600, canAutosave: !props.loading && !props.saving && !!props.seed, isDirty }"
+    :save-handler="handleSurfaceSave"
+    @back="emit('back')"
+    @publish="emit('publish')"
+  >
     <Alert v-if="errorMessage" variant="destructive" class="m-3">
-      <AlertTitle>操作失败</AlertTitle>
+      <AlertTitle>{{ t('platform.workbench.agent.operationFailed') }}</AlertTitle>
       <AlertDescription>{{ errorMessage }}</AlertDescription>
     </Alert>
 
     <div v-if="!seed" class="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-      正在加载 Agent 实例...
+      {{ t('platform.workbench.agent.loadingInstance') }}
     </div>
 
     <div
@@ -311,7 +320,7 @@ const handleSave = (): void => {
     >
       <section class="flex min-h-[420px] min-w-0 flex-col border-b xl:border-r xl:border-b-0">
         <div class="border-b px-4 py-3">
-          <h3 class="text-base font-semibold">人设与回复逻辑</h3>
+          <h3 class="text-base font-semibold">{{ t('platform.workbench.agent.sections.prompt') }}</h3>
         </div>
         <div class="min-h-0 flex-1 overflow-auto p-3">
           <div class="h-[560px] xl:h-full">
@@ -326,7 +335,7 @@ const handleSave = (): void => {
 
       <section class="flex min-h-[420px] min-w-0 flex-col border-b xl:border-r xl:border-b-0">
         <div class="border-b px-4 py-3">
-          <h3 class="text-base font-semibold">编排设置</h3>
+          <h3 class="text-base font-semibold">{{ t('platform.workbench.agent.sections.orchestration') }}</h3>
         </div>
         <div class="min-h-0 flex-1 overflow-auto p-4">
           <AgentOrchestrationPanel
@@ -343,7 +352,7 @@ const handleSave = (): void => {
 
       <section class="flex min-h-[420px] min-w-0 flex-col">
         <div class="border-b px-4 py-3">
-          <h3 class="text-base font-semibold">预览与调试</h3>
+          <h3 class="text-base font-semibold">{{ t('platform.workbench.agent.sections.preview') }}</h3>
         </div>
         <div class="min-h-0 flex-1 overflow-hidden p-3">
           <AgentChatPanel
@@ -363,6 +372,5 @@ const handleSave = (): void => {
         </div>
       </section>
     </div>
-  </div>
+  </WorkbenchSurface>
 </template>
-

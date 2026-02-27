@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { trackEvent } from '@app/services/analytics/events'
 import { platformQueryKeys } from '@app/services/api/query-keys'
 import { resourceApi } from '@app/services/api/resource-client'
@@ -26,6 +27,8 @@ import { Skeleton } from '@repo/ui-shadcn/components/ui/skeleton'
 
 const props = defineProps<{
   resourceName: string
+  resourceDescription?: string
+  updatedAt?: string | null
   workspaceInstanceUuid?: string | null
   latestPublishedInstanceUuid?: string | null
 }>()
@@ -33,6 +36,7 @@ const props = defineProps<{
 const route = useRoute()
 const router = useRouter()
 const queryClient = useQueryClient()
+const { t } = useI18n()
 
 const workspaceUuid = computed(() => String(route.params.workspaceUuid ?? ''))
 const resourceUuid = computed(() => String(route.params.resourceUuid ?? ''))
@@ -99,7 +103,7 @@ const saveMutation = useMutation({
   mutationFn: async (request: ToolIdeSaveRequest) => {
     const payload = request.payload
     if (!resourceUuid.value || !instanceUuid.value) {
-      throw new Error('Missing resource or workspace instance uuid.')
+      throw new Error(t('platform.workbench.errors.missingResourceOrWorkspaceInstance'))
     }
 
     const actions: Promise<unknown>[] = []
@@ -151,7 +155,7 @@ const saveMutation = useMutation({
 const runMutation = useMutation({
   mutationFn: async (payload: ToolExecuteRequest['run']) => {
     if (!instanceUuid.value) {
-      throw new Error('Missing workspace instance uuid.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     const started = performance.now()
     const response = await toolApi.executeToolInstance(instanceUuid.value, {
@@ -184,7 +188,7 @@ const runMutation = useMutation({
     runFeedback.value = {
       success: false,
       durationMs: 0,
-      errorMessage: error instanceof Error ? error.message : 'Tool execution failed.',
+      errorMessage: error instanceof Error ? error.message : t('platform.workbench.tool.executeFailed'),
       at: new Date().toISOString(),
     }
     emitBusinessError(error)
@@ -200,7 +204,7 @@ const buildPublishVersionTag = (): string => {
 const publishMutation = useMutation({
   mutationFn: async () => {
     if (!instanceUuid.value) {
-      throw new Error('Missing workspace instance uuid.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     return resourceApi.publishInstance(instanceUuid.value, {
       version_tag: buildPublishVersionTag(),
@@ -256,7 +260,7 @@ onBeforeRouteLeave((_to, _from, next) => {
     next()
     return
   }
-  const confirmed = window.confirm('工具配置尚未保存，确认离开吗？')
+  const confirmed = window.confirm(t('platform.workbench.tool.confirmLeave'))
   if (!confirmed) {
     next(false)
     return
@@ -270,7 +274,7 @@ const refreshToolData = async (): Promise<void> => {
 
 const handleBack = async (): Promise<void> => {
   if (hasUnsavedChanges.value) {
-    const confirmed = window.confirm('工具配置尚未保存，确认返回资源列表吗？')
+    const confirmed = window.confirm(t('platform.workbench.tool.confirmBack'))
     if (!confirmed) {
       return
     }
@@ -310,13 +314,13 @@ const handlePublish = async (request: ToolPublishRequest): Promise<void> => {
 
 <template>
   <div class="space-y-4">
-    <Card v-if="!instanceUuid">
+      <Card v-if="!instanceUuid">
       <CardHeader>
-        <CardTitle>Tool 实例不可用</CardTitle>
+        <CardTitle>{{ t('platform.workbench.tool.instanceUnavailable') }}</CardTitle>
       </CardHeader>
       <CardContent class="space-y-3 text-sm text-muted-foreground">
-        <p>当前资源缺少 `workspace_instance_uuid`，无法进入 Tool IDE。</p>
-        <Button variant="outline" @click="refreshToolData">刷新并重试</Button>
+        <p>{{ t('platform.workbench.tool.instanceMissingHint') }}</p>
+        <Button variant="outline" @click="refreshToolData">{{ t('common.refresh') }}</Button>
       </CardContent>
     </Card>
 
@@ -329,24 +333,25 @@ const handlePublish = async (request: ToolPublishRequest): Promise<void> => {
 
       <Card v-else-if="resourceDetailQuery.isError.value || toolInstanceQuery.isError.value">
         <CardHeader>
-          <CardTitle>Tool IDE 加载失败</CardTitle>
+          <CardTitle>{{ t('platform.workbench.tool.loadFailed') }}</CardTitle>
         </CardHeader>
         <CardContent class="space-y-3 text-sm text-muted-foreground">
-          <p>无法读取 Tool 资源详情或实例配置，请刷新后重试。</p>
-          <Button variant="outline" @click="refreshToolData">重新加载</Button>
+          <p>{{ t('platform.workbench.tool.loadFailedHint') }}</p>
+          <Button variant="outline" @click="refreshToolData">{{ t('common.retry') }}</Button>
         </CardContent>
       </Card>
 
       <ToolIdeWorkbench
         v-else
         :seed="ideSeed"
+        :resource-description="resourceDescription"
         :loading="loading"
         :saving="saveMutation.isPending.value"
         :running="runMutation.isPending.value"
         :publishing="publishMutation.isPending.value"
         :workspace-instance-uuid="workspaceInstanceUuid"
         :latest-published-instance-uuid="latestPublishedInstanceUuid"
-        :latest-updated-at="resourceDetailQuery.data.value?.updated_at ?? null"
+        :updated-at="lastSavedAt ?? resourceDetailQuery.data.value?.updated_at ?? updatedAt ?? null"
         :saved-at="lastSavedAt"
         :run-feedback="runFeedback"
         @back="handleBack"

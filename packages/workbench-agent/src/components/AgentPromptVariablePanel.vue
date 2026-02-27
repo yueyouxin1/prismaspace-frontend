@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type {
   CodeMirrorExpressionPopupContext,
   CodeMirrorExpressionPopupSelectPayload,
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   (event: 'select', payload: CodeMirrorExpressionPopupSelectPayload): void
   (event: 'close'): void
 }>()
+const { t } = useI18n()
 
 const activeIndex = ref(0)
 
@@ -97,7 +99,7 @@ const handleKeydown = (event: KeyboardEvent): void => {
     @keydown="handleKeydown"
   >
     <div class="mb-2 flex items-center justify-between px-1">
-      <p class="text-xs font-medium text-muted-foreground">表达式变量</p>
+      <p class="text-xs font-medium text-muted-foreground">{{ t('platform.workbench.agent.variables.title') }}</p>
       <button
         type="button"
         class="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
@@ -108,7 +110,7 @@ const handleKeydown = (event: KeyboardEvent): void => {
     </div>
 
     <div v-if="filteredVariables.length === 0" class="px-2 py-4 text-xs text-muted-foreground">
-      没有匹配项
+      {{ t('platform.workbench.agent.variables.empty') }}
     </div>
     <ul v-else class="space-y-1">
       <li v-for="(item, index) in filteredVariables" :key="item.value">
@@ -125,4 +127,3 @@ const handleKeydown = (event: KeyboardEvent): void => {
     </ul>
   </div>
 </template>
-

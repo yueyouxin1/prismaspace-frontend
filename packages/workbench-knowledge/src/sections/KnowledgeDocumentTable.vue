@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type {
   ColumnDef,
   SortingState,
@@ -85,6 +86,7 @@ const emit = defineEmits<{
   (event: 'update:page', value: number): void
   (event: 'update:limit', value: number): void
 }>()
+const { t } = useI18n()
 
 const sorting = ref<SortingState>([])
 const columnVisibility = ref<VisibilityState>({
@@ -164,13 +166,13 @@ const columns: ColumnDef<KnowledgeDocumentItem>[] = [
       h(Checkbox, {
         modelValue: table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && 'indeterminate'),
         'onUpdate:modelValue': (value: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(value === true),
-        'aria-label': 'Select all documents',
+        'aria-label': t('platform.workbench.knowledge.table.selectAll'),
       }),
     cell: ({ row }) =>
       h(Checkbox, {
         modelValue: row.getIsSelected(),
         'onUpdate:modelValue': (value: boolean | 'indeterminate') => row.toggleSelected(value === true),
-        'aria-label': `Select ${row.original.file_name}`,
+        'aria-label': t('platform.workbench.knowledge.table.selectOne', { name: row.original.file_name }),
       }),
     enableSorting: false,
     enableHiding: false,
@@ -178,7 +180,7 @@ const columns: ColumnDef<KnowledgeDocumentItem>[] = [
   },
   {
     accessorKey: 'file_name',
-    header: 'File Name',
+    header: () => t('platform.workbench.knowledge.table.columns.fileName'),
     cell: ({ row }) =>
       h('button', {
         class: 'max-w-[280px] truncate text-left text-sm font-medium hover:underline',
@@ -189,7 +191,7 @@ const columns: ColumnDef<KnowledgeDocumentItem>[] = [
   {
     id: 'status',
     accessorFn: row => row.status,
-    header: 'Status',
+    header: () => t('platform.workbench.knowledge.table.columns.status'),
     cell: ({ row }) =>
       h(KnowledgeTaskStatusBadge, {
         status: row.original.status,
@@ -199,23 +201,23 @@ const columns: ColumnDef<KnowledgeDocumentItem>[] = [
   },
   {
     accessorKey: 'chunk_count',
-    header: 'Chunks',
+    header: () => t('platform.workbench.knowledge.table.columns.chunks'),
     cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, `${row.original.chunk_count}`),
   },
   {
     accessorKey: 'file_type',
-    header: 'Type',
+    header: () => t('platform.workbench.knowledge.table.columns.type'),
     cell: ({ row }) =>
       h(Badge, { variant: 'outline' }, () => row.original.file_type || '-'),
   },
   {
     accessorKey: 'file_size',
-    header: 'Size',
+    header: () => t('platform.workbench.knowledge.table.columns.size'),
     cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, formatFileSize(row.original.file_size)),
   },
   {
     accessorKey: 'created_at',
-    header: 'Created',
+    header: () => t('platform.workbench.knowledge.table.columns.created'),
     cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, formatDateTime(row.original.created_at)),
   },
   {
@@ -345,19 +347,19 @@ const handleBulkRemoveConfirm = (): void => {
   <div class="min-h-[540px] rounded-xl border bg-background">
     <div class="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
       <div class="flex items-center gap-2">
-        <p class="text-sm font-medium">Documents</p>
+        <p class="text-sm font-medium">{{ t('platform.workbench.knowledge.table.title') }}</p>
         <Badge variant="outline">{{ total }}</Badge>
       </div>
       <div class="flex items-center gap-2">
         <Button size="sm" variant="outline" :disabled="loading" @click="emit('refresh')">
           <RefreshCcw class="mr-1 size-3.5" />
-          Refresh
+          {{ t('common.refresh') }}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button size="sm" variant="outline">
               <Columns3 class="mr-1 size-3.5" />
-              Columns
+              {{ t('platform.workbench.knowledge.table.columnsTitle') }}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-44">
@@ -377,7 +379,7 @@ const handleBulkRemoveConfirm = (): void => {
 
     <div class="px-3 py-2">
       <div class="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{{ selectedCount }} selected</span>
+        <span>{{ t('platform.workbench.knowledge.table.selected', { count: selectedCount }) }}</span>
         <Button
           size="sm"
           variant="destructive"
@@ -385,7 +387,7 @@ const handleBulkRemoveConfirm = (): void => {
           @click="bulkRemoveDialogOpen = true"
         >
           <Trash2 class="mr-1 size-3.5" />
-          Delete Selected
+          {{ t('platform.workbench.knowledge.table.deleteSelected') }}
         </Button>
       </div>
 
@@ -416,10 +418,10 @@ const handleBulkRemoveConfirm = (): void => {
               </TableRow>
             </template>
             <template v-else-if="loading">
-              <TableEmpty :colspan="columns.length">Loading documents...</TableEmpty>
+              <TableEmpty :colspan="columns.length">{{ t('platform.workbench.knowledge.table.loading') }}</TableEmpty>
             </template>
             <template v-else>
-              <TableEmpty :colspan="columns.length">No documents found.</TableEmpty>
+              <TableEmpty :colspan="columns.length">{{ t('platform.workbench.knowledge.table.empty') }}</TableEmpty>
             </template>
           </TableBody>
         </Table>
@@ -427,7 +429,7 @@ const handleBulkRemoveConfirm = (): void => {
 
       <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>Rows</span>
+          <span>{{ t('platform.workbench.knowledge.table.rows') }}</span>
           <Select :model-value="String(limit)" @update:model-value="emit('update:limit', Number($event))">
             <SelectTrigger class="h-8 w-20">
               <SelectValue />
@@ -441,7 +443,7 @@ const handleBulkRemoveConfirm = (): void => {
           </Select>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-muted-foreground">Page {{ page }} / {{ pageCount }}</span>
+          <span class="text-xs text-muted-foreground">{{ t('platform.workbench.knowledge.table.page', { page, total: pageCount }) }}</span>
           <Button size="icon" variant="outline" class="size-8" :disabled="!canGoPrev" @click="emit('update:page', page - 1)">
             <ChevronLeft class="size-4" />
           </Button>
@@ -455,13 +457,13 @@ const handleBulkRemoveConfirm = (): void => {
     <Dialog :open="renameDialogOpen" @update:open="renameDialogOpen = $event">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rename Document</DialogTitle>
-          <DialogDescription>Only file name will be updated.</DialogDescription>
+          <DialogTitle>{{ t('platform.workbench.knowledge.dialogs.renameTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('platform.workbench.knowledge.dialogs.renameDescription') }}</DialogDescription>
         </DialogHeader>
         <Input v-model="renameValue" placeholder="file_name" />
         <DialogFooter>
-          <Button variant="outline" @click="renameDialogOpen = false">Cancel</Button>
-          <Button :disabled="mutating || !renameValue.trim()" @click="handleRenameConfirm">Save</Button>
+          <Button variant="outline" @click="renameDialogOpen = false">{{ t('common.cancel') }}</Button>
+          <Button :disabled="mutating || !renameValue.trim()" @click="handleRenameConfirm">{{ t('platform.workbench.header.actions.save') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -469,16 +471,16 @@ const handleBulkRemoveConfirm = (): void => {
     <Dialog :open="replaceDialogOpen" @update:open="replaceDialogOpen = $event">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Replace Source</DialogTitle>
-          <DialogDescription>Replacing source will trigger a new async processing task.</DialogDescription>
+          <DialogTitle>{{ t('platform.workbench.knowledge.dialogs.replaceTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('platform.workbench.knowledge.dialogs.replaceDescription') }}</DialogDescription>
         </DialogHeader>
         <div class="space-y-2">
           <Input v-model="replaceSourceUri" placeholder="source_uri" />
-          <Input v-model="replaceFileName" placeholder="file_name (optional)" />
+          <Input v-model="replaceFileName" :placeholder="t('platform.workbench.knowledge.fileNameOptional')" />
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="replaceDialogOpen = false">Cancel</Button>
-          <Button :disabled="mutating || !replaceSourceUri.trim()" @click="handleReplaceConfirm">Replace</Button>
+          <Button variant="outline" @click="replaceDialogOpen = false">{{ t('common.cancel') }}</Button>
+          <Button :disabled="mutating || !replaceSourceUri.trim()" @click="handleReplaceConfirm">{{ t('platform.workbench.knowledge.dialogs.replaceAction') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -486,12 +488,12 @@ const handleBulkRemoveConfirm = (): void => {
     <Dialog :open="removeDialogOpen" @update:open="removeDialogOpen = $event">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Remove Document</DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
+          <DialogTitle>{{ t('platform.workbench.knowledge.dialogs.removeTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('platform.workbench.knowledge.dialogs.removeDescription') }}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="removeDialogOpen = false">Cancel</Button>
-          <Button variant="destructive" :disabled="mutating" @click="handleRemoveConfirm">Remove</Button>
+          <Button variant="outline" @click="removeDialogOpen = false">{{ t('common.cancel') }}</Button>
+          <Button variant="destructive" :disabled="mutating" @click="handleRemoveConfirm">{{ t('platform.workbench.knowledge.dialogs.removeAction') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -499,15 +501,15 @@ const handleBulkRemoveConfirm = (): void => {
     <Dialog :open="bulkRemoveDialogOpen" @update:open="bulkRemoveDialogOpen = $event">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Remove Selected Documents</DialogTitle>
+          <DialogTitle>{{ t('platform.workbench.knowledge.dialogs.removeSelectedTitle') }}</DialogTitle>
           <DialogDescription>
-            {{ selectedDocumentUuids.length }} documents will be removed from this KnowledgeBase version.
+            {{ t('platform.workbench.knowledge.dialogs.removeSelectedDescription', { count: selectedDocumentUuids.length }) }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="bulkRemoveDialogOpen = false">Cancel</Button>
+          <Button variant="outline" @click="bulkRemoveDialogOpen = false">{{ t('common.cancel') }}</Button>
           <Button variant="destructive" :disabled="mutating || !selectedDocumentUuids.length" @click="handleBulkRemoveConfirm">
-            Remove
+            {{ t('platform.workbench.knowledge.dialogs.removeAction') }}
           </Button>
         </DialogFooter>
       </DialogContent>

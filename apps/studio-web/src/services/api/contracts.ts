@@ -193,7 +193,20 @@ export interface ResourceDetailRead extends ResourceRead {
   workspace_instance?: AnyInstanceRead | null
 }
 
-export type AnyInstanceRead = JsonRecord
+export interface InstanceReadBase {
+  uuid: string
+  name: string
+  description?: string | null
+  version_tag: string
+  status: string
+  created_at: string
+  updated_at?: string | null
+  creator: CreatorInfo
+}
+
+export interface AnyInstanceRead extends InstanceReadBase {
+  [key: string]: unknown
+}
 
 export type ToolHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 export type ToolSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
@@ -238,12 +251,7 @@ export interface ToolParameterSchema extends ToolSchemaBlueprint {
   meta?: JsonRecord
 }
 
-export interface ToolInstanceRead {
-  uuid: string
-  version_tag: string
-  status: string
-  created_at: string
-  creator: CreatorInfo
+export interface ToolInstanceRead extends InstanceReadBase {
   url?: string | null
   method: ToolHttpMethod
   inputs_schema: ToolParameterSchema[]
@@ -365,12 +373,7 @@ export interface UiPageUpdateRequest {
   data?: JsonRecord[]
 }
 
-export interface UiAppMetadataRead {
-  uuid: string
-  version_tag: string
-  status: string
-  created_at: string
-  creator: CreatorInfo
+export interface UiAppMetadataRead extends InstanceReadBase {
   global_config: JsonRecord
   navigation?: JsonRecord | null
   home_page_uuid?: string | null
@@ -557,11 +560,7 @@ export interface KnowledgeBaseInstanceConfigRead {
   chunker_policies: ChunkerPolicyConfigRead[]
 }
 
-export interface KnowledgeBaseInstanceRead {
-  uuid: string
-  name: string
-  version_tag: string
-  status: string
+export interface KnowledgeBaseInstanceRead extends InstanceReadBase {
   config: KnowledgeBaseInstanceConfigRead
   document_count: number
 }
@@ -645,12 +644,7 @@ export interface AgentConfigRead {
   [key: string]: unknown
 }
 
-export interface AgentInstanceRead {
-  uuid: string
-  version_tag: string
-  status: string
-  created_at: string
-  creator: CreatorInfo
+export interface AgentInstanceRead extends InstanceReadBase {
   system_prompt: string
   llm_module_version_uuid?: string | null
   agent_config: AgentConfigRead

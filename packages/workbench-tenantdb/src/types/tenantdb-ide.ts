@@ -1,7 +1,9 @@
 import type {
   JsonRecord,
+  TenantColumnRead,
   TenantDataType,
   TenantDbFilterOperator,
+  TenantTableRead,
 } from '@app/services/api/contracts'
 
 export interface TenantColumnDraft {
@@ -37,4 +39,69 @@ export interface TenantDataQueryApplied {
   order_by?: string
   columns?: string[]
   filters?: JsonRecord | [string, TenantDbFilterOperator, unknown][]
+}
+
+export type TenantExplorerNodeKind = 'table' | 'column'
+
+export interface TenantExplorerNode {
+  kind: TenantExplorerNodeKind
+  tableUuid: string
+  tableName: string
+  label?: string | null
+  column?: TenantColumnRead
+}
+
+export type TenantTableContextAction = 'query' | 'schema' | 'insert' | 'delete'
+
+export interface TenantQueryDialogState {
+  open: boolean
+  limit: number
+  orderColumn: string
+  orderDirection: 'ASC' | 'DESC'
+  columns: string[]
+  filters: TenantDataFilterDraft[]
+}
+
+export interface TenantSchemaDialogState {
+  open: boolean
+  selectedColumnId: string
+  deleteAcknowledge: boolean
+  errorText: string
+}
+
+export interface TenantTableDraft {
+  name: string
+  label: string
+  description: string
+  columns: TenantColumnDraft[]
+}
+
+export interface TenantExplorerActionPayload {
+  tableUuid: string
+  action: TenantTableContextAction
+}
+
+export interface TenantPageState {
+  rows: JsonRecord[]
+  totalCount: number
+  pageCount: number
+  visibleColumns: string[]
+}
+
+export interface TenantSqlState {
+  text: string
+  rows: JsonRecord[]
+  columns: string[]
+  error: string
+}
+
+export interface TenantWorkspaceViewModel {
+  selectedTable: TenantTableRead | null
+  activeTab: 'data' | 'sql'
+  loadingRows: boolean
+  pageState: TenantPageState
+  appliedQuery: {
+    page: number
+  }
+  sql: TenantSqlState
 }

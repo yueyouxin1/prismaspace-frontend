@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CheckIcon, ChevronsUpDownIcon } from 'lucide-vue-next'
 import {
   ModelSelector,
@@ -34,6 +35,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void
 }>()
+const { t } = useI18n()
 
 const open = ref(false)
 
@@ -81,16 +83,16 @@ const handleSelect = (modelUuid: string): void => {
         :disabled="disabled || loading"
       >
         <span class="truncate text-left">
-          {{ selectedOption?.displayName || (loading ? '正在加载模型...' : '选择模型') }}
+          {{ selectedOption?.displayName || (loading ? t('platform.workbench.agent.model.loading') : t('platform.workbench.agent.model.select')) }}
         </span>
         <ChevronsUpDownIcon class="ml-2 size-4 shrink-0 opacity-60" />
       </Button>
     </ModelSelectorTrigger>
 
     <ModelSelectorContent class="sm:max-w-[560px]">
-      <ModelSelectorInput placeholder="搜索模型、供应商或版本" />
+      <ModelSelectorInput :placeholder="t('platform.workbench.agent.model.searchPlaceholder')" />
       <ModelSelectorList>
-        <ModelSelectorEmpty>未找到可用模型</ModelSelectorEmpty>
+        <ModelSelectorEmpty>{{ t('platform.workbench.agent.model.empty') }}</ModelSelectorEmpty>
         <ModelSelectorGroup
           v-for="group in groupedOptions"
           :key="group.provider"
@@ -115,4 +117,3 @@ const handleSelect = (modelUuid: string): void => {
     </ModelSelectorContent>
   </ModelSelector>
 </template>
-

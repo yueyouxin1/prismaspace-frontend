@@ -1,4 +1,5 @@
 import { computed, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 export interface WorkbenchRefItem {
   id: string | number
@@ -32,6 +33,7 @@ export interface WorkbenchRefsController<TItem extends WorkbenchRefItem, TCreate
 export const useWorkbenchRefs = <TItem extends WorkbenchRefItem, TCreatePayload>(
   options: UseWorkbenchRefsOptions<TItem, TCreatePayload>,
 ): WorkbenchRefsController<TItem, TCreatePayload> => {
+  const { t } = useI18n()
   const items = shallowRef<TItem[]>([])
   const loading = shallowRef(false)
   const submitting = shallowRef(false)
@@ -51,7 +53,7 @@ export const useWorkbenchRefs = <TItem extends WorkbenchRefItem, TCreatePayload>
       items.value = await options.service.list(sourceInstanceUuid)
     } catch (err) {
       items.value = []
-      error.value = err instanceof Error ? err.message : 'Failed to load references.'
+      error.value = err instanceof Error ? err.message : t('platform.workbench.core.refs.loadFailed')
     } finally {
       loading.value = false
     }
@@ -70,7 +72,7 @@ export const useWorkbenchRefs = <TItem extends WorkbenchRefItem, TCreatePayload>
       items.value = [created, ...items.value]
       return created
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to add reference.'
+      error.value = err instanceof Error ? err.message : t('platform.workbench.core.refs.addFailed')
       return null
     } finally {
       submitting.value = false
@@ -97,7 +99,7 @@ export const useWorkbenchRefs = <TItem extends WorkbenchRefItem, TCreatePayload>
         return false
       })
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to remove reference.'
+      error.value = err instanceof Error ? err.message : t('platform.workbench.core.refs.removeFailed')
     } finally {
       submitting.value = false
     }

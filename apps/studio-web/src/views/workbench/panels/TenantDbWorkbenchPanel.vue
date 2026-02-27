@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -14,6 +16,7 @@ import {
 } from '@tabler/icons-vue'
 import { emitBusinessError } from '@app/services/http/error-gateway'
 import { tenantdbApi } from '@app/services/api/tenantdb-client'
+import { resourceApi } from '@app/services/api/resource-client'
 import { platformQueryKeys } from '@app/services/api/query-keys'
 import type {
   JsonRecord,
@@ -71,9 +74,13 @@ import { Textarea } from '@repo/ui-shadcn/components/ui/textarea'
 
 const props = defineProps<{
   resourceName: string
+  resourceDescription?: string
+  updatedAt?: string | null
   workspaceInstanceUuid?: string | null
   latestPublishedInstanceUuid?: string | null
 }>()
+const router = useRouter()
+const { t } = useI18n()
 
 const queryClient = useQueryClient()
 
@@ -141,15 +148,6 @@ interface QueryRowsResult {
   count: number
 }
 
-interface SqlHistoryItem {
-  id: string
-  sql: string
-  createdAt: string
-  success: boolean
-  rowCount: number
-  errorMessage?: string
-}
-
 const createId = (): string => `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const isSystemColumn = (column: Pick<TenantColumnRead, 'name'> | Pick<TenantColumnDraft, 'name'>): boolean =>
@@ -212,7 +210,7 @@ const coerceBoolean = (value: string): boolean => {
   if (normalized === 'false' || normalized === '0' || normalized === 'no') {
     return false
   }
-  throw new Error(`Boolean value "${value}" is invalid.`)
+  throw new Error(t('platform.workbench.tenantdb.errors.booleanInvalid', { value }))
 }
 
 const parseValueByType = (
@@ -226,7 +224,7 @@ const parseValueByType = (
   }
   if (trimmed.toLowerCase() === 'null') {
     if (!nullable) {
-      throw new Error('NULL is not allowed for non-nullable column.')
+      throw new Error(t('platform.workbench.tenantdb.errors.nullNotAllowed'))
     }
     return null
   }
@@ -236,14 +234,14 @@ const parseValueByType = (
   if (dataType === 'integer') {
     const parsed = Number(trimmed)
     if (!Number.isInteger(parsed)) {
-      throw new Error(`Value "${rawValue}" must be an integer.`)
+      throw new Error(t('platform.workbench.tenantdb.errors.integerRequired', { value: rawValue }))
     }
     return parsed
   }
   if (dataType === 'number') {
     const parsed = Number(trimmed)
     if (Number.isNaN(parsed)) {
-      throw new Error(`Value "${rawValue}" must be numeric.`)
+      throw new Error(t('platform.workbench.tenantdb.errors.numberRequired', { value: rawValue }))
     }
     return parsed
   }
@@ -254,7 +252,7 @@ const parseValueByType = (
     try {
       return JSON.parse(rawValue)
     } catch {
-      throw new Error('JSON value is invalid.')
+      throw new Error(t('platform.workbench.tenantdb.errors.jsonInvalid'))
     }
   }
   return rawValue
@@ -263,57 +261,62 @@ const parseValueByType = (
 const validateIdentifier = (value: string, label: string): string | null => {
   const trimmed = value.trim()
   if (!trimmed) {
-    return `${label} is required.`
+    return t('platform.workbench.tenantdb.errors.identifierRequired', { label })
   }
   if (trimmed.length > 63) {
-    return `${label} must be <= 63 chars.`
+    return t('platform.workbench.tenantdb.errors.identifierLength', { label })
   }
   if (!IDENTIFIER_REGEX.test(trimmed)) {
-    return `${label} must match ^[a-zA-Z_][a-zA-Z0-9_]*$.`
+    return t('platform.workbench.tenantdb.errors.identifierPattern', { label })
   }
   if (PG_RESERVED_WORDS.has(trimmed.toLowerCase())) {
-    return `${label} "${trimmed}" is a PostgreSQL reserved keyword.`
+    return t('platform.workbench.tenantdb.errors.identifierReservedKeyword', { label, value: trimmed })
   }
   return null
 }
 
 const validateTableDraft = (draft: TenantTableDraft): string[] => {
   const errors: string[] = []
-  const tableNameError = validateIdentifier(draft.name, 'Table name')
+  const tableNameError = validateIdentifier(draft.name, t('platform.workbench.tenantdb.tableName'))
   if (tableNameError) {
     errors.push(tableNameError)
   }
   if (!draft.label.trim()) {
-    errors.push('Table label is required.')
+    errors.push(t('platform.workbench.tenantdb.errors.tableLabelRequired'))
   }
   if (!draft.columns.length) {
-    errors.push('At least one user column is required.')
+    errors.push(t('platform.workbench.tenantdb.errors.atLeastOneColumn'))
   }
   const columnNameSet = new Set<string>()
   draft.columns.forEach((column, index) => {
-    const prefix = `Column #${index + 1}`
-    const nameError = validateIdentifier(column.name, `${prefix} name`)
+    const prefix = t('platform.workbench.tenantdb.columnIndex', { index: index + 1 })
+    const nameError = validateIdentifier(column.name, t('platform.workbench.tenantdb.columnNameWithPrefix', { prefix }))
     if (nameError) {
       errors.push(nameError)
     }
     if (SYSTEM_COLUMNS.has(column.name.trim().toLowerCase())) {
-      errors.push(`${prefix} name "${column.name}" is reserved by system.`)
+      errors.push(t('platform.workbench.tenantdb.errors.columnReserved', { prefix, value: column.name }))
     }
     const lowered = column.name.trim().toLowerCase()
     if (lowered && columnNameSet.has(lowered)) {
-      errors.push(`${prefix} duplicates column name "${column.name}".`)
+      errors.push(t('platform.workbench.tenantdb.errors.columnDuplicate', { prefix, value: column.name }))
     }
     if (lowered) {
       columnNameSet.add(lowered)
     }
     if (!column.label.trim()) {
-      errors.push(`${prefix} label is required.`)
+      errors.push(t('platform.workbench.tenantdb.errors.columnLabelRequired', { prefix }))
     }
     if (column.default_value_text.trim()) {
       try {
         parseValueByType(column.default_value_text, column.data_type, column.is_nullable)
       } catch (error) {
-        errors.push(`${prefix} default value invalid: ${error instanceof Error ? error.message : 'invalid value'}`)
+        errors.push(
+          t('platform.workbench.tenantdb.errors.columnDefaultInvalid', {
+            prefix,
+            message: error instanceof Error ? error.message : t('platform.workbench.tenantdb.errors.invalidValue'),
+          }),
+        )
       }
     }
   })
@@ -377,7 +380,7 @@ const buildSchemaDiff = (source: TenantTableRead | null, draft: TenantTableDraft
 
   const added = draft.columns
     .filter((column) => !column.uuid)
-    .map((column) => column.name || '(unnamed)')
+    .map((column) => column.name || t('platform.workbench.tenantdb.unnamed'))
 
   const updated: string[] = []
   draft.columns.forEach((column) => {
@@ -421,7 +424,7 @@ const buildSchemaDiff = (source: TenantTableRead | null, draft: TenantTableDraft
 
 const formatCell = (value: unknown): string => {
   if (value === null) {
-    return 'null'
+    return t('platform.workbench.tenantdb.valueNull')
   }
   if (value === undefined) {
     return ''
@@ -430,7 +433,7 @@ const formatCell = (value: unknown): string => {
     try {
       return JSON.stringify(value)
     } catch {
-      return '[object]'
+      return t('platform.workbench.tenantdb.valueObject')
     }
   }
   return String(value)
@@ -475,13 +478,9 @@ const rowDeleteDialogOpen = ref(false)
 const deleteRowTargetId = ref<string>('')
 const deleteRowConfirmInput = ref('')
 
-const inspectorRowIdInput = ref('')
-const inspectorRowResult = ref<JsonRecord | null>(null)
-
 const sqlText = ref('')
 const sqlResultRows = ref<JsonRecord[]>([])
 const sqlResultError = ref('')
-const sqlHistory = ref<SqlHistoryItem[]>([])
 
 const tablesQuery = useQuery({
   queryKey: computed(() => platformQueryKeys.tenantTables(props.workspaceInstanceUuid ?? 'none')),
@@ -511,7 +510,6 @@ const filteredTables = computed(() => {
 
 const selectedTable = computed(() => selectedTableQuery.data.value ?? null)
 const editableColumns = computed(() => selectedTable.value?.columns.filter((column) => !isSystemColumn(column)) ?? [])
-const systemColumns = computed(() => selectedTable.value?.columns.filter((column) => isSystemColumn(column)) ?? [])
 
 const schemaDiff = computed(() => buildSchemaDiff(selectedTable.value, schemaDraft.value))
 const hasSchemaChanges = computed(() => {
@@ -630,8 +628,6 @@ watch(
     sqlText.value = `SELECT * FROM ${table.name} ORDER BY id DESC LIMIT 50;`
     sqlResultRows.value = []
     sqlResultError.value = ''
-    inspectorRowResult.value = null
-    inspectorRowIdInput.value = ''
   },
   { immediate: true },
 )
@@ -661,7 +657,7 @@ const invalidateTenantQueries = async (): Promise<void> => {
 const createTableMutation = useMutation({
   mutationFn: async (payload: TenantTableCreateRequest) => {
     if (!props.workspaceInstanceUuid) {
-      throw new Error('Workspace instance uuid is missing.')
+      throw new Error(t('platform.workbench.tenantdb.errors.workspaceInstanceMissing'))
     }
     return tenantdbApi.createTable(props.workspaceInstanceUuid, payload)
   },
@@ -679,7 +675,7 @@ const createTableMutation = useMutation({
 const updateTableMutation = useMutation({
   mutationFn: async (payload: TenantTableUpdateRequest) => {
     if (!props.workspaceInstanceUuid || !selectedTableUuid.value) {
-      throw new Error('Missing tenantdb table context.')
+      throw new Error(t('platform.workbench.tenantdb.errors.tableContextMissing'))
     }
     return tenantdbApi.updateTable(props.workspaceInstanceUuid, selectedTableUuid.value, payload)
   },
@@ -698,7 +694,7 @@ const updateTableMutation = useMutation({
 const deleteTableMutation = useMutation({
   mutationFn: async () => {
     if (!props.workspaceInstanceUuid || !selectedTableUuid.value) {
-      throw new Error('Missing tenantdb table context.')
+      throw new Error(t('platform.workbench.tenantdb.errors.tableContextMissing'))
     }
     return tenantdbApi.deleteTable(props.workspaceInstanceUuid, selectedTableUuid.value)
   },
@@ -715,7 +711,7 @@ const deleteTableMutation = useMutation({
 const insertRowMutation = useMutation({
   mutationFn: async (payload: JsonRecord) => {
     if (!props.workspaceInstanceUuid || !selectedTable.value) {
-      throw new Error('Missing tenantdb table context.')
+      throw new Error(t('platform.workbench.tenantdb.errors.tableContextMissing'))
     }
     return tenantdbApi.execute(props.workspaceInstanceUuid, {
       inputs: {
@@ -737,7 +733,7 @@ const insertRowMutation = useMutation({
 const updateRowMutation = useMutation({
   mutationFn: async ({ rowId, payload }: { rowId: string; payload: JsonRecord }) => {
     if (!props.workspaceInstanceUuid || !selectedTable.value) {
-      throw new Error('Missing tenantdb table context.')
+      throw new Error(t('platform.workbench.tenantdb.errors.tableContextMissing'))
     }
     return tenantdbApi.execute(props.workspaceInstanceUuid, {
       inputs: {
@@ -763,7 +759,7 @@ const updateRowMutation = useMutation({
 const deleteRowMutation = useMutation({
   mutationFn: async (rowId: string) => {
     if (!props.workspaceInstanceUuid || !selectedTable.value) {
-      throw new Error('Missing tenantdb table context.')
+      throw new Error(t('platform.workbench.tenantdb.errors.tableContextMissing'))
     }
     return tenantdbApi.execute(props.workspaceInstanceUuid, {
       inputs: {
@@ -786,37 +782,10 @@ const deleteRowMutation = useMutation({
   },
 })
 
-const inspectRowMutation = useMutation({
-  mutationFn: async (rowId: string): Promise<JsonRecord | null> => {
-    if (!props.workspaceInstanceUuid || !selectedTable.value) {
-      throw new Error('Missing tenantdb table context.')
-    }
-    const result = await tenantdbApi.execute(props.workspaceInstanceUuid, {
-      inputs: {
-        action: 'get_one',
-        table_name: selectedTable.value.name,
-        filters: {
-          id: rowId,
-        },
-      },
-    })
-    if (!result.data || Array.isArray(result.data) || typeof result.data !== 'object') {
-      return null
-    }
-    return result.data
-  },
-  onSuccess: (result) => {
-    inspectorRowResult.value = result
-  },
-  onError: (error) => {
-    emitBusinessError(error)
-  },
-})
-
 const sqlMutation = useMutation({
   mutationFn: async (rawSql: string): Promise<JsonRecord[]> => {
     if (!props.workspaceInstanceUuid || !selectedTable.value) {
-      throw new Error('Missing tenantdb table context.')
+      throw new Error(t('platform.workbench.tenantdb.errors.tableContextMissing'))
     }
     const response = await tenantdbApi.execute(props.workspaceInstanceUuid, {
       inputs: {
@@ -833,31 +802,30 @@ const sqlMutation = useMutation({
   onSuccess: (rows, sql) => {
     sqlResultRows.value = rows
     sqlResultError.value = ''
-    sqlHistory.value = [
-      {
-        id: createId(),
-        sql,
-        createdAt: new Date().toISOString(),
-        success: true,
-        rowCount: rows.length,
-      },
-      ...sqlHistory.value,
-    ].slice(0, 20)
   },
   onError: (error, sql) => {
     sqlResultRows.value = []
-    sqlResultError.value = error instanceof Error ? error.message : 'SQL execution failed.'
-    sqlHistory.value = [
-      {
-        id: createId(),
-        sql,
-        createdAt: new Date().toISOString(),
-        success: false,
-        rowCount: 0,
-        errorMessage: sqlResultError.value,
-      },
-      ...sqlHistory.value,
-    ].slice(0, 20)
+    sqlResultError.value = error instanceof Error ? error.message : t('platform.workbench.tenantdb.errors.sqlExecutionFailed')
+    emitBusinessError(error)
+  },
+})
+
+const buildPublishVersionTag = (): string => {
+  const now = new Date()
+  const pad = (value: number, length = 2): string => String(value).padStart(length, '0')
+  return `v${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`
+}
+
+const publishMutation = useMutation({
+  mutationFn: async () => {
+    if (!props.workspaceInstanceUuid) {
+      throw new Error(t('platform.workbench.tenantdb.errors.noWorkspaceInstance'))
+    }
+    return resourceApi.publishInstance(props.workspaceInstanceUuid, {
+      version_tag: buildPublishVersionTag(),
+    })
+  },
+  onError: (error) => {
     emitBusinessError(error)
   },
 })
@@ -889,7 +857,7 @@ const submitCreateTable = async (): Promise<void> => {
     const payload = buildTableCreatePayload(createDraft.value)
     await createTableMutation.mutateAsync(payload)
   } catch (error) {
-    createErrorText.value = error instanceof Error ? error.message : 'Failed to build create payload.'
+    createErrorText.value = error instanceof Error ? error.message : t('platform.workbench.tenantdb.errors.createPayloadFailed')
   }
 }
 
@@ -925,7 +893,7 @@ const openSchemaSaveConfirm = (): void => {
     return
   }
   if (!hasSchemaChanges.value) {
-    schemaErrorText.value = 'No schema changes to save.'
+    schemaErrorText.value = t('platform.workbench.tenantdb.errors.noSchemaChanges')
     return
   }
   schemaErrorText.value = ''
@@ -938,14 +906,14 @@ const submitSchemaUpdate = async (): Promise<void> => {
     return
   }
   if (schemaDiff.value.removed.length > 0 && !schemaDeleteAcknowledge.value) {
-    schemaErrorText.value = 'Column deletions detected. Please confirm destructive changes.'
+    schemaErrorText.value = t('platform.workbench.tenantdb.errors.schemaDeleteAckRequired')
     return
   }
   try {
     const payload = buildTableUpdatePayload(schemaDraft.value)
     await updateTableMutation.mutateAsync(payload)
   } catch (error) {
-    schemaErrorText.value = error instanceof Error ? error.message : 'Failed to build update payload.'
+    schemaErrorText.value = error instanceof Error ? error.message : t('platform.workbench.tenantdb.errors.updatePayloadFailed')
   }
 }
 
@@ -959,7 +927,7 @@ const submitDeleteTable = async (): Promise<void> => {
     return
   }
   if (deleteTableConfirmInput.value !== selectedTable.value.name) {
-    schemaErrorText.value = 'Delete confirmation table name does not match.'
+    schemaErrorText.value = t('platform.workbench.tenantdb.errors.deleteTableConfirmMismatch')
     return
   }
   await deleteTableMutation.mutateAsync()
@@ -1091,7 +1059,7 @@ const submitEditRow = async (): Promise<void> => {
   }
   const rowId = String(row.id ?? '')
   if (!rowId) {
-    emitBusinessError(new Error('Selected row has no id field.'))
+    emitBusinessError(new Error(t('platform.workbench.tenantdb.errors.rowIdMissing')))
     return
   }
   const payload: JsonRecord = {}
@@ -1112,7 +1080,7 @@ const submitEditRow = async (): Promise<void> => {
 const openDeleteRowDialog = (row: JsonRecord): void => {
   const rowId = String(row.id ?? '')
   if (!rowId) {
-    emitBusinessError(new Error('Selected row has no id field.'))
+    emitBusinessError(new Error(t('platform.workbench.tenantdb.errors.rowIdMissing')))
     return
   }
   deleteRowTargetId.value = rowId
@@ -1125,18 +1093,10 @@ const submitDeleteRow = async (): Promise<void> => {
     return
   }
   if (deleteRowConfirmInput.value !== deleteRowTargetId.value) {
-    emitBusinessError(new Error('Row delete confirmation does not match row id.'))
+    emitBusinessError(new Error(t('platform.workbench.tenantdb.errors.rowDeleteConfirmMismatch')))
     return
   }
   await deleteRowMutation.mutateAsync(deleteRowTargetId.value)
-}
-
-const runInspectorGetOne = async (): Promise<void> => {
-  const rowId = inspectorRowIdInput.value.trim()
-  if (!rowId) {
-    return
-  }
-  await inspectRowMutation.mutateAsync(rowId)
 }
 
 const runSql = async (): Promise<void> => {
@@ -1145,62 +1105,75 @@ const runSql = async (): Promise<void> => {
     return
   }
   if (!/^select/i.test(sql)) {
-    sqlResultError.value = 'Only SELECT is allowed by backend raw_sql.'
+    sqlResultError.value = t('platform.workbench.tenantdb.errors.rawSqlSelectOnly')
     return
   }
   await sqlMutation.mutateAsync(sql)
 }
 
-const formatTimestamp = (value: string): string => {
-  const timestamp = new Date(value)
-  if (Number.isNaN(timestamp.getTime())) {
-    return value
-  }
-  return new Intl.DateTimeFormat('en-US', {
-    hour12: false,
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(timestamp)
+const handleHeaderSave = (): void => {
+  openSchemaSaveConfirm()
 }
+
+const handleHeaderRun = (): void => {
+  void runSql()
+}
+
+const handleHeaderPublish = (): void => {
+  if (publishMutation.isPending.value) {
+    return
+  }
+  publishMutation.mutate()
+}
+
 </script>
 
 <template>
   <TenantDbWorkbenchScaffold
     :resource-name="resourceName"
+    :resource-description="resourceDescription"
+    :updated-at="updatedAt"
     :workspace-instance-uuid="workspaceInstanceUuid"
     :latest-published-instance-uuid="latestPublishedInstanceUuid"
+    :save-disabled="!hasSchemaChanges || updateTableMutation.isPending.value"
+    :publish-disabled="!workspaceInstanceUuid || publishMutation.isPending.value"
+    :run-disabled="!selectedTable || sqlMutation.isPending.value"
+    :running="sqlMutation.isPending.value"
+    :saving="updateTableMutation.isPending.value"
+    :publishing="publishMutation.isPending.value"
+    @back="router.push('/resources')"
+    @save="handleHeaderSave"
+    @run="handleHeaderRun"
+    @publish="handleHeaderPublish"
   >
     <Card v-if="!workspaceInstanceUuid">
       <CardHeader>
-        <CardTitle>TenantDB instance is not available</CardTitle>
+        <CardTitle>{{ t('platform.workbench.tenantdb.instanceUnavailableTitle') }}</CardTitle>
       </CardHeader>
       <CardContent class="text-sm text-muted-foreground">
-        Current resource does not expose a workspace instance uuid.
+        {{ t('platform.workbench.tenantdb.instanceUnavailableDescription') }}
       </CardContent>
     </Card>
 
-    <div v-else class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+    <div v-else class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
       <Card class="h-fit">
         <CardHeader class="space-y-3">
           <div class="flex items-center justify-between">
             <div>
               <CardTitle class="flex items-center gap-2 text-base">
                 <IconDatabase class="size-4" />
-                Database Explorer
+                {{ t('platform.workbench.tenantdb.databaseExplorer') }}
               </CardTitle>
-              <CardDescription>Manage table inventory</CardDescription>
+              <CardDescription>{{ t('platform.workbench.tenantdb.manageTableInventory') }}</CardDescription>
             </div>
             <Button size="sm" class="gap-1" @click="openCreateTableDialog">
               <IconPlus class="size-4" />
-              Table
+              {{ t('platform.workbench.tenantdb.table') }}
             </Button>
           </div>
           <div class="relative">
             <IconSearch class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input v-model="tableSearchText" class="pl-9" placeholder="Search table..." />
+            <Input v-model="tableSearchText" class="pl-9" :placeholder="t('platform.workbench.tenantdb.searchTable')" />
           </div>
         </CardHeader>
         <CardContent class="space-y-2">
@@ -1223,7 +1196,7 @@ const formatTimestamp = (value: string): string => {
                 {{ table.columns.length }}
               </Badge>
             </Button>
-            <p v-if="!filteredTables.length" class="text-xs text-muted-foreground">No table found.</p>
+            <p v-if="!filteredTables.length" class="text-xs text-muted-foreground">{{ t('platform.workbench.tenantdb.noTableFound') }}</p>
           </template>
         </CardContent>
       </Card>
@@ -1233,7 +1206,7 @@ const formatTimestamp = (value: string): string => {
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle class="text-base">
-                {{ selectedTable?.label || selectedTable?.name || 'No table selected' }}
+                {{ selectedTable?.label || selectedTable?.name || t('platform.workbench.tenantdb.noTableSelected') }}
               </CardTitle>
               <CardDescription v-if="selectedTable" class="font-mono">
                 {{ selectedTable.name }}
@@ -1248,30 +1221,30 @@ const formatTimestamp = (value: string): string => {
                 @click="openDeleteTableDialog"
               >
                 <IconTableMinus class="size-4" />
-                Drop Table
+                {{ t('platform.workbench.tenantdb.dropTable') }}
               </Button>
             </div>
           </div>
           <Tabs v-model="activeMainTab" class="w-full">
             <TabsList class="grid w-full grid-cols-3">
-              <TabsTrigger value="data">Data</TabsTrigger>
-              <TabsTrigger value="schema">Schema</TabsTrigger>
-              <TabsTrigger value="sql">SQL</TabsTrigger>
+              <TabsTrigger value="data">{{ t('platform.workbench.tenantdb.tabs.data') }}</TabsTrigger>
+              <TabsTrigger value="schema">{{ t('platform.workbench.tenantdb.tabs.schema') }}</TabsTrigger>
+              <TabsTrigger value="sql">{{ t('platform.workbench.tenantdb.tabs.sql') }}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="data" class="space-y-4">
               <Card>
                 <CardHeader class="space-y-3">
-                  <CardTitle class="text-sm">Query Builder</CardTitle>
+                  <CardTitle class="text-sm">{{ t('platform.workbench.tenantdb.queryBuilder') }}</CardTitle>
                   <div class="grid gap-2 md:grid-cols-4">
                     <div class="space-y-1">
-                      <Label>Limit</Label>
+                      <Label>{{ t('platform.workbench.tenantdb.limit') }}</Label>
                       <Select
                         :model-value="String(dataLimitDraft)"
                         @update:model-value="(value) => (dataLimitDraft = Number(value))"
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Rows per page" />
+                          <SelectValue :placeholder="t('platform.workbench.tenantdb.rowsPerPage')" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="10">10</SelectItem>
@@ -1283,10 +1256,10 @@ const formatTimestamp = (value: string): string => {
                     </div>
 
                     <div class="space-y-1">
-                      <Label>Order by</Label>
+                      <Label>{{ t('platform.workbench.tenantdb.orderBy') }}</Label>
                       <Select v-model="dataOrderColumnDraft">
                         <SelectTrigger>
-                          <SelectValue placeholder="None" />
+                          <SelectValue :placeholder="t('platform.workbench.tenantdb.none')" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem
@@ -1301,10 +1274,10 @@ const formatTimestamp = (value: string): string => {
                     </div>
 
                     <div class="space-y-1">
-                      <Label>Direction</Label>
+                      <Label>{{ t('platform.workbench.tenantdb.direction') }}</Label>
                       <Select v-model="dataOrderDirectionDraft">
                         <SelectTrigger>
-                          <SelectValue placeholder="Direction" />
+                          <SelectValue :placeholder="t('platform.workbench.tenantdb.direction')" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ASC">ASC</SelectItem>
@@ -1314,27 +1287,27 @@ const formatTimestamp = (value: string): string => {
                     </div>
 
                     <div class="flex items-end gap-2">
-                      <Button class="w-full" :disabled="!selectedTable" @click="applyDataQuery">Apply Query</Button>
+                      <Button class="w-full" :disabled="!selectedTable" @click="applyDataQuery">{{ t('platform.workbench.tenantdb.applyQuery') }}</Button>
                       <Button
                         variant="outline"
                         class="w-full"
                         :disabled="!selectedTable"
                         @click="openInsertRowDialog"
                       >
-                        Insert Row
+                        {{ t('platform.workbench.tenantdb.insertRow') }}
                       </Button>
                     </div>
                   </div>
 
                   <div class="space-y-2">
-                    <Label>Projection Columns</Label>
+                    <Label>{{ t('platform.workbench.tenantdb.projectionColumns') }}</Label>
                     <div class="flex flex-wrap gap-2">
                       <Button
                         size="sm"
                         variant="outline"
                         @click="dataColumnDrafts = (selectedTable?.columns ?? []).map((column) => column.name)"
                       >
-                        All
+                        {{ t('platform.workbench.tenantdb.all') }}
                       </Button>
                       <label
                         v-for="column in selectedTable?.columns ?? []"
@@ -1352,10 +1325,10 @@ const formatTimestamp = (value: string): string => {
 
                   <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                      <Label>Filters</Label>
+                      <Label>{{ t('platform.workbench.tenantdb.filters') }}</Label>
                       <Button size="sm" variant="outline" class="gap-1" @click="addFilterDraft">
                         <IconPlus class="size-3.5" />
-                        Add
+                        {{ t('platform.workbench.tenantdb.add') }}
                       </Button>
                     </div>
                     <div v-if="dataFilterDrafts.length" class="space-y-2">
@@ -1366,7 +1339,7 @@ const formatTimestamp = (value: string): string => {
                       >
                         <Select v-model="filter.column">
                           <SelectTrigger>
-                            <SelectValue placeholder="Column" />
+                            <SelectValue :placeholder="t('platform.workbench.tenantdb.column')" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem
@@ -1380,7 +1353,7 @@ const formatTimestamp = (value: string): string => {
                         </Select>
                         <Select v-model="filter.operator">
                           <SelectTrigger>
-                            <SelectValue placeholder="Operator" />
+                            <SelectValue :placeholder="t('platform.workbench.tenantdb.operator')" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem v-for="operator in FILTER_OPERATORS" :key="operator" :value="operator">
@@ -1388,13 +1361,13 @@ const formatTimestamp = (value: string): string => {
                             </SelectItem>
                           </SelectContent>
                         </Select>
-                        <Input v-model="filter.value" placeholder="Value" />
+                        <Input v-model="filter.value" :placeholder="t('platform.workbench.tenantdb.value')" />
                         <Button size="icon" variant="outline" @click="removeFilterDraft(filter.id)">
                           <IconTrash class="size-3.5" />
                         </Button>
                       </div>
                     </div>
-                    <p v-else class="text-xs text-muted-foreground">No filters. Query returns all rows.</p>
+                    <p v-else class="text-xs text-muted-foreground">{{ t('platform.workbench.tenantdb.noFiltersHint') }}</p>
                   </div>
                 </CardHeader>
               </Card>
@@ -1402,10 +1375,10 @@ const formatTimestamp = (value: string): string => {
               <Card>
                 <CardHeader>
                   <div class="flex items-center justify-between gap-2">
-                    <CardTitle class="text-sm">Rows</CardTitle>
+                    <CardTitle class="text-sm">{{ t('platform.workbench.tenantdb.rows') }}</CardTitle>
                     <div class="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>Count: {{ dataTotalCount }}</span>
-                      <span>Page {{ appliedDataQuery.page }} / {{ dataPageCount }}</span>
+                      <span>{{ t('platform.workbench.tenantdb.count', { count: dataTotalCount }) }}</span>
+                      <span>{{ t('platform.workbench.tenantdb.page', { page: appliedDataQuery.page, total: dataPageCount }) }}</span>
                     </div>
                   </div>
                 </CardHeader>
@@ -1423,7 +1396,7 @@ const formatTimestamp = (value: string): string => {
                             <TableHead v-for="columnName in dataVisibleColumns" :key="columnName" class="font-mono">
                               {{ columnName }}
                             </TableHead>
-                            <TableHead class="text-right">Actions</TableHead>
+                            <TableHead class="text-right">{{ t('platform.workbench.tenantdb.actions') }}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1448,7 +1421,7 @@ const formatTimestamp = (value: string): string => {
                           </TableRow>
                           <TableRow v-if="!dataRows.length">
                             <TableCell :col-span="Math.max(1, dataVisibleColumns.length + 1)" class="text-center text-sm text-muted-foreground">
-                              No data returned.
+                              {{ t('platform.workbench.tenantdb.noDataReturned') }}
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -1457,7 +1430,7 @@ const formatTimestamp = (value: string): string => {
 
                     <div class="flex items-center justify-between">
                       <span class="text-xs text-muted-foreground">
-                        Backend query action with pagination and filter tuples.
+                        {{ t('platform.workbench.tenantdb.paginationHint') }}
                       </span>
                       <div class="flex items-center gap-2">
                         <Button
@@ -1485,24 +1458,24 @@ const formatTimestamp = (value: string): string => {
 
             <TabsContent value="schema" class="space-y-4">
               <Alert v-if="schemaErrorText" variant="destructive">
-                <AlertTitle>Schema validation failed</AlertTitle>
+                <AlertTitle>{{ t('platform.workbench.tenantdb.schemaValidationFailed') }}</AlertTitle>
                 <AlertDescription>{{ schemaErrorText }}</AlertDescription>
               </Alert>
 
               <Card v-if="schemaDraft">
                 <CardHeader class="space-y-3">
-                  <CardTitle class="text-sm">Table Metadata</CardTitle>
+                  <CardTitle class="text-sm">{{ t('platform.workbench.tenantdb.tableMetadata') }}</CardTitle>
                   <div class="grid gap-2 md:grid-cols-3">
                     <div class="space-y-1">
-                      <Label>Table Name</Label>
+                      <Label>{{ t('platform.workbench.tenantdb.tableName') }}</Label>
                       <Input v-model="schemaDraft.name" class="font-mono" />
                     </div>
                     <div class="space-y-1">
-                      <Label>Label</Label>
+                      <Label>{{ t('platform.workbench.tenantdb.label') }}</Label>
                       <Input v-model="schemaDraft.label" />
                     </div>
                     <div class="space-y-1">
-                      <Label>Description</Label>
+                      <Label>{{ t('platform.workbench.tenantdb.description') }}</Label>
                       <Input v-model="schemaDraft.description" />
                     </div>
                   </div>
@@ -1512,10 +1485,10 @@ const formatTimestamp = (value: string): string => {
               <Card v-if="schemaDraft">
                 <CardHeader class="space-y-3">
                   <div class="flex items-center justify-between">
-                    <CardTitle class="text-sm">Column Definitions</CardTitle>
+                    <CardTitle class="text-sm">{{ t('platform.workbench.tenantdb.columnDefinitions') }}</CardTitle>
                     <Button size="sm" variant="outline" class="gap-1" @click="addSchemaColumn">
                       <IconPlus class="size-4" />
-                      Column
+                      {{ t('platform.workbench.tenantdb.column') }}
                     </Button>
                   </div>
                 </CardHeader>
@@ -1529,13 +1502,13 @@ const formatTimestamp = (value: string): string => {
                       <Input
                         v-model="column.name"
                         class="font-mono"
-                        placeholder="column_name"
+                        :placeholder="t('platform.workbench.tenantdb.columnNamePlaceholder')"
                         @focus="selectedSchemaColumnId = column.uuid ?? column.name"
                       />
-                      <Input v-model="column.label" placeholder="Label" @focus="selectedSchemaColumnId = column.uuid ?? column.name" />
+                      <Input v-model="column.label" :placeholder="t('platform.workbench.tenantdb.label')" @focus="selectedSchemaColumnId = column.uuid ?? column.name" />
                       <Select v-model="column.data_type">
                         <SelectTrigger>
-                          <SelectValue placeholder="Type" />
+                          <SelectValue :placeholder="t('platform.workbench.tenantdb.type')" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem v-for="dataType in DATA_TYPES" :key="dataType" :value="dataType">
@@ -1548,21 +1521,21 @@ const formatTimestamp = (value: string): string => {
                           :model-value="column.is_nullable"
                           @update:model-value="column.is_nullable = Boolean($event)"
                         />
-                        Nullable
+                        {{ t('platform.workbench.tenantdb.nullable') }}
                       </label>
                       <label class="flex items-center gap-1 rounded-md border px-2 text-xs">
                         <Checkbox
                           :model-value="column.is_unique"
                           @update:model-value="column.is_unique = Boolean($event)"
                         />
-                        Unique
+                        {{ t('platform.workbench.tenantdb.unique') }}
                       </label>
                       <label class="flex items-center gap-1 rounded-md border px-2 text-xs">
                         <Checkbox
                           :model-value="column.is_indexed"
                           @update:model-value="column.is_indexed = Boolean($event)"
                         />
-                        Indexed
+                        {{ t('platform.workbench.tenantdb.indexed') }}
                       </label>
                       <Button size="icon" variant="outline" @click="removeSchemaColumn(index)">
                         <IconTrash class="size-3.5" />
@@ -1572,9 +1545,9 @@ const formatTimestamp = (value: string): string => {
                       <Input
                         v-model="column.default_value_text"
                         class="font-mono"
-                        placeholder="Default value (type aware)"
+                        :placeholder="t('platform.workbench.tenantdb.defaultValueTypeAware')"
                       />
-                      <Input v-model="column.description" placeholder="Description" />
+                      <Input v-model="column.description" :placeholder="t('platform.workbench.tenantdb.description')" />
                     </div>
                   </div>
 
@@ -1582,13 +1555,13 @@ const formatTimestamp = (value: string): string => {
 
                   <div class="flex items-center justify-between">
                     <div class="text-xs text-muted-foreground">
-                      Diff: +{{ schemaDiff.added.length }} / ~{{ schemaDiff.updated.length }} / -{{ schemaDiff.removed.length }}
+                      {{ t('platform.workbench.tenantdb.diffSummary', { added: schemaDiff.added.length, updated: schemaDiff.updated.length, removed: schemaDiff.removed.length }) }}
                     </div>
                     <Button
                       :disabled="!hasSchemaChanges || updateTableMutation.isPending.value"
                       @click="openSchemaSaveConfirm"
                     >
-                      {{ updateTableMutation.isPending.value ? 'Saving...' : 'Save Schema' }}
+                      {{ updateTableMutation.isPending.value ? t('platform.workbench.header.actions.saving') : t('platform.workbench.tenantdb.saveSchema') }}
                     </Button>
                   </div>
                 </CardContent>
@@ -1600,17 +1573,17 @@ const formatTimestamp = (value: string): string => {
                 <CardHeader>
                   <CardTitle class="flex items-center gap-2 text-sm">
                     <IconFileCode class="size-4" />
-                    SQL Console (SELECT only)
+                    {{ t('platform.workbench.tenantdb.sqlConsoleTitle') }}
                   </CardTitle>
-                  <CardDescription>Uses raw_sql action via /execute endpoint. Backend timeout and row cap still enforced.</CardDescription>
+                  <CardDescription>{{ t('platform.workbench.tenantdb.sqlConsoleDescription') }}</CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-3">
-                  <Textarea v-model="sqlText" class="min-h-36 font-mono text-xs" placeholder="SELECT * FROM your_table LIMIT 50;" />
+                  <Textarea v-model="sqlText" class="min-h-36 font-mono text-xs" :placeholder="t('platform.workbench.tenantdb.sqlPlaceholder')" />
                   <div class="flex items-center justify-between">
                     <Button :disabled="sqlMutation.isPending.value || !selectedTable" @click="runSql">
-                      {{ sqlMutation.isPending.value ? 'Running...' : 'Run SQL' }}
+                      {{ sqlMutation.isPending.value ? t('platform.workbench.header.actions.running') : t('platform.workbench.tenantdb.runSql') }}
                     </Button>
-                    <span class="text-xs text-muted-foreground">Result max rows from backend: 500</span>
+                    <span class="text-xs text-muted-foreground">{{ t('platform.workbench.tenantdb.resultMaxRows') }}</span>
                   </div>
                   <p v-if="sqlResultError" class="text-xs text-destructive">{{ sqlResultError }}</p>
                 </CardContent>
@@ -1618,7 +1591,7 @@ const formatTimestamp = (value: string): string => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle class="text-sm">SQL Result</CardTitle>
+                  <CardTitle class="text-sm">{{ t('platform.workbench.tenantdb.sqlResult') }}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div class="overflow-auto rounded-md border">
@@ -1642,7 +1615,7 @@ const formatTimestamp = (value: string): string => {
                         </TableRow>
                         <TableRow v-if="!sqlResultRows.length">
                           <TableCell class="text-center text-sm text-muted-foreground">
-                            No SQL rows yet.
+                            {{ t('platform.workbench.tenantdb.noSqlRows') }}
                           </TableCell>
                         </TableRow>
                       </TableBody>
@@ -1655,112 +1628,36 @@ const formatTimestamp = (value: string): string => {
         </CardHeader>
       </Card>
 
-      <Card class="h-fit">
-        <CardHeader>
-          <CardTitle class="text-base">Inspector</CardTitle>
-          <CardDescription>Context, diff summary, and guarded operations</CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <div class="space-y-2">
-            <p class="text-xs font-medium text-muted-foreground">Current Table</p>
-            <p class="font-mono text-sm">{{ selectedTable?.name || '-' }}</p>
-            <p class="text-xs text-muted-foreground">{{ selectedTable?.description || 'No description' }}</p>
-          </div>
-
-          <div class="space-y-2">
-            <p class="text-xs font-medium text-muted-foreground">System Columns</p>
-            <div v-if="systemColumns.length" class="space-y-1">
-              <div
-                v-for="column in systemColumns"
-                :key="column.uuid"
-                class="flex items-center justify-between rounded-md border px-2 py-1 text-xs"
-              >
-                <span class="font-mono">{{ column.name }}</span>
-                <span>{{ column.data_type }}</span>
-              </div>
-            </div>
-            <p v-else class="text-xs text-muted-foreground">No system columns info.</p>
-          </div>
-
-          <div class="space-y-2">
-            <p class="text-xs font-medium text-muted-foreground">Schema Diff</p>
-            <div class="rounded-md border p-2 text-xs">
-              <p>Table meta changed: {{ schemaDiff.tableChanged ? 'yes' : 'no' }}</p>
-              <p>Added: {{ schemaDiff.added.length }}</p>
-              <p>Updated: {{ schemaDiff.updated.length }}</p>
-              <p>Removed: {{ schemaDiff.removed.length }}</p>
-            </div>
-          </div>
-
-          <div class="space-y-2">
-            <p class="text-xs font-medium text-muted-foreground">Get One Row</p>
-            <div class="flex gap-2">
-              <Input v-model="inspectorRowIdInput" placeholder="id" class="font-mono" />
-              <Button
-                size="sm"
-                variant="outline"
-                :disabled="inspectRowMutation.isPending.value || !selectedTable"
-                @click="runInspectorGetOne"
-              >
-                {{ inspectRowMutation.isPending.value ? 'Loading...' : 'Fetch' }}
-              </Button>
-            </div>
-            <pre class="max-h-48 overflow-auto rounded-md border bg-muted/20 p-2 text-xs">{{ inspectorRowResult ? JSON.stringify(inspectorRowResult, null, 2) : 'No row fetched.' }}</pre>
-          </div>
-
-          <div class="space-y-2">
-            <p class="text-xs font-medium text-muted-foreground">SQL History</p>
-            <div class="max-h-48 space-y-1 overflow-auto">
-              <div
-                v-for="history in sqlHistory"
-                :key="history.id"
-                class="rounded-md border p-2 text-xs"
-              >
-                <div class="flex items-center justify-between gap-2">
-                  <Badge :variant="history.success ? 'secondary' : 'destructive'">
-                    {{ history.success ? 'OK' : 'ERR' }}
-                  </Badge>
-                  <span class="text-muted-foreground">{{ formatTimestamp(history.createdAt) }}</span>
-                </div>
-                <p class="mt-1 line-clamp-2 font-mono">{{ history.sql }}</p>
-                <p class="mt-1 text-muted-foreground">Rows: {{ history.rowCount }}</p>
-                <p v-if="history.errorMessage" class="mt-1 text-destructive">{{ history.errorMessage }}</p>
-              </div>
-              <p v-if="!sqlHistory.length" class="text-xs text-muted-foreground">No SQL history.</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
 
     <Dialog :open="createTableDialogOpen" @update:open="createTableDialogOpen = $event">
       <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-[920px]">
         <DialogHeader>
-          <DialogTitle>Create Table</DialogTitle>
-          <DialogDescription>DDL create with strict identifier validation and type-safe defaults.</DialogDescription>
+          <DialogTitle>{{ t('platform.workbench.tenantdb.createTable') }}</DialogTitle>
+          <DialogDescription>{{ t('platform.workbench.tenantdb.createDialogDescription') }}</DialogDescription>
         </DialogHeader>
         <div class="space-y-3">
           <div class="grid gap-2 md:grid-cols-3">
             <div class="space-y-1">
-              <Label>Name</Label>
-              <Input v-model="createDraft.name" class="font-mono" placeholder="orders" />
+              <Label>{{ t('platform.workbench.tenantdb.name') }}</Label>
+              <Input v-model="createDraft.name" class="font-mono" :placeholder="t('platform.workbench.tenantdb.tableNameExample')" />
             </div>
             <div class="space-y-1">
-              <Label>Label</Label>
-              <Input v-model="createDraft.label" placeholder="Orders" />
+              <Label>{{ t('platform.workbench.tenantdb.label') }}</Label>
+              <Input v-model="createDraft.label" :placeholder="t('platform.workbench.tenantdb.tableLabelExample')" />
             </div>
             <div class="space-y-1">
-              <Label>Description</Label>
-              <Input v-model="createDraft.description" placeholder="Optional" />
+              <Label>{{ t('platform.workbench.tenantdb.description') }}</Label>
+              <Input v-model="createDraft.description" :placeholder="t('platform.workbench.tenantdb.optional')" />
             </div>
           </div>
 
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <Label>Initial Columns</Label>
+              <Label>{{ t('platform.workbench.tenantdb.initialColumns') }}</Label>
               <Button size="sm" variant="outline" class="gap-1" @click="addColumnToCreateDraft">
                 <IconPlus class="size-3.5" />
-                Add
+                {{ t('platform.workbench.tenantdb.add') }}
               </Button>
             </div>
             <div
@@ -1769,11 +1666,11 @@ const formatTimestamp = (value: string): string => {
               class="space-y-2 rounded-md border p-3"
             >
               <div class="grid gap-2 md:grid-cols-[1fr_1fr_140px_120px_120px_120px_auto]">
-                <Input v-model="column.name" class="font-mono" placeholder="column_name" />
-                <Input v-model="column.label" placeholder="Label" />
+                <Input v-model="column.name" class="font-mono" :placeholder="t('platform.workbench.tenantdb.columnNamePlaceholder')" />
+                <Input v-model="column.label" :placeholder="t('platform.workbench.tenantdb.label')" />
                 <Select v-model="column.data_type">
                   <SelectTrigger>
-                    <SelectValue placeholder="Type" />
+                    <SelectValue :placeholder="t('platform.workbench.tenantdb.type')" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem v-for="dataType in DATA_TYPES" :key="dataType" :value="dataType">
@@ -1786,21 +1683,21 @@ const formatTimestamp = (value: string): string => {
                     :model-value="column.is_nullable"
                     @update:model-value="column.is_nullable = Boolean($event)"
                   />
-                  Nullable
+                  {{ t('platform.workbench.tenantdb.nullable') }}
                 </label>
                 <label class="flex items-center gap-1 rounded-md border px-2 text-xs">
                   <Checkbox
                     :model-value="column.is_unique"
                     @update:model-value="column.is_unique = Boolean($event)"
                   />
-                  Unique
+                  {{ t('platform.workbench.tenantdb.unique') }}
                 </label>
                 <label class="flex items-center gap-1 rounded-md border px-2 text-xs">
                   <Checkbox
                     :model-value="column.is_indexed"
                     @update:model-value="column.is_indexed = Boolean($event)"
                   />
-                  Indexed
+                  {{ t('platform.workbench.tenantdb.indexed') }}
                 </label>
                 <Button size="icon" variant="outline" @click="removeColumnFromCreateDraft(index)">
                   <IconTrash class="size-3.5" />
@@ -1810,23 +1707,23 @@ const formatTimestamp = (value: string): string => {
                 <Input
                   v-model="column.default_value_text"
                   class="font-mono"
-                  placeholder="Default value"
+                  :placeholder="t('platform.workbench.tenantdb.defaultValue')"
                 />
-                <Input v-model="column.description" placeholder="Description" />
+                <Input v-model="column.description" :placeholder="t('platform.workbench.tenantdb.description')" />
               </div>
             </div>
           </div>
 
           <Alert v-if="createErrorText" variant="destructive">
-            <AlertTitle>Create validation failed</AlertTitle>
+            <AlertTitle>{{ t('platform.workbench.tenantdb.createValidationFailed') }}</AlertTitle>
             <AlertDescription>{{ createErrorText }}</AlertDescription>
           </Alert>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="createTableDialogOpen = false">Cancel</Button>
+          <Button variant="outline" @click="createTableDialogOpen = false">{{ t('common.cancel') }}</Button>
           <Button :disabled="createTableMutation.isPending.value" @click="submitCreateTable">
-            {{ createTableMutation.isPending.value ? 'Creating...' : 'Create' }}
+            {{ createTableMutation.isPending.value ? t('platform.workbench.tenantdb.creating') : t('platform.workbench.tenantdb.create') }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1835,32 +1732,32 @@ const formatTimestamp = (value: string): string => {
     <Dialog :open="schemaConfirmDialogOpen" @update:open="schemaConfirmDialogOpen = $event">
       <DialogContent class="sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>Confirm Schema Sync</DialogTitle>
+          <DialogTitle>{{ t('platform.workbench.tenantdb.confirmSchemaSync') }}</DialogTitle>
           <DialogDescription>
-            Backend uses full column-list sync. Missing existing columns in payload will be dropped.
+            {{ t('platform.workbench.tenantdb.confirmSchemaSyncDescription') }}
           </DialogDescription>
         </DialogHeader>
 
         <div class="space-y-3 text-sm">
-          <p>Table metadata changed: <strong>{{ schemaDiff.tableChanged ? 'Yes' : 'No' }}</strong></p>
-          <p>Added columns: <strong>{{ schemaDiff.added.join(', ') || 'None' }}</strong></p>
-          <p>Updated columns: <strong>{{ schemaDiff.updated.join(', ') || 'None' }}</strong></p>
+          <p>{{ t('platform.workbench.tenantdb.schemaChanged') }}: <strong>{{ schemaDiff.tableChanged ? t('platform.workbench.tenantdb.yes') : t('platform.workbench.tenantdb.no') }}</strong></p>
+          <p>{{ t('platform.workbench.tenantdb.addedColumns') }}: <strong>{{ schemaDiff.added.join(', ') || t('platform.workbench.tenantdb.none') }}</strong></p>
+          <p>{{ t('platform.workbench.tenantdb.updatedColumns') }}: <strong>{{ schemaDiff.updated.join(', ') || t('platform.workbench.tenantdb.none') }}</strong></p>
           <p class="text-destructive">
-            Removed columns: <strong>{{ schemaDiff.removed.join(', ') || 'None' }}</strong>
+            {{ t('platform.workbench.tenantdb.removedColumns') }}: <strong>{{ schemaDiff.removed.join(', ') || t('platform.workbench.tenantdb.none') }}</strong>
           </p>
           <label
             v-if="schemaDiff.removed.length"
             class="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs"
           >
             <Checkbox :model-value="schemaDeleteAcknowledge" @update:model-value="schemaDeleteAcknowledge = Boolean($event)" />
-            <span>I confirm destructive column deletion.</span>
+            <span>{{ t('platform.workbench.tenantdb.destructiveDeleteConfirm') }}</span>
           </label>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="schemaConfirmDialogOpen = false">Cancel</Button>
+          <Button variant="outline" @click="schemaConfirmDialogOpen = false">{{ t('common.cancel') }}</Button>
           <Button :disabled="updateTableMutation.isPending.value" @click="submitSchemaUpdate">
-            {{ updateTableMutation.isPending.value ? 'Saving...' : 'Confirm Save' }}
+            {{ updateTableMutation.isPending.value ? t('platform.workbench.header.actions.saving') : t('platform.workbench.tenantdb.confirmSave') }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1869,25 +1766,25 @@ const formatTimestamp = (value: string): string => {
     <Dialog :open="deleteTableDialogOpen" @update:open="deleteTableDialogOpen = $event">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Table</DialogTitle>
+          <DialogTitle>{{ t('platform.workbench.tenantdb.deleteTable') }}</DialogTitle>
           <DialogDescription>
-            This drops table schema and data. Type table name to confirm.
+            {{ t('platform.workbench.tenantdb.deleteTableDescription') }}
           </DialogDescription>
         </DialogHeader>
         <div class="space-y-2">
           <p class="text-sm">
-            Confirm target: <span class="font-mono">{{ selectedTable?.name }}</span>
+            {{ t('platform.workbench.tenantdb.confirmTarget') }}: <span class="font-mono">{{ selectedTable?.name }}</span>
           </p>
-          <Input v-model="deleteTableConfirmInput" class="font-mono" placeholder="Type table name here" />
+          <Input v-model="deleteTableConfirmInput" class="font-mono" :placeholder="t('platform.workbench.tenantdb.typeTableNameHere')" />
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="deleteTableDialogOpen = false">Cancel</Button>
+          <Button variant="outline" @click="deleteTableDialogOpen = false">{{ t('common.cancel') }}</Button>
           <Button
             variant="destructive"
             :disabled="deleteTableMutation.isPending.value"
             @click="submitDeleteTable"
           >
-            {{ deleteTableMutation.isPending.value ? 'Deleting...' : 'Delete Table' }}
+            {{ deleteTableMutation.isPending.value ? t('platform.workbench.tenantdb.deleting') : t('platform.workbench.tenantdb.deleteTable') }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1896,19 +1793,19 @@ const formatTimestamp = (value: string): string => {
     <Dialog :open="insertDialogOpen" @update:open="insertDialogOpen = $event">
       <DialogContent class="sm:max-w-[720px]">
         <DialogHeader>
-          <DialogTitle>Insert Row</DialogTitle>
-          <DialogDescription>Values are type-coerced before calling TenantDB insert action.</DialogDescription>
+          <DialogTitle>{{ t('platform.workbench.tenantdb.insertRowTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('platform.workbench.tenantdb.insertRowDescription') }}</DialogDescription>
         </DialogHeader>
         <div class="grid gap-2 md:grid-cols-2">
           <div v-for="column in editableColumns" :key="column.uuid" class="space-y-1">
             <Label class="font-mono text-xs">{{ column.name }} ({{ column.data_type }})</Label>
-            <Input v-model="insertRowInputs[column.name]" class="font-mono" :placeholder="column.is_nullable ? 'optional' : 'required'" />
+            <Input v-model="insertRowInputs[column.name]" class="font-mono" :placeholder="column.is_nullable ? t('platform.workbench.tenantdb.optional') : t('platform.workbench.tenantdb.required')" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="insertDialogOpen = false">Cancel</Button>
+          <Button variant="outline" @click="insertDialogOpen = false">{{ t('common.cancel') }}</Button>
           <Button :disabled="insertRowMutation.isPending.value" @click="submitInsertRow">
-            {{ insertRowMutation.isPending.value ? 'Inserting...' : 'Insert' }}
+            {{ insertRowMutation.isPending.value ? t('platform.workbench.tenantdb.inserting') : t('platform.workbench.tenantdb.insert') }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1917,9 +1814,9 @@ const formatTimestamp = (value: string): string => {
     <Dialog :open="rowEditDialogOpen" @update:open="rowEditDialogOpen = $event">
       <DialogContent class="sm:max-w-[720px]">
         <DialogHeader>
-          <DialogTitle>Edit Row</DialogTitle>
+          <DialogTitle>{{ t('platform.workbench.tenantdb.editRowTitle') }}</DialogTitle>
           <DialogDescription>
-            Row id: <span class="font-mono">{{ editingRow ? String(editingRow.id ?? '') : '-' }}</span>
+            {{ t('platform.workbench.tenantdb.rowId') }}: <span class="font-mono">{{ editingRow ? String(editingRow.id ?? '') : '-' }}</span>
           </DialogDescription>
         </DialogHeader>
         <div class="grid gap-2 md:grid-cols-2">
@@ -1929,9 +1826,9 @@ const formatTimestamp = (value: string): string => {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="rowEditDialogOpen = false">Cancel</Button>
+          <Button variant="outline" @click="rowEditDialogOpen = false">{{ t('common.cancel') }}</Button>
           <Button :disabled="updateRowMutation.isPending.value" @click="submitEditRow">
-            {{ updateRowMutation.isPending.value ? 'Updating...' : 'Update' }}
+            {{ updateRowMutation.isPending.value ? t('platform.workbench.tenantdb.updating') : t('platform.workbench.tenantdb.update') }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1940,16 +1837,16 @@ const formatTimestamp = (value: string): string => {
     <Dialog :open="rowDeleteDialogOpen" @update:open="rowDeleteDialogOpen = $event">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Row</DialogTitle>
+          <DialogTitle>{{ t('platform.workbench.tenantdb.deleteRow') }}</DialogTitle>
           <DialogDescription>
-            Type row id <span class="font-mono">{{ deleteRowTargetId }}</span> to confirm deletion.
+            {{ t('platform.workbench.tenantdb.deleteRowDescription', { id: deleteRowTargetId }) }}
           </DialogDescription>
         </DialogHeader>
-        <Input v-model="deleteRowConfirmInput" class="font-mono" placeholder="row id" />
+        <Input v-model="deleteRowConfirmInput" class="font-mono" :placeholder="t('platform.workbench.tenantdb.rowIdPlaceholder')" />
         <DialogFooter>
-          <Button variant="outline" @click="rowDeleteDialogOpen = false">Cancel</Button>
+          <Button variant="outline" @click="rowDeleteDialogOpen = false">{{ t('common.cancel') }}</Button>
           <Button variant="destructive" :disabled="deleteRowMutation.isPending.value" @click="submitDeleteRow">
-            {{ deleteRowMutation.isPending.value ? 'Deleting...' : 'Delete Row' }}
+            {{ deleteRowMutation.isPending.value ? t('platform.workbench.tenantdb.deleting') : t('platform.workbench.tenantdb.deleteRow') }}
           </Button>
         </DialogFooter>
       </DialogContent>

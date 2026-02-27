@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Badge } from '@repo/ui-shadcn/components/ui/badge'
 import { Progress } from '@repo/ui-shadcn/components/ui/progress'
 import type { KnowledgeDocumentStatus, KnowledgeTaskProgress } from '../types/knowledge-ide'
@@ -15,23 +16,24 @@ const props = withDefaults(
     compact: false,
   },
 )
+const { t } = useI18n()
 
 const statusText = computed(() => {
   const status = String(props.status).toLowerCase()
   if (status === 'pending') {
-    return 'Pending'
+    return t('platform.workbench.knowledge.status.pending')
   }
   if (status === 'uploading') {
-    return 'Uploading'
+    return t('platform.workbench.knowledge.status.uploading')
   }
   if (status === 'processing') {
-    return 'Processing'
+    return t('platform.workbench.knowledge.status.processing')
   }
   if (status === 'completed') {
-    return 'Completed'
+    return t('platform.workbench.knowledge.status.completed')
   }
   if (status === 'failed') {
-    return 'Failed'
+    return t('platform.workbench.knowledge.status.failed')
   }
   return props.status
 })

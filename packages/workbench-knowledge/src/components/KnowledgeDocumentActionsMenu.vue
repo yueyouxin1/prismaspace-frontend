@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { MoreHorizontal } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { Button } from '@repo/ui-shadcn/components/ui/button'
 import {
   DropdownMenu,
@@ -23,6 +24,8 @@ defineEmits<{
   (event: 'replace'): void
   (event: 'remove'): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -30,15 +33,15 @@ defineEmits<{
     <DropdownMenuTrigger as-child>
       <Button variant="ghost" size="icon" class="size-8" :disabled="disabled">
         <MoreHorizontal class="size-4" />
-        <span class="sr-only">Open document actions</span>
+        <span class="sr-only">{{ t('platform.workbench.knowledge.actions.open') }}</span>
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" class="w-40">
-      <DropdownMenuItem @select.prevent="$emit('rename')">Rename</DropdownMenuItem>
-      <DropdownMenuItem @select.prevent="$emit('replace')">Replace Source</DropdownMenuItem>
+      <DropdownMenuItem @select.prevent="$emit('rename')">{{ t('platform.workbench.knowledge.actions.rename') }}</DropdownMenuItem>
+      <DropdownMenuItem @select.prevent="$emit('replace')">{{ t('platform.workbench.knowledge.actions.replaceSource') }}</DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem class="text-destructive focus:text-destructive" @select.prevent="$emit('remove')">
-        Remove
+        {{ t('platform.workbench.knowledge.actions.remove') }}
       </DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>

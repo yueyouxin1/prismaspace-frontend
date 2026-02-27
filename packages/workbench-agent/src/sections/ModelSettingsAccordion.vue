@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Accordion,
   AccordionContent,
@@ -46,6 +47,7 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: AgentEditableConfig): void
   (event: 'update:llmModuleVersionUuid', value: string): void
 }>()
+const { t } = useI18n()
 
 const isCustomMode = computed(() => props.modelValue.diversityMode === 'custom')
 
@@ -159,10 +161,10 @@ const onDeepThinkingChange = (value: boolean): void => {
 <template>
   <Accordion type="multiple" :default-value="['model']" class="w-full">
     <AccordionItem value="model">
-      <AccordionTrigger class="text-base font-semibold hover:no-underline">模型设置</AccordionTrigger>
+      <AccordionTrigger class="text-base font-semibold hover:no-underline">{{ t('platform.workbench.agent.modelSettings.title') }}</AccordionTrigger>
       <AccordionContent class="space-y-4">
         <div class="space-y-2">
-          <Label>模型</Label>
+          <Label>{{ t('platform.workbench.agent.modelSettings.model') }}</Label>
           <ModelSelectorPanel
             :model-value="llmModuleVersionUuid"
             :options="modelOptions"
@@ -173,24 +175,24 @@ const onDeepThinkingChange = (value: boolean): void => {
         </div>
 
         <div class="space-y-2">
-          <Label>生成风格</Label>
+          <Label>{{ t('platform.workbench.agent.modelSettings.style') }}</Label>
           <Select :model-value="modelValue.diversityMode" :disabled="readonly" @update:model-value="applyPreset($event as AgentDiversityMode)">
             <SelectTrigger>
-              <SelectValue placeholder="选择风格" />
+              <SelectValue :placeholder="t('platform.workbench.agent.modelSettings.stylePlaceholder')" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="precise">Precise</SelectItem>
-              <SelectItem value="balanced">Balanced</SelectItem>
-              <SelectItem value="creative">Creative</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
+              <SelectItem value="precise">{{ t('platform.workbench.agent.modelSettings.styles.precise') }}</SelectItem>
+              <SelectItem value="balanced">{{ t('platform.workbench.agent.modelSettings.styles.balanced') }}</SelectItem>
+              <SelectItem value="creative">{{ t('platform.workbench.agent.modelSettings.styles.creative') }}</SelectItem>
+              <SelectItem value="custom">{{ t('platform.workbench.agent.modelSettings.styles.custom') }}</SelectItem>
             </SelectContent>
           </Select>
-          <p class="text-xs text-muted-foreground">非 Custom 模式下，温度和 Top P 按预设锁定。</p>
+          <p class="text-xs text-muted-foreground">{{ t('platform.workbench.agent.modelSettings.styleHint') }}</p>
         </div>
 
         <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <div class="space-y-2">
-            <Label>Temperature</Label>
+            <Label>{{ t('platform.workbench.agent.modelSettings.temperature') }}</Label>
             <Input
               type="number"
               step="0.1"
@@ -202,7 +204,7 @@ const onDeepThinkingChange = (value: boolean): void => {
             />
           </div>
           <div class="space-y-2">
-            <Label>Top P</Label>
+            <Label>{{ t('platform.workbench.agent.modelSettings.topP') }}</Label>
             <Input
               type="number"
               step="0.1"
@@ -214,7 +216,7 @@ const onDeepThinkingChange = (value: boolean): void => {
             />
           </div>
           <div class="space-y-2">
-            <Label>Presence Penalty</Label>
+            <Label>{{ t('platform.workbench.agent.modelSettings.presencePenalty') }}</Label>
             <Input
               type="number"
               step="0.1"
@@ -226,7 +228,7 @@ const onDeepThinkingChange = (value: boolean): void => {
             />
           </div>
           <div class="space-y-2">
-            <Label>Frequency Penalty</Label>
+            <Label>{{ t('platform.workbench.agent.modelSettings.frequencyPenalty') }}</Label>
             <Input
               type="number"
               step="0.1"
@@ -241,7 +243,7 @@ const onDeepThinkingChange = (value: boolean): void => {
 
         <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <div class="space-y-2">
-            <Label>历史轮数</Label>
+            <Label>{{ t('platform.workbench.agent.modelSettings.historyTurns') }}</Label>
             <Input
               type="number"
               min="0"
@@ -251,7 +253,7 @@ const onDeepThinkingChange = (value: boolean): void => {
             />
           </div>
           <div class="space-y-2">
-            <Label>最大回复 Tokens</Label>
+            <Label>{{ t('platform.workbench.agent.modelSettings.maxResponseTokens') }}</Label>
             <Input
               type="number"
               min="1"
@@ -264,7 +266,7 @@ const onDeepThinkingChange = (value: boolean): void => {
 
         <div class="space-y-2 rounded-md border p-3">
           <div class="flex items-center justify-between">
-            <Label>深度思考</Label>
+            <Label>{{ t('platform.workbench.agent.modelSettings.deepThinking') }}</Label>
             <Switch
               :model-value="modelValue.ioConfig.enableDeepThinking"
               :disabled="readonly"
@@ -272,7 +274,7 @@ const onDeepThinkingChange = (value: boolean): void => {
             />
           </div>
           <div v-if="modelValue.ioConfig.enableDeepThinking" class="space-y-2">
-            <Label>最大思考 Tokens</Label>
+            <Label>{{ t('platform.workbench.agent.modelSettings.maxThinkingTokens') }}</Label>
             <Input
               type="number"
               min="1"
@@ -284,14 +286,14 @@ const onDeepThinkingChange = (value: boolean): void => {
         </div>
 
         <div class="space-y-2">
-          <Label>响应格式</Label>
+          <Label>{{ t('platform.workbench.agent.modelSettings.responseFormat') }}</Label>
           <Select :model-value="modelValue.ioConfig.responseFormatType" :disabled="readonly" @update:model-value="updateResponseFormat">
             <SelectTrigger>
-              <SelectValue placeholder="选择响应格式" />
+              <SelectValue :placeholder="t('platform.workbench.agent.modelSettings.responseFormatPlaceholder')" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="text">text</SelectItem>
-              <SelectItem value="json_object">json_object</SelectItem>
+              <SelectItem value="text">{{ t('platform.workbench.agent.modelSettings.responseFormats.text') }}</SelectItem>
+              <SelectItem value="json_object">{{ t('platform.workbench.agent.modelSettings.responseFormats.jsonObject') }}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -301,12 +303,12 @@ const onDeepThinkingChange = (value: boolean): void => {
     <AccordionItem value="rag">
       <AccordionTrigger class="text-base font-semibold hover:no-underline">
         <div class="flex items-center gap-2">
-          <span>RAG / Memory</span>
-          <Badge variant="outline">未实现</Badge>
+          <span>{{ t('platform.workbench.agent.modelSettings.ragMemory') }}</span>
+          <Badge variant="outline">{{ t('platform.workbench.agent.modelSettings.notImplemented') }}</Badge>
         </div>
       </AccordionTrigger>
       <AccordionContent>
-        <p class="text-sm text-muted-foreground">本期 MVP 先落地模型设置，RAG/Memory 在后续迭代接入。</p>
+        <p class="text-sm text-muted-foreground">{{ t('platform.workbench.agent.modelSettings.ragPlan') }}</p>
       </AccordionContent>
     </AccordionItem>
   </Accordion>

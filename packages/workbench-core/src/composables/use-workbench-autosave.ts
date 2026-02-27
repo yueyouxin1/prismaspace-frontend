@@ -1,124 +1,81 @@
-import { computed, ref, toValue, watch, type MaybeRefOrGetter, type Ref, type WatchStopHandle } from 'vue'
+import { computed, onBeforeUnmount, toValue, watch, type MaybeRefOrGetter, type Ref, ref } from 'vue'
 
-export interface WorkbenchAutosaveOptions<TValue> {
-  getCurrent: () => TValue
-  save: (value: TValue) => Promise<void>
-  serialize?: (value: TValue) => string
+export interface WorkbenchAutosaveOptions {
   enabled?: MaybeRefOrGetter<boolean>
-  debounceMs?: number
+  debounceMs?: MaybeRefOrGetter<number | undefined>
+  canAutosave?: MaybeRefOrGetter<boolean>
+  isDirty?: MaybeRefOrGetter<boolean>
+  save: () => Promise<void> | void
 }
 
-export interface WorkbenchAutosaveController<TValue> {
-  dirty: Ref<boolean>
-  saving: Ref<boolean>
-  lastError: Ref<string | null>
-  lastSavedAt: Ref<string | null>
+export interface WorkbenchAutosaveController {
+  pending: Ref<boolean>
   flush: () => Promise<void>
-  resetBaseline: (value?: TValue) => void
-  stop: () => void
+  cancel: () => void
 }
 
-const defaultSerializer = <TValue>(value: TValue): string => JSON.stringify(value)
+const DEFAULT_DEBOUNCE_MS = 1600
 
-export const useWorkbenchAutosave = <TValue>(
-  options: WorkbenchAutosaveOptions<TValue>,
-): WorkbenchAutosaveController<TValue> => {
-  const serialize = options.serialize ?? defaultSerializer<TValue>
-  const debounceMs = options.debounceMs ?? 800
-
-  const baselineSnapshot = ref<string | null>(null)
-  const currentSnapshot = ref('')
-  const dirty = ref(false)
-  const saving = ref(false)
-  const lastError = ref<string | null>(null)
-  const lastSavedAt = ref<string | null>(null)
-
+export const useWorkbenchAutosave = (
+  options: WorkbenchAutosaveOptions,
+): WorkbenchAutosaveController => {
+  const pending = ref(false)
   let timer: ReturnType<typeof setTimeout> | null = null
-  let stopWatching: WatchStopHandle | null = null
 
-  const isEnabled = computed(() => toValue(options.enabled) ?? true)
-
-  const clearTimer = (): void => {
-    if (timer) {
-      clearTimeout(timer)
-      timer = null
+  const enabled = computed(() => Boolean(toValue(options.enabled) ?? false))
+  const canAutosave = computed(() => Boolean(toValue(options.canAutosave) ?? true))
+  const isDirty = computed(() => Boolean(toValue(options.isDirty) ?? false))
+  const debounceMs = computed(() => {
+    const value = toValue(options.debounceMs)
+    if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
+      return DEFAULT_DEBOUNCE_MS
     }
-  }
+    return value
+  })
 
-  const resetBaseline = (value?: TValue): void => {
-    const snapshot = serialize(value ?? options.getCurrent())
-    baselineSnapshot.value = snapshot
-    currentSnapshot.value = snapshot
-    dirty.value = false
-    lastError.value = null
-    clearTimer()
+  const cancel = (): void => {
+    if (!timer) {
+      pending.value = false
+      return
+    }
+    clearTimeout(timer)
+    timer = null
+    pending.value = false
   }
 
   const flush = async (): Promise<void> => {
-    if (!isEnabled.value || saving.value || !dirty.value) {
+    if (!enabled.value || !canAutosave.value || !isDirty.value) {
+      cancel()
       return
     }
-
-    saving.value = true
-    lastError.value = null
-    clearTimer()
-
-    try {
-      const currentValue = options.getCurrent()
-      await options.save(currentValue)
-      const snapshot = serialize(currentValue)
-      baselineSnapshot.value = snapshot
-      currentSnapshot.value = snapshot
-      dirty.value = false
-      lastSavedAt.value = new Date().toISOString()
-    } catch (error) {
-      lastError.value = error instanceof Error ? error.message : 'Autosave failed.'
-    } finally {
-      saving.value = false
-    }
+    cancel()
+    await options.save()
   }
 
-  const scheduleFlush = (): void => {
-    clearTimer()
+  const schedule = (): void => {
+    cancel()
+    if (!enabled.value || !canAutosave.value || !isDirty.value) {
+      return
+    }
+    pending.value = true
     timer = setTimeout(() => {
-      void flush()
-    }, debounceMs)
+      timer = null
+      pending.value = false
+      void options.save()
+    }, debounceMs.value)
   }
 
-  resetBaseline(options.getCurrent())
+  watch([enabled, canAutosave, isDirty, debounceMs], () => {
+    schedule()
+  }, { immediate: true })
 
-  stopWatching = watch(
-    () => serialize(options.getCurrent()),
-    (snapshot) => {
-      currentSnapshot.value = snapshot
-      if (baselineSnapshot.value === null) {
-        baselineSnapshot.value = snapshot
-      }
-      dirty.value = snapshot !== baselineSnapshot.value
-
-      if (!dirty.value || !isEnabled.value) {
-        clearTimer()
-        return
-      }
-      scheduleFlush()
-    },
-  )
-
-  const stop = (): void => {
-    clearTimer()
-    if (stopWatching) {
-      stopWatching()
-      stopWatching = null
-    }
-  }
+  onBeforeUnmount(() => {
+    cancel()
+  })
 
   return {
-    dirty,
-    saving,
-    lastError,
-    lastSavedAt,
+    pending,
     flush,
-    resetBaseline,
-    stop,
+    cancel,
   }
 }

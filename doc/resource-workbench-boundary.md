@@ -33,3 +33,12 @@
 - Shared logic must remain headless (no visual rendering).
 - Shared logic should expose minimal composable/service interface.
 - UI layout decisions stay in resource package layer.
+
+## Unified Header And Container Boundary
+- `WorkbenchSurface` is the standard workbench container across resource packages.
+- Header layout is fixed to `left` / `center` / `right` slots.
+- Header must not show raw UUID/debug metadata by default.
+- Base actions are standardized as `run` / `save` / `publish`.
+- Extra actions should default to `More` menu unless explicitly marked `oneline`.
+- `WorkbenchSurface` only orchestrates action dispatch and autosave timing.
+- Resource packages own save payload construction, API calls, success/error handling, and dirty state updates.

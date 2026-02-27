@@ -140,6 +140,9 @@ importers:
       vue-router:
         specifier: ^4.6.4
         version: 4.6.4(vue@3.5.27(typescript@5.9.3))
+      vue-sonner:
+        specifier: ^2.0.9
+        version: 2.0.9
       vue-stick-to-bottom:
         specifier: ^0.1.0
         version: 0.1.0(vue@3.5.27(typescript@5.9.3))
@@ -183,6 +186,20 @@ importers:
   packages/ui-reka: {}
 
   packages/ui-shadcn: {}
+
+  packages/workbench-agent: {}
+
+  packages/workbench-core: {}
+
+  packages/workbench-knowledge: {}
+
+  packages/workbench-tenantdb: {}
+
+  packages/workbench-tool: {}
+
+  packages/workbench-uiapp: {}
+
+  packages/workbench-workflow: {}
 
   packages/workflow: {}
 
@@ -2407,6 +2424,20 @@ packages:
     resolution: {integrity: sha512-Hz9q5sa33Yhduglwz6g9skT8OBPii+4bFn88w6J+J4MfEo4KRRpmiNG/hHHkdbRFlLBOqxN8y8gf2Fb0MTUgVg==}
     peerDependencies:
       vue: ^3.5.0
+
+  vue-sonner@2.0.9:
+    resolution: {integrity: sha512-i6BokNlNDL93fpzNxN/LZSn6D6MzlO+i3qXt6iVZne3x1k7R46d5HlFB4P8tYydhgqOrRbIZEsnRd3kG7qGXyw==}
+    peerDependencies:
+      '@nuxt/kit': ^4.0.3
+      '@nuxt/schema': ^4.0.3
+      nuxt: ^4.0.3
+    peerDependenciesMeta:
+      '@nuxt/kit':
+        optional: true
+      '@nuxt/schema':
+        optional: true
+      nuxt:
+        optional: true
 
   vue-stick-to-bottom@0.1.0:
     resolution: {integrity: sha512-qe2EQoVdmEfxW4FKJdiqPSXa2ZZe9jmVjglHEiRKWdQVYf5MUYT/Yl73QrvOqNdgIl9EXBg50OAaHOIeHa17vg==}
@@ -4994,6 +5025,8 @@ snapshots:
     dependencies:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.27(typescript@5.9.3)
+
+  vue-sonner@2.0.9: {}
 
   vue-stick-to-bottom@0.1.0(vue@3.5.27(typescript@5.9.3)):
     dependencies:

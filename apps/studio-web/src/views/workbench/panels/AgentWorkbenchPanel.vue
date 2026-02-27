@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useMutation, useQuery } from '@tanstack/vue-query'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { agentApi } from '@app/services/api/agent-client'
 import { chatApi } from '@app/services/api/chat-client'
 import { platformQueryKeys } from '@app/services/api/query-keys'
@@ -22,9 +24,13 @@ import {
 
 const props = defineProps<{
   resourceName: string
+  resourceDescription?: string
+  updatedAt?: string | null
   workspaceInstanceUuid?: string | null
   latestPublishedInstanceUuid?: string | null
 }>()
+const router = useRouter()
+const { t } = useI18n()
 
 const workbenchContext = useResourceWorkbenchContext()
 const workspaceUuid = computed(() => workbenchContext.workspaceUuid.value)
@@ -144,7 +150,7 @@ const ideSeed = computed(() => {
 const saveMutation = useMutation({
   mutationFn: async (payload: AgentInstancePatchPayload) => {
     if (!instanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     return resourceApi.updateInstance(instanceUuid.value, payload as Record<string, unknown>)
   },
@@ -157,7 +163,35 @@ const saveMutation = useMutation({
     ])
   },
   onError: (error) => {
-    inlineError.value = error instanceof Error ? error.message : '保存失败，请稍后重试。'
+    inlineError.value = error instanceof Error ? error.message : t('platform.workbench.agent.saveFailed')
+    emitBusinessError(error)
+  },
+})
+
+const buildPublishVersionTag = (): string => {
+  const now = new Date()
+  const pad = (value: number, length = 2): string => String(value).padStart(length, '0')
+  return `v${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`
+}
+
+const publishMutation = useMutation({
+  mutationFn: async () => {
+    if (!instanceUuid.value) {
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
+    }
+    await resourceApi.publishInstance(instanceUuid.value, {
+      version_tag: buildPublishVersionTag(),
+    })
+  },
+  onSuccess: async () => {
+    inlineError.value = null
+    await Promise.all([
+      resourceDetailQuery.refetch(),
+      workbenchContext.refresh(),
+    ])
+  },
+  onError: (error) => {
+    inlineError.value = error instanceof Error ? error.message : t('platform.workbench.agent.publishFailed')
     emitBusinessError(error)
   },
 })
@@ -165,14 +199,14 @@ const saveMutation = useMutation({
 const createSessionMutation = useMutation({
   mutationFn: async () => {
     if (!instanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     return chatApi.createSession({
       agent_instance_uuid: instanceUuid.value,
     })
   },
   onError: (error) => {
-    inlineError.value = error instanceof Error ? error.message : '会话创建失败，请稍后重试。'
+    inlineError.value = error instanceof Error ? error.message : t('platform.workbench.agent.createSessionFailed')
     emitBusinessError(error)
   },
 })
@@ -190,7 +224,7 @@ const ensureSessionUuid = async (): Promise<string> => {
 const executeMutation = useMutation({
   mutationFn: async (inputText: string) => {
     if (!instanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     const sessionUuid = await ensureSessionUuid()
     return agentApi.execute(instanceUuid.value, {
@@ -208,7 +242,7 @@ const executeMutation = useMutation({
     ])
   },
   onError: (error) => {
-    inlineError.value = error instanceof Error ? error.message : '执行失败，请稍后重试。'
+    inlineError.value = error instanceof Error ? error.message : t('platform.workbench.agent.executeFailed')
     emitBusinessError(error)
   },
 })
@@ -231,6 +265,13 @@ const handleSelectSession = (sessionUuid: string): void => {
 
 const handleSendMessage = async (text: string): Promise<void> => {
   await executeMutation.mutateAsync(text)
+}
+
+const handlePublish = async (): Promise<void> => {
+  if (!instanceUuid.value) {
+    return
+  }
+  await publishMutation.mutateAsync()
 }
 
 const sessionItems = computed(() => {
@@ -275,6 +316,10 @@ watch(
 <template>
   <AgentIdeWorkbench
     :seed="ideSeed"
+    :resource-description="resourceDescription"
+    :updated-at="lastSavedAt ?? resourceDetailQuery.data.value?.updated_at ?? updatedAt ?? null"
+    :workspace-instance-uuid="workspaceInstanceUuid"
+    :latest-published-instance-uuid="latestPublishedInstanceUuid"
     :model-options="modelOptions"
     :sessions="sessionItems"
     :active-session-uuid="activeSessionUuid"
@@ -286,9 +331,12 @@ watch(
     :loading-messages="messagesQuery.isLoading.value"
     :creating-session="createSessionMutation.isPending.value"
     :executing="executeMutation.isPending.value"
+    :publishing="publishMutation.isPending.value"
     :last-saved-at="lastSavedAt"
     :error-message="inlineError"
+    @back="router.push('/resources')"
     @save="handleSave"
+    @publish="handlePublish"
     @create-session="handleCreateSession"
     @select-session="handleSelectSession"
     @send-message="handleSendMessage"

@@ -2,6 +2,7 @@ import { pinia } from '@app/core/providers/pinia'
 import { usePlatformStore } from '@app/stores/platform'
 import type { ApiBusinessError } from '@app/types/saas'
 import { HttpBusinessError, isHttpBusinessError } from '@app/services/http/business-error'
+import { toast } from 'vue-sonner'
 
 const normalizeError = (error: unknown): ApiBusinessError | null => {
   if (isHttpBusinessError(error)) {
@@ -32,6 +33,7 @@ export const emitBusinessError = (error: unknown): void => {
 
   const store = usePlatformStore(pinia)
   store.acceptError(normalized)
+  toast.error(normalized.message)
 }
 
 export const throwBusinessError = (payload: ApiBusinessError): never => {

@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { WorkbenchSurface } from '@repo/workbench-core'
 import KnowledgeExplorer from './sections/KnowledgeExplorer.vue'
 import KnowledgeDocumentTable from './sections/KnowledgeDocumentTable.vue'
-import KnowledgeInspector from './sections/KnowledgeInspector.vue'
 import KnowledgeSearchDebugger from './sections/KnowledgeSearchDebugger.vue'
 import type {
   KnowledgeDocumentItem,
   KnowledgeDocumentStatus,
   KnowledgeExplorerSummary,
   KnowledgeInstanceConfig,
+  KnowledgeRagConfig,
   KnowledgeSearchRequest,
   KnowledgeSearchResult,
   KnowledgeTaskProgress,
@@ -18,8 +19,10 @@ import type {
 const props = withDefaults(
   defineProps<{
     resourceName: string
+    resourceDescription?: string
     workspaceInstanceUuid?: string | null
     latestPublishedInstanceUuid?: string | null
+    updatedAt?: string | null
     summary: KnowledgeExplorerSummary
     statusFilter: KnowledgeDocumentStatus | 'all'
     keyword: string
@@ -34,13 +37,16 @@ const props = withDefaults(
     config?: KnowledgeInstanceConfig | null
     loadingConfig?: boolean
     savingConfig?: boolean
+    publishing?: boolean
     runningSearch?: boolean
     searchResult?: KnowledgeSearchResult | null
     searchErrorMessage?: string | null
   }>(),
   {
+    resourceDescription: '',
     workspaceInstanceUuid: null,
     latestPublishedInstanceUuid: null,
+    updatedAt: null,
     loadingDocuments: false,
     documentMutating: false,
     selectedDocumentUuid: null,
@@ -48,6 +54,7 @@ const props = withDefaults(
     config: null,
     loadingConfig: false,
     savingConfig: false,
+    publishing: false,
     runningSearch: false,
     searchResult: null,
     searchErrorMessage: null,
@@ -55,6 +62,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
+  (event: 'back'): void
   (event: 'refresh-documents'): void
   (event: 'add-document', payload: { sourceUri: string; fileName?: string }): void
   (event: 'update:status-filter', value: KnowledgeDocumentStatus | 'all'): void
@@ -68,33 +76,57 @@ const emit = defineEmits<{
   (event: 'update:limit', value: number): void
   (event: 'save-config', payload: KnowledgeInstanceConfig): void
   (event: 'run-search', payload: KnowledgeSearchRequest): void
+  (event: 'publish'): void
 }>()
+const { t } = useI18n()
 
-const selectedDocument = computed<KnowledgeDocumentItem | null>(() => {
-  if (!props.selectedDocumentUuid) {
-    return null
-  }
-  return props.documents.find(document => document.uuid === props.selectedDocumentUuid) ?? null
-})
+const defaultSearchConfig: KnowledgeRagConfig = {
+  max_recall_num: 5,
+  min_match_score: 0.5,
+  search_strategy: 'hybrid',
+  query_rewrite: false,
+  result_rerank: false,
+}
 
-const selectedTaskProgress = computed<KnowledgeTaskProgress | null>(() => {
-  if (!selectedDocument.value) {
-    return null
+const canRunFromHeader = computed(() => !props.runningSearch && props.keyword.trim().length > 0)
+
+const handleRunFromHeader = (): void => {
+  if (!canRunFromHeader.value) {
+    return
   }
-  return props.taskProgressMap[selectedDocument.value.uuid] ?? null
-})
+  emit('run-search', {
+    query: props.keyword.trim(),
+    config: defaultSearchConfig,
+  })
+}
+
+const handleSaveFromHeader = (): void => {
+  if (!props.config || props.savingConfig || props.loadingConfig) {
+    return
+  }
+  emit('save-config', props.config)
+}
 </script>
 
 <template>
   <WorkbenchSurface
-    title="KnowledgeBase IDE"
-    description="Document lifecycle, real-time processing, retrieval debug and instance configuration."
+    :title="t('platform.workbench.knowledge.ideTitle')"
+    :description="resourceDescription || t('platform.workbench.knowledge.ideDescription')"
     resource-type="knowledge"
     :resource-name="resourceName"
+    :updated-at="updatedAt"
     :workspace-instance-uuid="workspaceInstanceUuid"
     :latest-published-instance-uuid="latestPublishedInstanceUuid"
+    :run-action="{ visible: true, label: t('platform.workbench.actions.search'), loadingLabel: t('platform.workbench.knowledge.searching'), disabled: !canRunFromHeader, loading: runningSearch }"
+    :save-action="{ visible: true, label: t('platform.workbench.knowledge.saveConfig'), loadingLabel: t('platform.workbench.knowledge.savingConfig'), disabled: savingConfig || loadingConfig || !config, loading: savingConfig }"
+    :publish-action="{ visible: true, label: t('platform.workbench.header.actions.publish'), loadingLabel: t('platform.workbench.header.actions.publishing'), disabled: publishing || !workspaceInstanceUuid, loading: publishing }"
+    :autosave="{ enabled: true, debounceMs: 1600, canAutosave: false, isDirty: false }"
+    :save-handler="handleSaveFromHeader"
+    @back="emit('back')"
+    @run="handleRunFromHeader"
+    @publish="emit('publish')"
   >
-    <div class="grid gap-4 xl:grid-cols-[280px_minmax(0,1.35fr)_minmax(360px,1fr)]">
+    <div class="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_minmax(360px,1fr)]">
       <KnowledgeExplorer
         :summary="summary"
         :status-filter="statusFilter"
@@ -127,15 +159,6 @@ const selectedTaskProgress = computed<KnowledgeTaskProgress | null>(() => {
       />
 
       <div class="space-y-4">
-        <KnowledgeInspector
-          :selected-document="selectedDocument"
-          :selected-task-progress="selectedTaskProgress"
-          :config="config"
-          :loading-config="loadingConfig"
-          :saving-config="savingConfig"
-          @save-config="emit('save-config', $event)"
-        />
-
         <KnowledgeSearchDebugger
           :running="runningSearch"
           :result="searchResult"

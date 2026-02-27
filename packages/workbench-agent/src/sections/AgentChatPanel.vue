@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Conversation,
   ConversationContent,
@@ -48,6 +49,7 @@ const emit = defineEmits<{
   (event: 'select-session', sessionUuid: string): void
   (event: 'send-message', text: string): void
 }>()
+const { t } = useI18n()
 
 const toJsonString = (value: unknown): string => {
   try {
@@ -67,7 +69,7 @@ const normalizedMessages = computed(() => {
       content = `\`\`\`json\n${toJsonString(message.meta)}\n\`\`\``
     }
     if (!content) {
-      content = '（空消息）'
+      content = t('platform.workbench.agent.chat.emptyMessage')
     }
     return {
       id: message.uuid,
@@ -94,7 +96,7 @@ const handleSubmit = (payload: { text: string }): void => {
   <div class="flex min-h-0 flex-1 flex-col gap-3">
     <div class="flex items-center justify-between gap-2">
       <div class="flex items-center gap-2">
-        <h3 class="text-sm font-semibold">会话</h3>
+        <h3 class="text-sm font-semibold">{{ t('platform.workbench.agent.chat.sessions') }}</h3>
         <Badge variant="outline">{{ sessions.length }}</Badge>
       </div>
       <Button
@@ -103,7 +105,7 @@ const handleSubmit = (payload: { text: string }): void => {
         :disabled="creatingSession"
         @click="emit('create-session')"
       >
-        {{ creatingSession ? '创建中...' : '新建会话' }}
+        {{ creatingSession ? t('platform.workbench.agent.chat.creatingSession') : t('platform.workbench.agent.chat.newSession') }}
       </Button>
     </div>
 
@@ -116,9 +118,9 @@ const handleSubmit = (payload: { text: string }): void => {
         class="max-w-[220px] shrink-0 justify-start"
         @click="emit('select-session', session.uuid)"
       >
-        <span class="truncate">{{ session.title || '未命名会话' }}</span>
+        <span class="truncate">{{ session.title || t('platform.workbench.agent.chat.untitledSession') }}</span>
       </Button>
-      <p v-if="loadingSessions" class="self-center text-xs text-muted-foreground">正在加载会话...</p>
+      <p v-if="loadingSessions" class="self-center text-xs text-muted-foreground">{{ t('platform.workbench.agent.chat.loadingSessions') }}</p>
     </div>
 
     <div class="relative min-h-0 flex-1 overflow-hidden rounded-md border bg-muted/10">
@@ -126,10 +128,10 @@ const handleSubmit = (payload: { text: string }): void => {
         <ConversationContent>
           <ConversationEmptyState
             v-if="!normalizedMessages.length && !loadingMessages"
-            title="预览与调试"
-            :description="activeSessionUuid ? '发送消息开始调试。' : '请先新建会话。'"
+            :title="t('platform.workbench.agent.sections.preview')"
+            :description="activeSessionUuid ? t('platform.workbench.agent.chat.sendToDebug') : t('platform.workbench.agent.chat.createSessionFirst')"
           />
-          <p v-if="loadingMessages" class="text-sm text-muted-foreground">正在加载消息...</p>
+          <p v-if="loadingMessages" class="text-sm text-muted-foreground">{{ t('platform.workbench.agent.chat.loadingMessages') }}</p>
           <Message
             v-for="message in normalizedMessages"
             :key="message.id"
@@ -146,11 +148,11 @@ const handleSubmit = (payload: { text: string }): void => {
 
     <PromptInput class="w-full rounded-md border bg-background p-1" @submit="handleSubmit">
       <PromptInputBody>
-        <PromptInputTextarea :disabled="executing" placeholder="发送消息..." />
+        <PromptInputTextarea :disabled="executing" :placeholder="t('platform.workbench.agent.chat.inputPlaceholder')" />
       </PromptInputBody>
       <PromptInputFooter>
         <p class="text-xs text-muted-foreground">
-          {{ errorMessage || (activeSessionUuid ? `当前会话：${resourceName}` : '未选择会话，将自动创建新会话') }}
+          {{ errorMessage || (activeSessionUuid ? t('platform.workbench.agent.chat.currentSession', { name: resourceName }) : t('platform.workbench.agent.chat.autoCreateSession')) }}
         </p>
         <PromptInputSubmit :disabled="executing" :status="submitStatus" />
       </PromptInputFooter>

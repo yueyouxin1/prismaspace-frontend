@@ -8,6 +8,7 @@ import GlobalFeedbackHost from '@app/components/platform/GlobalFeedbackHost.vue'
 import ProjectCreationHost from '@app/components/platform/ProjectCreationHost.vue'
 import MarketingLayout from '@app/layouts/MarketingLayout.vue'
 import WorkspaceLayout from '@app/layouts/WorkspaceLayout.vue'
+import { Toaster } from 'vue-sonner'
 
 const route = useRoute()
 
@@ -40,4 +41,5 @@ const layoutComponent = computed(() => {
   </RouterView>
   <GlobalFeedbackHost />
   <ProjectCreationHost />
+  <Toaster rich-colors position="top-right" />
 </template>

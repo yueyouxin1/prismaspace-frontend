@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useMutation, useQuery } from '@tanstack/vue-query'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { knowledgeApi } from '@app/services/api/knowledge-client'
+import { resourceApi } from '@app/services/api/resource-client'
 import { emitBusinessError } from '@app/services/http/error-gateway'
 import { platformQueryKeys } from '@app/services/api/query-keys'
 import type {
@@ -22,9 +25,13 @@ import type { SseConnection } from '@repo/common'
 
 const props = defineProps<{
   resourceName: string
+  resourceDescription?: string
+  updatedAt?: string | null
   workspaceInstanceUuid?: string | null
   latestPublishedInstanceUuid?: string | null
 }>()
+const router = useRouter()
+const { t } = useI18n()
 
 const page = ref(1)
 const limit = ref(20)
@@ -196,7 +203,7 @@ onBeforeUnmount(() => {
 const addDocumentMutation = useMutation({
   mutationFn: async (payload: { sourceUri: string; fileName?: string }) => {
     if (!workspaceInstanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     return knowledgeApi.addDocument(workspaceInstanceUuid.value, {
       source_uri: payload.sourceUri,
@@ -213,7 +220,7 @@ const addDocumentMutation = useMutation({
 const updateDocumentMutation = useMutation({
   mutationFn: async (payload: { documentUuid: string; fileName?: string; sourceUri?: string }) => {
     if (!workspaceInstanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     return knowledgeApi.updateDocument(workspaceInstanceUuid.value, payload.documentUuid, {
       file_name: payload.fileName,
@@ -230,7 +237,7 @@ const updateDocumentMutation = useMutation({
 const removeDocumentMutation = useMutation({
   mutationFn: async (documentUuid: string) => {
     if (!workspaceInstanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     await knowledgeApi.removeDocument(workspaceInstanceUuid.value, documentUuid)
   },
@@ -243,7 +250,7 @@ const removeDocumentMutation = useMutation({
 const removeDocumentsMutation = useMutation({
   mutationFn: async (documentUuids: string[]) => {
     if (!workspaceInstanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     await Promise.all(documentUuids.map(documentUuid => knowledgeApi.removeDocument(workspaceInstanceUuid.value as string, documentUuid)))
   },
@@ -256,9 +263,30 @@ const removeDocumentsMutation = useMutation({
 const saveConfigMutation = useMutation({
   mutationFn: async (config: KnowledgeBaseInstanceConfigRead) => {
     if (!workspaceInstanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     return knowledgeApi.updateInstance(workspaceInstanceUuid.value, { config })
+  },
+  onSuccess: async () => {
+    await instanceQuery.refetch()
+  },
+  onError: (error) => emitBusinessError(error),
+})
+
+const buildPublishVersionTag = (): string => {
+  const now = new Date()
+  const pad = (value: number, length = 2): string => String(value).padStart(length, '0')
+  return `v${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`
+}
+
+const publishMutation = useMutation({
+  mutationFn: async () => {
+    if (!workspaceInstanceUuid.value) {
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
+    }
+    return resourceApi.publishInstance(workspaceInstanceUuid.value, {
+      version_tag: buildPublishVersionTag(),
+    })
   },
   onSuccess: async () => {
     await instanceQuery.refetch()
@@ -269,7 +297,7 @@ const saveConfigMutation = useMutation({
 const executeSearchMutation = useMutation({
   mutationFn: async (payload: KnowledgeSearchRequest) => {
     if (!workspaceInstanceUuid.value) {
-      throw new Error('No workspace instance uuid found.')
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     const request: KnowledgeBaseExecutionRequest = {
       inputs: {
@@ -284,7 +312,7 @@ const executeSearchMutation = useMutation({
     searchErrorMessage.value = null
   },
   onError: (error) => {
-    searchErrorMessage.value = error instanceof Error ? error.message : 'Knowledge retrieval execution failed.'
+    searchErrorMessage.value = error instanceof Error ? error.message : t('platform.workbench.knowledge.searchFailed')
     emitBusinessError(error)
   },
 })
@@ -324,6 +352,10 @@ const handleRunSearch = async (payload: KnowledgeSearchRequest): Promise<void> =
   await executeSearchMutation.mutateAsync(payload)
 }
 
+const handlePublish = async (): Promise<void> => {
+  await publishMutation.mutateAsync()
+}
+
 const summary = computed(() => {
   const items = documents.value
   return {
@@ -348,6 +380,8 @@ const handleRefreshDocuments = async (): Promise<void> => {
 <template>
   <KnowledgeBaseIdeWorkbench
     :resource-name="resourceName"
+    :resource-description="resourceDescription"
+    :updated-at="updatedAt"
     :workspace-instance-uuid="workspaceInstanceUuid"
     :latest-published-instance-uuid="latestPublishedInstanceUuid"
     :summary="summary"
@@ -364,6 +398,7 @@ const handleRefreshDocuments = async (): Promise<void> => {
     :config="instanceQuery.data.value?.config ?? null"
     :loading-config="instanceQuery.isLoading.value"
     :saving-config="saveConfigMutation.isPending.value"
+    :publishing="publishMutation.isPending.value"
     :running-search="executeSearchMutation.isPending.value"
     :search-result="searchResult"
     :search-error-message="searchErrorMessage"
@@ -380,5 +415,7 @@ const handleRefreshDocuments = async (): Promise<void> => {
     @update:limit="limit = $event"
     @save-config="handleSaveConfig"
     @run-search="handleRunSearch"
+    @back="router.push('/resources')"
+    @publish="handlePublish"
   />
 </template>

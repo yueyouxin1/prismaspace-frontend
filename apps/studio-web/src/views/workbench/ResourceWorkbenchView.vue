@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import AgentWorkbenchPanel from '@app/views/workbench/panels/AgentWorkbenchPanel.vue'
 import KnowledgeWorkbenchPanel from '@app/views/workbench/panels/KnowledgeWorkbenchPanel.vue'
 import TenantDbWorkbenchPanel from '@app/views/workbench/panels/TenantDbWorkbenchPanel.vue'
@@ -26,6 +27,7 @@ const SUPPORTED_PANELS = ['editor', 'run', 'versions', 'refs'] as const
 const route = useRoute()
 const router = useRouter()
 const store = usePlatformStore()
+const { t } = useI18n()
 
 const workspaceUuidParam = computed(() => String(route.params.workspaceUuid ?? ''))
 const resourceUuid = computed(() => String(route.params.resourceUuid ?? ''))
@@ -124,8 +126,19 @@ const workbenchProps = computed(() => {
   if (!data) {
     return null
   }
+  const instanceDescription = (() => {
+    const raw = data.workspace_instance
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return ''
+    }
+    const value = (raw as Record<string, unknown>).description
+    return typeof value === 'string' ? value.trim() : ''
+  })()
+  const resourceDescription = (data.description ?? '').trim()
   return {
     resourceName: data.name,
+    resourceDescription: instanceDescription || resourceDescription,
+    updatedAt: data.updated_at ?? null,
     workspaceInstanceUuid: workspaceInstanceUuid.value,
     latestPublishedInstanceUuid: latestPublishedInstanceUuid.value,
     workspaceInstance: data.workspace_instance,
@@ -227,39 +240,46 @@ const shouldShowMissing = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-background p-4 md:p-6">
-    <div class="mx-auto max-w-[1600px] space-y-4">
+  <div class="flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-background">
+    <div class="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <template v-if="loading">
-        <Skeleton class="h-24 w-full" />
-        <Skeleton class="h-52 w-full" />
+        <div class="space-y-4 p-4 md:p-6">
+          <Skeleton class="h-24 w-full" />
+          <Skeleton class="h-52 w-full" />
+        </div>
       </template>
 
-      <Card v-else-if="shouldShowMissing">
-        <CardHeader>
-          <CardTitle>Resource Not Available</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-2 text-sm text-muted-foreground">
-          <p v-if="!workspaceExists">Workspace does not exist or is inaccessible.</p>
-          <p v-else-if="notFoundReason">Resource is not found under current accessible workspaces.</p>
-          <p v-else-if="resourceQuery.isError.value">Failed to load resource detail. Please refresh and retry.</p>
-          <p v-else>Resource is unavailable for this route.</p>
-        </CardContent>
-      </Card>
+      <div v-else-if="shouldShowMissing" class="p-4 md:p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{{ t('platform.workbench.resourceNotAvailable') }}</CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-2 text-sm text-muted-foreground">
+            <p v-if="!workspaceExists">{{ t('platform.workbench.workspaceUnavailable') }}</p>
+            <p v-else-if="notFoundReason">{{ t('platform.workbench.resourceNotFound') }}</p>
+            <p v-else-if="resourceQuery.isError.value">{{ t('platform.workbench.resourceLoadFailed') }}</p>
+            <p v-else>{{ t('platform.workbench.resourceRouteUnavailable') }}</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <component
         :is="workbenchComponent"
         v-else-if="workbenchComponent && workbenchProps"
+        class="min-h-0 flex-1 overflow-hidden"
         v-bind="workbenchProps"
       />
 
-      <Card v-else>
-        <CardHeader>
-          <CardTitle>Unsupported Resource Type</CardTitle>
-        </CardHeader>
-        <CardContent class="text-sm text-muted-foreground">
-          The resource type <code>{{ resourceQuery.data.value?.resource_type }}</code> is not supported by current workbench packages.
-        </CardContent>
-      </Card>
+      <div v-else class="p-4 md:p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{{ t('platform.workbench.unsupportedType') }}</CardTitle>
+          </CardHeader>
+          <CardContent class="text-sm text-muted-foreground">
+            {{ t('platform.workbench.unsupportedTypeDescription', { type: resourceQuery.data.value?.resource_type ?? '-' }) }}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   </div>
 </template>

@@ -2,7 +2,6 @@ export { default as KnowledgeWorkbenchScaffold } from './KnowledgeWorkbenchScaff
 export { default as KnowledgeBaseIdeWorkbench } from './KnowledgeBaseIdeWorkbench.vue'
 export { default as KnowledgeExplorer } from './sections/KnowledgeExplorer.vue'
 export { default as KnowledgeDocumentTable } from './sections/KnowledgeDocumentTable.vue'
-export { default as KnowledgeInspector } from './sections/KnowledgeInspector.vue'
 export { default as KnowledgeSearchDebugger } from './sections/KnowledgeSearchDebugger.vue'
 export { default as KnowledgeDocumentActionsMenu } from './components/KnowledgeDocumentActionsMenu.vue'
 export { default as KnowledgeTaskStatusBadge } from './components/KnowledgeTaskStatusBadge.vue'

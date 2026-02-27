@@ -1,167 +1,111 @@
-# TODO｜Agent IDE 工作台（三栏布局）执行版
+# Workbench 头部与容器能力统一改造 TODO
 
-更新时间：2026-02-26  
-当前阶段：开发排期已冻结（待实现）
+## 0. 目标与范围
+- 目标：将 `@repo/workbench-core` 的 `WorkbenchSurface` 升级为“通用工作台容器”，提供统一风格头部与通用基础逻辑（含可选 autosave），并对齐 `ToolIdeWorkbench.vue` 的头部视觉与交互风格。
+- 参考风格：`prismaspace-frontend/packages/workbench-tool/src/components/ToolIdeWorkbench.vue` 顶部导航区域。
+- 明确不做：不再在统一头部展示用户不关心的 `uuid`、冗余资源类型描述等信息。
 
----
+## 1. 统一头部（Workbench Header）改造要求
 
-## 0. 背景与硬约束（必须遵守）
+### 1.1 布局结构（强制）
+- 左区：返回按钮 + 资源名称/状态等核心信息（风格对齐 Tool IDE 头部）。
+- 中区：默认留空，提供可直接替换的 slot。
+- 右区：操作按钮区，仅放动作按钮。
 
-- 工作台采用三栏布局：左侧提示词编辑，中间编排配置（Accordion），右侧会话交互/调试。
-- 左侧提示词编辑必须复用现有 `CodeMirrorMdEditor`，不新造编辑器。
-- 中间编排视图至少实现“模型设置（AgentConfig）”，模型选择必须可复用到其他场景。
-- 右侧会话交互/调试必须使用 `@repo/ui-ai-elements` 组件族，不直接手写聊天 UI。
-- 前端以真实后端契约为准，不使用 mock 作为主路径。
-- 所有请求必须携带 workspace 上下文（依赖 `X-Workspace-UUID` 自动注入链路）。
+### 1.2 插槽能力（强制）
+- 头部必须提供 `left` / `center` / `right` 三个独立 slot。
+- 三个区域均可被业务场景完全替换，不要求保留默认内容。
 
----
+### 1.3 基础动作按钮（强制）
+- 内置三个基础动作：`run` / `save` / `publish`。
+- 三个基础动作都必须可配置：
+  - 是否显示（显隐独立配置）
+  - 按钮文案（例如 `run` 可改为“查询”）
+  - 禁用态/加载态文案
+  - 点击回调事件（仅发出事件，不内置业务实现）
 
-## 1. 当前代码基线（已核对）
+### 1.4 扩展动作按钮（强制）
+- 支持“除三个基础按钮之外”的扩展按钮集合（由业务传入）。
+- 扩展按钮支持文案、icon、禁用态、回调标识。
 
-### 1.1 已有能力
-- [x] `workbench-agent` 已有基础壳：`packages/workbench-agent/src/AgentWorkbenchScaffold.vue`。
-- [x] App 层已接入 Agent 面板路由：`apps/studio-web/src/views/workbench/panels/AgentWorkbenchPanel.vue`。
-- [x] `agentApi.execute`、`chatApi.*` 已实现。
-- [x] SSE 公共能力已存在：`packages/common/src/tools/sse.ts` + `apps/studio-web/src/services/http/sse.ts`。
-- [x] `CodeMirrorMdEditor` 已完成并有 Demo。
-- [x] `@repo/ui-ai-elements` 已提供 `Conversation` / `Message` / `PromptInput` / `ModelSelector` 组件族。
+### 1.5 More 折叠规则（强制）
+- `More` 折叠按钮出现条件：
+  1. 小屏宽度下右区无法容纳全部按钮；或
+  2. 存在扩展按钮（按规则需要进入折叠菜单）。
+- `More` 折叠按钮不出现条件：
+  - 右区仅有可完全容纳的基础按钮，且无需要折叠的扩展按钮。
+- 折叠菜单内容：
+  - 被折叠的基础按钮（如果发生溢出）
+  - 所有应折叠的扩展按钮
 
-### 1.2 缺口（本 TODO 负责补齐）
-- [ ] 仍是“Quick Run + Recent Sessions”临时 UI，未实现三栏 IDE。
-- [ ] 尚未接入 `system_prompt` 编辑与保存。
-- [ ] 尚未实现 `AgentConfig` 的模型设置 Accordion。
-- [ ] 尚未抽离通用 `ModelSelectorPanel`。
-- [ ] 前端缺少服务模块目录 client（`/service-module-types`、`/service-module-providers`、`/service-modules/me/available`）。
-- [ ] 会话区尚未使用 AI Elements 组合渲染完整消息流与 session 切换。
+### 1.6 响应式与可读性（强制）
+- 小屏下保证头部不破版，按钮行为可达。
+- 对 `truncate` 的文本提供 hover tip（tooltip）提示完整内容。
+- 左中右布局在常见断点（手机/平板/桌面）保持一致阅读顺序与视觉层次。
 
----
+## 2. WorkbenchSurface 通用容器能力升级
 
-## 2. MVP 目标交付（冻结）
+### 2.1 角色定位（强制）
+- `WorkbenchSurface` 定位为统一容器：
+  - 提供统一头部（视觉 + 基础交互规范）
+  - 提供通用基础逻辑（autosave 等）
+  - 业务资源包只负责资源特有表单/校验/保存实现
 
-1. 三栏布局落地，左/中/右区域独立滚动。
-2. 左侧提示词编辑器可读写 `system_prompt` 并保存到 Workspace Instance。
-3. 中间 Accordion 完成模型设置，覆盖本次约定的 `AgentConfig` 字段。
-4. 右侧会话调试可新建/切换 session，发送消息并渲染结果。
-5. Model Selector 以通用组件形式交付，可复用到 Agent 以外场景。
+### 2.2 Autosave 抽象（强制）
+- 将 `ToolIdeWorkbench.vue` 当前 autosave 逻辑上移/抽象为 `WorkbenchSurface` 通用能力。
+- `WorkbenchSurface` 只负责“何时触发保存回调”，不负责具体保存业务。
+- autosave 必须由业务场景显式启用/关闭（默认关闭或明确配置值，不允许隐式开启）。
+- 必备配置项：
+  - `enabled`
+  - `debounceMs`
+  - `canAutosave`（外部条件判定）
+  - `isDirty`（脏状态来源）
+- 必备回调：
+  - `onSave(trigger)`，其中 `trigger` 至少区分 `manual` / `autosave`
 
----
+### 2.3 事件职责边界（强制）
+- 容器只发事件，不做资源保存细节。
+- 资源工作台负责：
+  - 构造保存 payload
+  - 调用 API
+  - 处理错误/成功状态
+  - 回传 `saving`/`isDirty` 等状态给容器
 
-## 3. 契约与字段映射（必须严格对齐）
+## 3. 现有资源工作台子包改造范围
+- 必须调整并验证以下子包对 `WorkbenchSurface` 的使用方式（至少）：
+  - `packages/workbench-tool`
+  - `packages/workbench-knowledge`
+  - `packages/workbench-tenantdb`
+  - `packages/workbench-agent`
+  - `packages/workbench-workflow`
+  - `packages/workbench-uiapp`
+- 目标：统一头部风格与交互模型，按各资源实际需求配置基础按钮显隐和文案。
 
-后端权威定义：`src/app/schemas/resource/agent/agent_schemas.py`。
+## 4. 兼容性与迁移要求
+- 禁止一次性硬切导致全部资源工作台同步阻塞。
+- 建议两阶段迁移：
+  1. 新增 `WorkbenchSurface` 新 API（保留短期兼容层）。
+  2. 各资源子包逐个切换后移除兼容层。
+- 迁移期间必须避免行为回退：
+  - 手动保存可用
+  - 发布可用
+  - 需要 run 的资源可用，不需要 run 的资源可隐藏
 
-### 3.1 本次必须支持字段
-- `system_prompt`
-- `llm_module_version_uuid`
-- `agent_config.diversity_mode`：`precise | balanced | creative | custom`
-- `agent_config.model_params`：
-  - `temperature`
-  - `top_p`
-  - `presence_penalty`
-  - `frequency_penalty`
-- `agent_config.io_config`：
-  - `history_turns`
-  - `max_response_tokens`
-  - `enable_deep_thinking`
-  - `max_thinking_tokens`（仅开关开启时可编辑）
-  - `response_format.type`（本期仅 `text` / `json_object`）
+## 5. 验收标准（DoD）
+- 视觉：
+  - 头部整体风格与 `ToolIdeWorkbench.vue` 顶部导航一致（不是卡片式）。
+  - 左中右结构明确，中区默认空且可扩展。
+- 功能：
+  - 三个基础按钮可独立配置显隐与文案。
+  - 扩展按钮支持并可进入 `More`。
+  - `More` 仅在需要时出现。
+  - 小屏下无拥挤溢出导致的功能不可用。
+- 架构：
+  - autosave 为 `WorkbenchSurface` 通用能力，可按场景启停。
+  - `WorkbenchSurface` 不包含资源保存业务实现。
+  - 所有资源子包已完成接入并通过类型检查。
 
-### 3.2 更新策略（强制）
-- `PUT /api/v1/instances/{instance_uuid}` 采用局部 patch 语义，只提交变更字段。
-- 前端不得提交“未展示字段的空值”覆盖后端配置。
-- `diversity_mode != custom` 时，`model_params` 必须只读显示（或按模式值受控重置后禁编）。
-
----
-
-## 4. 目录与文件落点（执行清单）
-
-### 4.1 `packages/workbench-agent` 新增
-- `src/AgentIdeWorkbench.vue`（三栏容器）
-- `src/sections/AgentPromptEditor.vue`
-- `src/sections/AgentOrchestrationPanel.vue`
-- `src/sections/ModelSettingsAccordion.vue`
-- `src/sections/AgentChatPanel.vue`
-- `src/components/ModelSelectorPanel.vue`（通用）
-- `src/index.ts` 更新导出
-
-### 4.2 `apps/studio-web` 改造
-- `src/views/workbench/panels/AgentWorkbenchPanel.vue`：替换临时 UI，接入 `AgentIdeWorkbench`。
-- `src/services/api/contracts.ts`：补充服务模块与模型选择相关类型。
-- `src/services/api/service-module-client.ts`：新增服务模块目录 client。
-- `src/services/api/index.ts`：补充 `service-module-client` 导出。
-
----
-
-## 5. 任务拆解与状态
-
-### M0：三栏框架
-- [ ] 新建 `AgentIdeWorkbench`，实现三栏 + 独立滚动 + 响应式（桌面三栏，窄屏纵向）。
-- [ ] 通过 `useResourceWorkbenchContext` 透传 `workspaceInstanceUuid` 与刷新能力。
-
-### M1：左侧提示词编辑（Prompt）
-- [ ] 复用 `CodeMirrorMdEditor` 接入 `system_prompt`。
-- [ ] 接入表达式弹窗组件（参考 `CodeMirrorMdEditorVariablePanel.vue`）。
-- [ ] 保存策略落地（本期采用“显式保存按钮”，不启用自动保存）。
-- [ ] 保存后调用 `refresh()` 刷新实例详情。
-
-### M2：中间模型设置（Accordion）
-- [ ] 新建 `ModelSettingsAccordion`，使用 shadcn Accordion 结构。
-- [ ] 落地 `llm_module_version_uuid` + `diversity_mode` + `model_params` + `io_config`。
-- [ ] `enable_deep_thinking` 控制 `max_thinking_tokens` 可见/可编辑态。
-
-### M3：Model Selector 复用
-- [ ] 基于 `@repo/ui-ai-elements` `ModelSelector*` 组件族封装 `ModelSelectorPanel`。
-- [ ] 新增 `service-module-client.ts`，对接：
-  - `GET /api/v1/service-module-types`
-  - `GET /api/v1/service-module-providers`
-  - `GET /api/v1/service-modules/me/available?workspace_uuid={workspaceUuid}&type=llm`
-- [ ] 仅输出通用值：`model_uuid` + `display_name`。
-
-### M4：右侧会话调试（Chat）
-- [ ] 使用 `Conversation` + `Message` + `PromptInput` 组合替换临时 UI。
-- [ ] 接入 `chatApi.createSession/listSessions/listMessages`。
-- [ ] 发送消息通过 `agentApi.execute`（携带 `session_uuid`），并刷新消息列表。
-- [ ] 错误态统一走 `emitBusinessError`，同时提供面板内联状态提示。
-
-### M5：验收与收尾
-- [ ] `pnpm check:aliases` 通过。
-- [ ] `pnpm build` 通过。
-- [ ] 更新 `packages/workbench-agent/README.md`（组件定位与导出说明）。
-
----
-
-## 6. 验收标准（DoD）
-
-- [ ] 三栏布局可用，不依赖宿主固定头部/固定 tabs。
-- [ ] `system_prompt`、`llm_module_version_uuid`、`agent_config` 可读写并持久化。
-- [ ] `ModelSelectorPanel` 可被 Agent 场景外复用。
-- [ ] 会话调试支持新建/切换 session、消息发送与结果渲染。
-- [ ] 接口失败、校验失败、空输入均有明确反馈。
-- [ ] 未引入 mock 主路径。
-
----
-
-## 7. 参考实现（必须对齐）
-
-### 7.1 CodeMirror Markdown 编辑器
-- `apps/studio-web/src/components/demo-playground/expression-md-editor/codemirror-expression-md-editor/CodeMirrorMdEditorDemo.vue`
-- `apps/studio-web/src/components/demo-playground/expression-md-editor/codemirror-expression-md-editor/CodeMirrorMdEditorVariablePanel.vue`
-- `apps/studio-web/src/components/demo-playground/expression-md-editor/codemirror-expression-md-editor/CodeMirrorLibraryBlockView.vue`
-
-### 7.2 AI Elements Vue
-- `reference_example/ai-elements-vue-main/apps/www/content/3.components/1.chatbot/model-selector.md`
-- `reference_example/ai-elements-vue-main/apps/www/content/3.components/1.chatbot/conversation.md`
-- `reference_example/ai-elements-vue-main/apps/www/content/3.components/1.chatbot/message.md`
-- `reference_example/ai-elements-vue-main/apps/www/content/3.components/1.chatbot/prompt-input.md`
-- `reference_example/ai-elements-vue-main/apps/www/content/2.examples/chatbot.md`
-
-### 7.3 shadcn-vue Accordion
-- `reference_example/shadcn-vue-dev/deprecated/www/src/content/docs/components/accordion.md`
-
----
-
-## 8. 注意事项
-
-- `response_format` 本期仅实现 `text` / `json_object`，JSON Schema 延后。
-- 会话发送优先走阻塞 `execute`；若切到流式，必须走 `connectApiSseStream` 标准链路。
-- 所有缓存键保持 UUID 语义，不引入自增 ID 依赖。
+## 6. 文档与示例同步
+- 更新 `@repo/workbench-core` 对外 API 文档（props / slots / emits / autosave 配置）。
+- 为 `WorkbenchSurface` 增加至少一个“只保存不试运行”的示例和一个“run 文案改为查询”的示例。
+- 在前端文档中补充“资源工作台统一头部与容器职责边界”章节，避免后续回退到卡片式头部。
