@@ -39,6 +39,8 @@ const { t } = useI18n()
 
 const page = ref(1)
 const limit = ref(20)
+const chunkPage = ref(1)
+const chunkLimit = ref(20)
 const keyword = ref('')
 const statusFilter = ref<KnowledgeDocumentStatus | 'all'>('all')
 const selectedDocumentUuid = ref<string | null>(null)
@@ -162,8 +164,8 @@ const documentChunksQuery = useQuery({
   queryKey: computed(() => [
     ...platformQueryKeys.knowledgeDocuments(
       activeWorkspaceInstanceUuid.value ?? 'none',
-      1,
-      200,
+      chunkPage.value,
+      chunkLimit.value,
       'all',
       '',
     ),
@@ -176,11 +178,16 @@ const documentChunksQuery = useQuery({
       return {
         items: [],
         total: 0,
-        page: 1,
-        limit: 200,
+        page: chunkPage.value,
+        limit: chunkLimit.value,
       }
     }
-    return knowledgeApi.listDocumentChunks(activeWorkspaceInstanceUuid.value, selectedDocumentUuid.value, 1, 200)
+    return knowledgeApi.listDocumentChunks(
+      activeWorkspaceInstanceUuid.value,
+      selectedDocumentUuid.value,
+      chunkPage.value,
+      chunkLimit.value,
+    )
   },
 })
 
@@ -227,6 +234,13 @@ watch(
 )
 
 watch(
+  [selectedDocumentUuid, chunkLimit],
+  () => {
+    chunkPage.value = 1
+  },
+)
+
+watch(
   activeWorkspaceInstanceUuid,
   () => {
     closeAllTaskConnections()
@@ -235,6 +249,7 @@ watch(
     searchResult.value = null
     searchErrorMessage.value = null
     page.value = 1
+    chunkPage.value = 1
   },
 )
 
@@ -478,10 +493,6 @@ const handleRefreshDocuments = async (): Promise<void> => {
   await Promise.all([documentsQuery.refetch(), instanceQuery.refetch(), documentChunksQuery.refetch()])
 }
 
-const handleRefreshChunks = async (): Promise<void> => {
-  await documentChunksQuery.refetch()
-}
-
 const handleAssetSelected = async (assets: AssetRead[]): Promise<void> => {
   const selected = assets[0]
   if (!selected) {
@@ -526,6 +537,9 @@ const handleAssetSelected = async (assets: AssetRead[]): Promise<void> => {
     :selected-document-uuid="selectedDocumentUuid"
     :task-progress-map="taskProgressMap"
     :chunks="chunks"
+    :chunks-total="documentChunksQuery.data.value?.total ?? 0"
+    :chunks-page="chunkPage"
+    :chunks-limit="chunkLimit"
     :loading-chunks="documentChunksQuery.isLoading.value"
     :chunks-error-message="chunksErrorMessage"
     :config="instanceQuery.data.value?.config ?? null"
@@ -537,7 +551,8 @@ const handleAssetSelected = async (assets: AssetRead[]): Promise<void> => {
     :search-result="searchResult"
     :search-error-message="searchErrorMessage"
     @refresh-documents="handleRefreshDocuments"
-    @refresh-chunks="handleRefreshChunks"
+    @update:chunks-page="chunkPage = $event"
+    @update:chunks-limit="chunkLimit = $event"
     @add-document-from-local="handleAddDocumentFromLocal"
     @add-document-from-url="handleAddDocumentFromUrl"
     @update:status-filter="statusFilter = $event"

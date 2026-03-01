@@ -10,9 +10,11 @@ const props = withDefaults(defineProps<{
   config: KnowledgeInstanceConfig | null
   loadingConfig?: boolean
   savingConfig?: boolean
+  embedded?: boolean
 }>(), {
   loadingConfig: false,
   savingConfig: false,
+  embedded: false,
 })
 
 const emit = defineEmits<{
@@ -71,9 +73,9 @@ const save = (): void => {
 </script>
 
 <template>
-  <section class="space-y-3 rounded-lg border p-3">
+  <section :class="props.embedded ? 'space-y-3' : 'space-y-3 rounded-lg border p-3'">
     <div class="flex items-center justify-between">
-      <div>
+      <div v-if="!props.embedded">
         <h3 class="text-sm font-semibold">知识库配置</h3>
         <p class="text-xs text-muted-foreground">管理 parser 与 chunker 策略，保存后立即生效。</p>
       </div>

@@ -124,7 +124,7 @@ const save = (): void => {
           </Tooltip>
         </div>
 
-        <header class="mb-3 flex flex-wrap items-center justify-between gap-2 pr-32 text-xs text-muted-foreground">
+        <header class="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <div class="flex items-center gap-2">
             <span class="font-medium text-foreground">Chunk #{{ index + 1 }}</span>
             <Badge :variant="statusVariant">{{ chunk.status }}</Badge>

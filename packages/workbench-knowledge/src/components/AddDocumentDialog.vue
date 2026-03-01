@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { ArrowLeft, ArrowRight, Check, FolderOpen } from 'lucide-vue-next'
 import { Badge } from '@repo/ui-shadcn/components/ui/badge'
 import { Button } from '@repo/ui-shadcn/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui-shadcn/components/ui/card'
@@ -12,6 +13,15 @@ import {
 } from '@repo/ui-shadcn/components/ui/dialog'
 import { Input } from '@repo/ui-shadcn/components/ui/input'
 import { Label } from '@repo/ui-shadcn/components/ui/label'
+import {
+  Stepper,
+  StepperDescription,
+  StepperIndicator,
+  StepperItem,
+  StepperSeparator,
+  StepperTitle,
+  StepperTrigger,
+} from '@repo/ui-shadcn/components/ui/stepper'
 import type { KnowledgeSourceType } from '../types/knowledge-ide'
 
 const props = withDefaults(defineProps<{
@@ -32,13 +42,14 @@ const openModel = computed({
   set: (value: boolean) => emit('update:open', value),
 })
 
+const currentStep = ref(1)
 const sourceType = ref<KnowledgeSourceType>('local')
 const sourceUri = ref('')
 const fileName = ref('')
 const skeletonHint = ref('')
 
 const sourceOptions: Array<{ type: KnowledgeSourceType; title: string; description: string; available: boolean }> = [
-  { type: 'local', title: '本地上传', description: '通过资产库选择本地文件并入库。', available: true },
+  { type: 'local', title: '本地上传', description: '选择后将直接进入素材库视图。', available: true },
   { type: 'uri', title: 'URI 资源', description: '输入可访问链接后纳入解析流程。', available: true },
   { type: 'web', title: '网页抓取', description: '基于 URL 的网页内容接入。', available: true },
   { type: 'text', title: '纯文本', description: '直接粘贴文本内容。', available: false },
@@ -48,6 +59,7 @@ const sourceOptions: Array<{ type: KnowledgeSourceType; title: string; descripti
 ]
 
 const selectedOption = computed(() => sourceOptions.find(item => item.type === sourceType.value) || sourceOptions[0])
+const selectedAvailable = computed(() => Boolean(selectedOption.value?.available))
 
 watch(
   () => props.open,
@@ -55,6 +67,7 @@ watch(
     if (!open) {
       return
     }
+    currentStep.value = 1
     sourceType.value = 'local'
     sourceUri.value = ''
     fileName.value = ''
@@ -70,14 +83,37 @@ const handleSelectSource = (nextType: KnowledgeSourceType): void => {
     return
   }
   skeletonHint.value = ''
+  if (nextType === 'local') {
+    emit('add-local')
+    emit('update:open', false)
+  }
 }
 
-const handleAddLocal = (): void => {
-  emit('add-local')
-  emit('update:open', false)
+const goNext = (): void => {
+  if (currentStep.value !== 1) {
+    return
+  }
+  if (!selectedAvailable.value) {
+    skeletonHint.value = `${selectedOption.value?.title || '该类型'}暂未开放，请先使用可用来源。`
+    return
+  }
+  currentStep.value = 2
 }
 
-const handleAddUrl = (): void => {
+const goBack = (): void => {
+  if (currentStep.value <= 1) {
+    return
+  }
+  currentStep.value = currentStep.value - 1
+}
+
+const handleSubmit = (): void => {
+  if (sourceType.value === 'local') {
+    emit('add-local')
+    emit('update:open', false)
+    return
+  }
+
   const normalized = sourceUri.value.trim()
   if (!normalized) {
     skeletonHint.value = '请输入可访问的 URI / URL。'
@@ -93,6 +129,14 @@ const handleAddUrl = (): void => {
   })
   emit('update:open', false)
 }
+
+const handleStepChange = (value: unknown): void => {
+  const nextStep = Number(value || 1)
+  if (Number.isNaN(nextStep)) {
+    return
+  }
+  currentStep.value = Math.max(1, Math.min(2, nextStep))
+}
 </script>
 
 <template>
@@ -100,36 +144,69 @@ const handleAddUrl = (): void => {
     <DialogContent class="sm:max-w-3xl">
       <DialogHeader>
         <DialogTitle>添加文档</DialogTitle>
-        <DialogDescription>选择数据源类型并完成基础配置。未开放类型保留骨架入口。</DialogDescription>
+        <DialogDescription>分步骤完成来源选择与接入配置。</DialogDescription>
       </DialogHeader>
 
-      <div class="grid gap-4 md:grid-cols-3">
-        <button
+      <Stepper
+        class="w-full items-start justify-between gap-3"
+        :model-value="currentStep"
+        @update:model-value="handleStepChange"
+      >
+        <StepperItem :step="1" class="flex-1">
+          <StepperTrigger class="w-full items-start text-left">
+            <StepperIndicator>1</StepperIndicator>
+            <div class="space-y-0.5">
+              <StepperTitle class="text-sm">选择来源</StepperTitle>
+              <StepperDescription>选择文档导入方式</StepperDescription>
+            </div>
+          </StepperTrigger>
+          <StepperSeparator class="mt-4 h-px w-full" />
+        </StepperItem>
+        <StepperItem :step="2" class="flex-1">
+          <StepperTrigger class="w-full items-start text-left">
+            <StepperIndicator>2</StepperIndicator>
+            <div class="space-y-0.5">
+              <StepperTitle class="text-sm">填写配置</StepperTitle>
+              <StepperDescription>确认参数并提交</StepperDescription>
+            </div>
+          </StepperTrigger>
+        </StepperItem>
+      </Stepper>
+
+      <div v-if="currentStep === 1" class="grid gap-3 md:grid-cols-3">
+        <Button
           v-for="item in sourceOptions"
           :key="item.type"
           type="button"
-          class="rounded-lg border p-3 text-left transition hover:border-foreground/40"
+          variant="outline"
+          class="h-auto min-h-24 items-start justify-start p-3 text-left"
           :class="{
-            'border-foreground/40 bg-accent/50': sourceType === item.type,
+            'border-foreground/40 bg-accent/40': sourceType === item.type,
             'opacity-70': !item.available,
           }"
           @click="handleSelectSource(item.type)"
         >
-          <p class="text-sm font-semibold">{{ item.title }}</p>
-          <p class="mt-1 text-xs text-muted-foreground">{{ item.description }}</p>
-          <Badge v-if="!item.available" variant="outline" class="mt-2">暂未开放</Badge>
-        </button>
+          <div class="w-full space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-sm font-semibold">{{ item.title }}</span>
+              <Check v-if="sourceType === item.type" class="size-4" />
+            </div>
+            <p class="text-xs text-muted-foreground">{{ item.description }}</p>
+            <Badge v-if="!item.available" variant="outline">暂未开放</Badge>
+          </div>
+        </Button>
       </div>
 
-      <Card>
+      <Card v-else>
         <CardHeader class="pb-2">
           <CardTitle class="text-sm">{{ selectedOption?.title }}</CardTitle>
         </CardHeader>
         <CardContent class="space-y-3">
           <template v-if="sourceType === 'local'">
-            <p class="text-sm text-muted-foreground">本地文件通过资产库选择器接入，上传后自动进入解析流程。</p>
-            <Button :disabled="loading" @click="handleAddLocal">
-              {{ loading ? '处理中...' : '选择本地文件' }}
+            <p class="text-sm text-muted-foreground">本地文件通过素材库接入，选择后自动进入解析流程。</p>
+            <Button :disabled="props.loading" @click="handleSubmit">
+              <FolderOpen class="mr-1.5 size-4" />
+              {{ props.loading ? '打开中...' : '打开素材库' }}
             </Button>
           </template>
 
@@ -150,19 +227,43 @@ const handleAddUrl = (): void => {
                 placeholder="例如：产品手册.pdf"
               />
             </div>
-            <Button :disabled="loading" @click="handleAddUrl">
-              {{ loading ? '提交中...' : '提交资源' }}
-            </Button>
           </template>
-
-          <template v-else>
-            <p class="text-sm text-muted-foreground">该类型已完成入口与占位流程，后续将逐步开放可用能力。</p>
-            <Button variant="outline" disabled>暂未开放</Button>
-          </template>
-
-          <p v-if="skeletonHint" class="text-xs text-muted-foreground">{{ skeletonHint }}</p>
         </CardContent>
       </Card>
+
+      <p v-if="skeletonHint" class="text-xs text-muted-foreground">{{ skeletonHint }}</p>
+
+      <div class="flex items-center justify-between border-t pt-3">
+        <Button
+          variant="outline"
+          :disabled="props.loading || currentStep === 1"
+          @click="goBack"
+        >
+          <ArrowLeft class="mr-1 size-4" />
+          上一步
+        </Button>
+
+        <div class="flex items-center gap-2">
+          <Button variant="ghost" :disabled="props.loading" @click="emit('update:open', false)">
+            取消
+          </Button>
+          <Button
+            v-if="currentStep === 1"
+            :disabled="props.loading || !selectedAvailable"
+            @click="goNext"
+          >
+            下一步
+            <ArrowRight class="ml-1 size-4" />
+          </Button>
+          <Button
+            v-else
+            :disabled="props.loading || !selectedAvailable"
+            @click="handleSubmit"
+          >
+            {{ props.loading ? '提交中...' : '提交资源' }}
+          </Button>
+        </div>
+      </div>
     </DialogContent>
   </Dialog>
 </template>

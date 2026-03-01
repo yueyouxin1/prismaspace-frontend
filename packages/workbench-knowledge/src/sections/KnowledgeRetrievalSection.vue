@@ -4,6 +4,12 @@ import { Badge } from '@repo/ui-shadcn/components/ui/badge'
 import { Button } from '@repo/ui-shadcn/components/ui/button'
 import { Collapsible, CollapsibleContent } from '@repo/ui-shadcn/components/ui/collapsible'
 import { Input } from '@repo/ui-shadcn/components/ui/input'
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from '@repo/ui-shadcn/components/ui/item'
 import { Label } from '@repo/ui-shadcn/components/ui/label'
 import {
   Select,
@@ -52,6 +58,13 @@ const strategyOptions: Array<{ value: KnowledgeSearchStrategy; label: string; de
   { value: 'semantic', label: 'Vector', description: '仅依赖向量语义检索。' },
   { value: 'keyword', label: 'Keyword', description: '仅依赖关键词匹配。' },
 ]
+
+const findStrategyOption = (value: unknown) => {
+  const normalized = String(value || '').toLowerCase()
+  return strategyOptions.find(item => item.value === normalized)
+}
+
+const selectedStrategyOption = computed(() => findStrategyOption(config.value.search_strategy))
 
 const canRun = computed(() => query.value.trim().length > 0 && !props.runningSearch)
 
@@ -141,7 +154,7 @@ const handleRerankModelChange = (value: unknown): void => {
 
 <template>
   <section class="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
-    <aside class="space-y-0 rounded-lg border bg-card/60 p-4">
+    <aside class="space-y-0 bg-card/60 p-4">
       <h3 class="text-sm font-semibold">检索测试</h3>
 
       <div class="border-b border-border/50 py-4">
@@ -157,7 +170,7 @@ const handleRerankModelChange = (value: unknown): void => {
       </div>
 
       <div class="border-b border-border/50 py-4">
-        <div class="flex items-start justify-between gap-3">
+        <div class="space-y-2">
           <div>
             <p class="text-sm font-medium">检索策略</p>
             <p class="text-xs text-muted-foreground">选择召回方式。</p>
@@ -166,15 +179,31 @@ const handleRerankModelChange = (value: unknown): void => {
             :model-value="config.search_strategy"
             @update:model-value="handleStrategyChange"
           >
-            <SelectTrigger class="w-[170px]">
-              <SelectValue placeholder="选择检索策略" />
+            <SelectTrigger class="h-auto! w-72">
+              <SelectValue placeholder="选择检索策略">
+                <Item
+                  v-if="selectedStrategyOption"
+                  class="w-full border-0 bg-transparent p-0"
+                >
+                  <ItemContent class="gap-0">
+                    <ItemTitle>{{ selectedStrategyOption.label }}</ItemTitle>
+                    <ItemDescription class="line-clamp-1 text-xs">
+                      {{ selectedStrategyOption.description }}
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem v-for="item in strategyOptions" :key="item.value" :value="item.value">
-                <div class="flex flex-col">
-                  <span class="text-sm">{{ item.label }}</span>
-                  <span class="text-xs text-muted-foreground">{{ item.description }}</span>
-                </div>
+                <Item class="w-full border-0 bg-transparent p-0">
+                  <ItemContent class="gap-0">
+                    <ItemTitle>{{ item.label }}</ItemTitle>
+                    <ItemDescription class="line-clamp-1 text-xs">
+                      {{ item.description }}
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
               </SelectItem>
             </SelectContent>
           </Select>
@@ -288,8 +317,8 @@ const handleRerankModelChange = (value: unknown): void => {
       </Button>
     </aside>
 
-    <section class="min-h-0 rounded-lg border p-3">
-      <div class="mb-2 flex items-center justify-between">
+    <section class="min-h-0 flex flex-col border-l p-4">
+      <div class="flex items-center justify-between pb-4">
         <h4 class="text-sm font-semibold">召回结果</h4>
         <Badge variant="outline">{{ searchResult?.chunks.length || 0 }} 条</Badge>
       </div>
@@ -312,7 +341,7 @@ const handleRerankModelChange = (value: unknown): void => {
         请输入 query 并执行检索，结果将展示在这里。
       </div>
 
-      <div v-else class="max-h-[calc(100vh-280px)] space-y-2 overflow-y-auto pr-1">
+      <div v-else class="min-h-0 flex-1 space-y-2 overflow-y-auto">
         <article
           v-for="chunk in searchResult.chunks"
           :key="chunk.uuid"

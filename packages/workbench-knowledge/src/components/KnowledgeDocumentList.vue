@@ -1,9 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { LucideIcon } from 'lucide-vue-next'
-import { Download, File, FileText, Globe, Layers, Link2, MoreHorizontal } from 'lucide-vue-next'
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  File,
+  FileText,
+  Globe,
+  Layers,
+  Link2,
+  MoreHorizontal,
+} from 'lucide-vue-next'
 import { Badge } from '@repo/ui-shadcn/components/ui/badge'
 import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { Checkbox } from '@repo/ui-shadcn/components/ui/checkbox'
+import { Collapsible, CollapsibleContent } from '@repo/ui-shadcn/components/ui/collapsible'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from '@repo/ui-shadcn/components/ui/dropdown-menu'
 import { Skeleton } from '@repo/ui-shadcn/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui-shadcn/components/ui/tooltip'
 import type {
   KnowledgeDocumentItem,
   KnowledgeDocumentViewMode,
@@ -56,18 +67,24 @@ interface FileVisual {
 }
 
 const selectedMap = ref<Record<string, boolean>>({})
+const expandedMap = ref<Record<string, boolean>>({})
 const batchMode = ref(false)
 
 watch(
   () => props.documents.map(item => item.uuid),
   (uuids) => {
-    const next: Record<string, boolean> = {}
+    const nextSelected: Record<string, boolean> = {}
+    const nextExpanded: Record<string, boolean> = {}
     uuids.forEach((uuid) => {
       if (selectedMap.value[uuid]) {
-        next[uuid] = true
+        nextSelected[uuid] = true
+      }
+      if (expandedMap.value[uuid]) {
+        nextExpanded[uuid] = true
       }
     })
-    selectedMap.value = next
+    selectedMap.value = nextSelected
+    expandedMap.value = nextExpanded
   },
   { immediate: true },
 )
@@ -178,6 +195,15 @@ const toggleSelect = (documentUuid: string): void => {
   }
 }
 
+const toggleExpanded = (documentUuid: string): void => {
+  expandedMap.value = {
+    ...expandedMap.value,
+    [documentUuid]: !expandedMap.value[documentUuid],
+  }
+}
+
+const isExpanded = (documentUuid: string): boolean => Boolean(expandedMap.value[documentUuid])
+
 const handleRename = (document: KnowledgeDocumentItem): void => {
   const nextName = window.prompt('输入新的文档名称', document.file_name)?.trim()
   if (!nextName || nextName === document.file_name) {
@@ -248,13 +274,8 @@ const toggleBatchMode = (): void => {
         <Button variant="outline" size="sm" :disabled="mutating" @click="toggleBatchMode">
           {{ batchMode ? '完成批量' : '批量选择' }}
         </Button>
-        <Button
-          v-if="batchMode && selectedCount > 0"
-          variant="outline"
-          size="sm"
-          :disabled="mutating"
-          @click="handleBatchRemove"
-        >
+        <Button v-if="batchMode && selectedCount > 0" variant="outline" size="sm" :disabled="mutating"
+          @click="handleBatchRemove">
           删除已选（{{ selectedCount }}）
         </Button>
       </div>
@@ -264,49 +285,31 @@ const toggleBatchMode = (): void => {
       <Skeleton v-for="index in 6" :key="index" class="h-10 w-full rounded-md" />
     </div>
 
-    <div v-else-if="!documents.length" class="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+    <div v-else-if="!documents.length"
+      class="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
       暂无文档，请先添加本地文件或 URI 资源。
     </div>
 
     <Transition v-else name="doc-layout" mode="out-in">
-      <div v-if="viewMode === 'list'" key="list" class="space-y-0.5 px-1">
-        <ContextMenu
-          v-for="document in documents"
-          :key="document.uuid"
-        >
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <ContextMenuTrigger as-child>
-                <div
-                  class="list-item group/list flex h-9 items-center gap-2 rounded-md px-2 transition hover:bg-accent"
-                  :class="{ 'bg-accent': selectedDocumentUuid === document.uuid }"
-                >
-                  <input
-                    v-if="batchMode"
-                    type="checkbox"
-                    class="size-3.5 rounded border"
-                    :checked="Boolean(selectedMap[document.uuid])"
-                    @click.stop
-                    @change="toggleSelect(document.uuid)"
-                  >
+      <div class="space-y-1 px-1">
+        <Collapsible v-for="document in documents" :key="document.uuid"
+          :open="viewMode === 'list' ? isExpanded(document.uuid) : true">
+          <ContextMenu>
+            <ContextMenuTrigger as-child>
+              <article class="list-item group/list px-2 py-1.5 transition overflow-hidden rounded-lg border bg-card"
+                :class="selectedDocumentUuid === document.uuid
+                  ? 'border-primary/35 bg-primary/3 shadow-[0_0_0_1px_hsl(var(--primary)/0.15)]'
+                  : 'border-border/80 hover:border-border hover:bg-muted/30'" @click="emit('select', document.uuid)">
+                <div class="flex items-center gap-2">
+                  <Checkbox v-if="batchMode" :model-value="Boolean(selectedMap[document.uuid])" @click.stop
+                    @update:model-value="() => toggleSelect(document.uuid)" />
 
-                  <component
-                    v-else
-                    :is="fileVisual(document).icon"
-                    class="size-4 shrink-0"
-                    :class="fileVisual(document).iconClass"
-                  />
+                  <component :is="fileVisual(document).icon" class="size-4 shrink-0"
+                    :class="fileVisual(document).iconClass" />
 
-                  <button
-                    type="button"
-                    class="min-w-0 flex-1 text-left"
-                    @click="emit('select', document.uuid)"
-                  >
-                    <p class="truncate text-sm font-medium">{{ document.file_name }}</p>
-                    <p class="truncate text-xs text-muted-foreground">
-                      {{ document.source_uri || '无 URI' }}
-                    </p>
-                  </button>
+                  <div class="min-w-0 flex-1 text-left">
+                    <p class="line-clamp-1 truncate text-sm font-medium">{{ document.file_name }}</p>
+                  </div>
 
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
@@ -317,93 +320,25 @@ const toggleBatchMode = (): void => {
                     <DropdownMenuContent align="end" class="w-44">
                       <DropdownMenuItem @select.prevent="handleRename(document)">重命名</DropdownMenuItem>
                       <DropdownMenuItem @select.prevent="handleDownload(document)">下载</DropdownMenuItem>
-                      <DropdownMenuItem @select.prevent="emit('replace-from-local', { documentUuid: document.uuid })">替换为本地文件</DropdownMenuItem>
+                      <DropdownMenuItem @select.prevent="emit('replace-from-local', { documentUuid: document.uuid })">
+                        替换为本地文件</DropdownMenuItem>
                       <DropdownMenuItem @select.prevent="handleReplaceFromUrl(document)">替换为 URI 资源</DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem class="text-destructive" @select.prevent="handleRemove(document.uuid)">删除</DropdownMenuItem>
+                      <DropdownMenuItem class="text-destructive" @select.prevent="handleRemove(document.uuid)">删除
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+
+                  <Button size="icon-sm" variant="ghost" class="h-7 w-7" @click.stop="toggleExpanded(document.uuid)"
+                    v-if="viewMode === 'list'">
+                    <ChevronUp v-if="isExpanded(document.uuid)" class="size-4" />
+                    <ChevronDown v-else class="size-4" />
+                  </Button>
                 </div>
-              </ContextMenuTrigger>
-            </TooltipTrigger>
 
-            <TooltipContent side="right" class="max-w-[420px] text-xs">
-              <div class="space-y-1">
-                <p class="font-medium text-foreground">{{ document.file_name }}</p>
-                <p>类型: {{ fileVisual(document).typeLabel }}</p>
-                <p>状态: {{ statusLabel(document.status) }}</p>
-                <p>更新时间: {{ formatDateTime(document.created_at) }}</p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-
-          <ContextMenuContent class="w-44">
-            <ContextMenuItem @select.prevent="handleRename(document)">重命名</ContextMenuItem>
-            <ContextMenuItem @select.prevent="handleDownload(document)">下载</ContextMenuItem>
-            <ContextMenuItem @select.prevent="emit('replace-from-local', { documentUuid: document.uuid })">替换为本地文件</ContextMenuItem>
-            <ContextMenuItem @select.prevent="handleReplaceFromUrl(document)">替换为 URI 资源</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem class="text-destructive" @select.prevent="handleRemove(document.uuid)">删除</ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      </div>
-
-      <div v-else key="card" class="space-y-3 px-1">
-        <ContextMenu
-          v-for="document in documents"
-          :key="document.uuid"
-        >
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <ContextMenuTrigger as-child>
-                <article
-                  class="card-item card-container group/card rounded-lg border bg-background p-3 transition hover:border-foreground/30 hover:shadow-sm"
-                  :class="{ 'border-foreground/30 bg-accent/40': selectedDocumentUuid === document.uuid }"
-                >
-                  <div class="flex items-start gap-2">
-                    <input
-                      v-if="batchMode"
-                      type="checkbox"
-                      class="mt-0.5 size-3.5 rounded border"
-                      :checked="Boolean(selectedMap[document.uuid])"
-                      @click.stop
-                      @change="toggleSelect(document.uuid)"
-                    >
-
-                    <component
-                      :is="fileVisual(document).icon"
-                      class="mt-0.5 size-4 shrink-0"
-                      :class="fileVisual(document).iconClass"
-                    />
-
-                    <button
-                      type="button"
-                      class="min-w-0 flex-1 text-left"
-                      @click="emit('select', document.uuid)"
-                    >
-                      <p class="line-clamp-2 text-sm font-semibold">{{ document.file_name }}</p>
-                    </button>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger as-child>
-                        <Button size="icon-sm" variant="ghost" class="action-menu h-7 w-7" @click.stop>
-                          <MoreHorizontal class="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" class="w-44">
-                        <DropdownMenuItem @select.prevent="handleRename(document)">重命名</DropdownMenuItem>
-                        <DropdownMenuItem @select.prevent="handleDownload(document)">下载</DropdownMenuItem>
-                        <DropdownMenuItem @select.prevent="emit('replace-from-local', { documentUuid: document.uuid })">替换为本地文件</DropdownMenuItem>
-                        <DropdownMenuItem @select.prevent="handleReplaceFromUrl(document)">替换为 URI 资源</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem class="text-destructive" @select.prevent="handleRemove(document.uuid)">删除</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-
+                <CollapsibleContent>
                   <div class="mt-2 border-t border-dashed" />
-
-                  <div class="card-metadata mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                  <div class="card-metadata mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                     <Badge :variant="statusVariant(document.status)">{{ statusLabel(document.status) }}</Badge>
                     <span class="inline-flex items-center gap-1">
                       <Layers class="size-3" />
@@ -413,37 +348,26 @@ const toggleBatchMode = (): void => {
                     <span>{{ fileVisual(document).typeLabel }}</span>
                     <span class="ml-auto">{{ formatDateTime(document.created_at) }}</span>
                   </div>
-
-                  <p
-                    v-if="taskProgressMap?.[document.uuid]"
-                    class="mt-2 truncate text-[11px] text-muted-foreground"
-                  >
+                  <p v-if="taskProgressMap?.[document.uuid]" class="mt-2 truncate text-[11px] text-muted-foreground">
                     {{ taskProgressMap?.[document.uuid]?.message }}
                     ({{ taskProgressMap?.[document.uuid]?.progress }}/{{ taskProgressMap?.[document.uuid]?.total }})
                   </p>
-                </article>
-              </ContextMenuTrigger>
-            </TooltipTrigger>
+                </CollapsibleContent>
+              </article>
+            </ContextMenuTrigger>
 
-            <TooltipContent side="right" class="max-w-[420px] text-xs">
-              <div class="space-y-1">
-                <p class="font-medium text-foreground">{{ document.file_name }}</p>
-                <p>类型: {{ fileVisual(document).typeLabel }}</p>
-                <p>状态: {{ statusLabel(document.status) }}</p>
-                <p>更新时间: {{ formatDateTime(document.created_at) }}</p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-
-          <ContextMenuContent class="w-44">
-            <ContextMenuItem @select.prevent="handleRename(document)">重命名</ContextMenuItem>
-            <ContextMenuItem @select.prevent="handleDownload(document)">下载</ContextMenuItem>
-            <ContextMenuItem @select.prevent="emit('replace-from-local', { documentUuid: document.uuid })">替换为本地文件</ContextMenuItem>
-            <ContextMenuItem @select.prevent="handleReplaceFromUrl(document)">替换为 URI 资源</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem class="text-destructive" @select.prevent="handleRemove(document.uuid)">删除</ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
+            <ContextMenuContent class="w-44">
+              <ContextMenuItem @select.prevent="handleRename(document)">重命名</ContextMenuItem>
+              <ContextMenuItem @select.prevent="handleDownload(document)">下载</ContextMenuItem>
+              <ContextMenuItem @select.prevent="emit('replace-from-local', { documentUuid: document.uuid })">替换为本地文件
+              </ContextMenuItem>
+              <ContextMenuItem @select.prevent="handleReplaceFromUrl(document)">替换为 URI 资源</ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem class="text-destructive" @select.prevent="handleRemove(document.uuid)">删除
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </Collapsible>
       </div>
     </Transition>
   </div>
@@ -452,16 +376,10 @@ const toggleBatchMode = (): void => {
 <style scoped>
 .action-menu {
   opacity: 0;
-  transform: translateY(-4px);
-  transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.list-item:hover .action-menu,
-.card-item:hover .action-menu,
-.list-item:focus-within .action-menu,
-.card-item:focus-within .action-menu {
+.list-item:hover .action-menu {
   opacity: 1;
-  transform: translateY(0);
 }
 
 .doc-layout-enter-active {
@@ -484,10 +402,6 @@ const toggleBatchMode = (): void => {
 .doc-layout-leave-to {
   opacity: 0;
   transform: translateY(4px);
-}
-
-.card-container {
-  container-type: inline-size;
 }
 
 @container (max-width: 280px) {
