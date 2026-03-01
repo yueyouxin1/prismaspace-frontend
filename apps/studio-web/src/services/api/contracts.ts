@@ -577,6 +577,25 @@ export interface PaginatedDocumentsRead {
   limit: number
 }
 
+export type ChunkProcessingStatus = 'pending' | 'completed' | 'failed'
+
+export interface DocumentChunkRead {
+  uuid: string
+  content: string
+  token_count: number
+  status: ChunkProcessingStatus
+  error_message?: string | null
+  context?: JsonRecord | null
+  payload?: JsonRecord | null
+}
+
+export interface PaginatedDocumentChunksRead {
+  items: DocumentChunkRead[]
+  total: number
+  page: number
+  limit: number
+}
+
 export interface DocumentCreateRequest {
   source_uri: string
   file_name?: string

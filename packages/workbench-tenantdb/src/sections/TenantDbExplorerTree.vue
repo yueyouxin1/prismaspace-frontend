@@ -137,7 +137,7 @@ watch(
               <div
                 class="group/tree-item overflow-hidden rounded-lg border bg-card transition-all duration-150"
                 :class="selectedTableUuid === table.uuid
-                  ? 'border-primary/35 bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.15)]'
+                  ? 'border-primary/35 bg-primary/3 shadow-[0_0_0_1px_hsl(var(--primary)/0.15)]'
                   : 'border-border/80 hover:border-border hover:bg-muted/30'"
               >
                 <CollapsibleTrigger as-child>

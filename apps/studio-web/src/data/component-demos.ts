@@ -5,6 +5,7 @@ import CodeMirrorEditorDemo from "@app/components/demo-playground/CodeMirrorEdit
 import CodeMirrorMdEditorDemo from "@app/components/demo-playground/expression-md-editor/codemirror-expression-md-editor/CodeMirrorMdEditorDemo.vue"
 import FormGeneratorDemo from "@app/components/demo-playground/form-generator/FormGeneratorDemo.vue"
 import FormCardDemo from "@app/components/demo-playground/FormCardDemo.vue"
+import KnowledgeWorkbenchDemo from "@app/components/demo-playground/knowledge-workbench/KnowledgeWorkbenchDemo.vue"
 import MdEditorDemo from "@app/components/demo-playground/expression-md-editor/monaco-expression-md-editor/MdEditorDemo.vue"
 import MonacoEditorDemo from "@app/components/demo-playground/MonacoEditorDemo.vue"
 import ParamSchemaEditorsDemo from "@app/components/demo-playground/param-schema-editor/ParamSchemaEditorsDemo.vue"
@@ -90,6 +91,13 @@ export const componentDemos: ComponentDemo[] = [
     description: "本次 SaaS 清单新增组件的组合示例：定价卡、账单状态条、模板筛选与模板卡。",
     tags: ["saas", "pricing", "billing", "template"],
     component: SaaSPlatformMvpDemo,
+  },
+  {
+    slug: "knowledge-workbench",
+    title: "Knowledge Workbench",
+    description: "知识库文档解析与分块管理工作台",
+    tags: ["knowledgebase", "rag", "workbench"],
+    component: KnowledgeWorkbenchDemo,
   },
   {
     slug: "workflow-input-tree",

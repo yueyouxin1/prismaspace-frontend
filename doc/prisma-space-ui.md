@@ -59,7 +59,7 @@
 
 ### 3.1 色彩系统：对齐 shadcn 主题变量
 
-**唯一来源**：`prismaspace-frontend/doc/shadcn-colors.md` 与 `app/globals.css` 中的 CSS 变量。
+**唯一来源**：`prismaspace-frontend/doc/shadcn-colors.md` 与 `style.css` 中的 CSS 变量。
 
 **禁止**：
 

@@ -17,6 +17,7 @@ import type {
 } from '@app/services/api/contracts'
 import {
   KnowledgeBaseIdeWorkbench,
+  type KnowledgeChunkUpdatePayload,
   type KnowledgeDocumentStatus,
   type KnowledgeInstanceConfig,
   type KnowledgeSearchRequest,
@@ -48,7 +49,8 @@ const assetPickerOpen = ref(false)
 const pickerMode = ref<'add' | 'replace'>('add')
 const replaceTargetDocumentUuid = ref<string | null>(null)
 
-const workspaceInstanceUuid = computed(() => props.workspaceInstanceUuid ?? null)
+const activeWorkspaceInstanceUuid = computed(() => props.workspaceInstanceUuid ?? null)
+const activeLatestPublishedInstanceUuid = computed(() => props.latestPublishedInstanceUuid ?? null)
 const workspaceUuid = computed(() => {
   const raw = route.params.workspaceUuid
   return typeof raw === 'string' ? raw : null
@@ -143,26 +145,60 @@ const ensureTaskTracked = (document: DocumentRead): void => {
 const documentsQuery = useQuery({
   queryKey: computed(() =>
     platformQueryKeys.knowledgeDocuments(
-      workspaceInstanceUuid.value ?? 'none',
+      activeWorkspaceInstanceUuid.value ?? 'none',
       page.value,
       limit.value,
       statusFilter.value,
       keyword.value.trim(),
     )),
-  enabled: computed(() => Boolean(workspaceInstanceUuid.value)),
-  queryFn: async () => knowledgeApi.listDocuments(workspaceInstanceUuid.value as string, page.value, limit.value, {
+  enabled: computed(() => Boolean(activeWorkspaceInstanceUuid.value)),
+  queryFn: async () => knowledgeApi.listDocuments(activeWorkspaceInstanceUuid.value as string, page.value, limit.value, {
     status: statusFilter.value === 'all' ? undefined : (statusFilter.value as DocumentProcessingStatus),
     keyword: keyword.value.trim() || undefined,
   }),
 })
 
+const documentChunksQuery = useQuery({
+  queryKey: computed(() => [
+    ...platformQueryKeys.knowledgeDocuments(
+      activeWorkspaceInstanceUuid.value ?? 'none',
+      1,
+      200,
+      'all',
+      '',
+    ),
+    'chunks',
+    selectedDocumentUuid.value ?? 'none',
+  ]),
+  enabled: computed(() => Boolean(activeWorkspaceInstanceUuid.value && selectedDocumentUuid.value)),
+  queryFn: async () => {
+    if (!activeWorkspaceInstanceUuid.value || !selectedDocumentUuid.value) {
+      return {
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 200,
+      }
+    }
+    return knowledgeApi.listDocumentChunks(activeWorkspaceInstanceUuid.value, selectedDocumentUuid.value, 1, 200)
+  },
+})
+
 const instanceQuery = useQuery({
-  queryKey: computed(() => platformQueryKeys.knowledgeInstance(workspaceInstanceUuid.value ?? 'none')),
-  enabled: computed(() => Boolean(workspaceInstanceUuid.value)),
-  queryFn: async () => knowledgeApi.getInstance(workspaceInstanceUuid.value as string),
+  queryKey: computed(() => platformQueryKeys.knowledgeInstance(activeWorkspaceInstanceUuid.value ?? 'none')),
+  enabled: computed(() => Boolean(activeWorkspaceInstanceUuid.value)),
+  queryFn: async () => knowledgeApi.getInstance(activeWorkspaceInstanceUuid.value as string),
 })
 
 const documents = computed(() => documentsQuery.data.value?.items ?? [])
+const chunks = computed(() => documentChunksQuery.data.value?.items ?? [])
+const chunksErrorMessage = computed(() => {
+  if (!documentChunksQuery.isError.value) {
+    return null
+  }
+  const error = documentChunksQuery.error.value
+  return error instanceof Error ? error.message : t('platform.workbench.knowledge.searchFailed')
+})
 
 watch(
   documents,
@@ -191,7 +227,7 @@ watch(
 )
 
 watch(
-  workspaceInstanceUuid,
+  activeWorkspaceInstanceUuid,
   () => {
     closeAllTaskConnections()
     taskProgressMap.value = {}
@@ -199,6 +235,16 @@ watch(
     searchResult.value = null
     searchErrorMessage.value = null
     page.value = 1
+  },
+)
+
+watch(
+  selectedDocumentUuid,
+  () => {
+    if (!selectedDocumentUuid.value) {
+      return
+    }
+    void documentChunksQuery.refetch()
   },
 )
 
@@ -212,10 +258,10 @@ onBeforeUnmount(() => {
 
 const addDocumentMutation = useMutation({
   mutationFn: async (payload: { sourceUri: string; fileName?: string }) => {
-    if (!workspaceInstanceUuid.value) {
+    if (!activeWorkspaceInstanceUuid.value) {
       throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
-    return knowledgeApi.addDocument(workspaceInstanceUuid.value, {
+    return knowledgeApi.addDocument(activeWorkspaceInstanceUuid.value, {
       source_uri: payload.sourceUri,
       file_name: payload.fileName,
     })
@@ -229,10 +275,10 @@ const addDocumentMutation = useMutation({
 
 const updateDocumentMutation = useMutation({
   mutationFn: async (payload: { documentUuid: string; fileName?: string; sourceUri?: string }) => {
-    if (!workspaceInstanceUuid.value) {
+    if (!activeWorkspaceInstanceUuid.value) {
       throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
-    return knowledgeApi.updateDocument(workspaceInstanceUuid.value, payload.documentUuid, {
+    return knowledgeApi.updateDocument(activeWorkspaceInstanceUuid.value, payload.documentUuid, {
       file_name: payload.fileName,
       source_uri: payload.sourceUri,
     })
@@ -246,10 +292,10 @@ const updateDocumentMutation = useMutation({
 
 const removeDocumentMutation = useMutation({
   mutationFn: async (documentUuid: string) => {
-    if (!workspaceInstanceUuid.value) {
+    if (!activeWorkspaceInstanceUuid.value) {
       throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
-    await knowledgeApi.removeDocument(workspaceInstanceUuid.value, documentUuid)
+    await knowledgeApi.removeDocument(activeWorkspaceInstanceUuid.value, documentUuid)
   },
   onSuccess: async () => {
     await Promise.all([documentsQuery.refetch(), instanceQuery.refetch()])
@@ -259,10 +305,10 @@ const removeDocumentMutation = useMutation({
 
 const removeDocumentsMutation = useMutation({
   mutationFn: async (documentUuids: string[]) => {
-    if (!workspaceInstanceUuid.value) {
+    if (!activeWorkspaceInstanceUuid.value) {
       throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
-    await Promise.all(documentUuids.map(documentUuid => knowledgeApi.removeDocument(workspaceInstanceUuid.value as string, documentUuid)))
+    await Promise.all(documentUuids.map(documentUuid => knowledgeApi.removeDocument(activeWorkspaceInstanceUuid.value as string, documentUuid)))
   },
   onSuccess: async () => {
     await Promise.all([documentsQuery.refetch(), instanceQuery.refetch()])
@@ -272,10 +318,10 @@ const removeDocumentsMutation = useMutation({
 
 const saveConfigMutation = useMutation({
   mutationFn: async (config: KnowledgeBaseInstanceConfigRead) => {
-    if (!workspaceInstanceUuid.value) {
+    if (!activeWorkspaceInstanceUuid.value) {
       throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
-    return knowledgeApi.updateInstance(workspaceInstanceUuid.value, { config })
+    return knowledgeApi.updateInstance(activeWorkspaceInstanceUuid.value, { config })
   },
   onSuccess: async () => {
     await instanceQuery.refetch()
@@ -291,10 +337,10 @@ const buildPublishVersionTag = (): string => {
 
 const publishMutation = useMutation({
   mutationFn: async () => {
-    if (!workspaceInstanceUuid.value) {
+    if (!activeWorkspaceInstanceUuid.value) {
       throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
-    return resourceApi.publishInstance(workspaceInstanceUuid.value, {
+    return resourceApi.publishInstance(activeWorkspaceInstanceUuid.value, {
       version_tag: buildPublishVersionTag(),
     })
   },
@@ -306,7 +352,7 @@ const publishMutation = useMutation({
 
 const executeSearchMutation = useMutation({
   mutationFn: async (payload: KnowledgeSearchRequest) => {
-    if (!workspaceInstanceUuid.value) {
+    if (!activeWorkspaceInstanceUuid.value) {
       throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
     }
     const request: KnowledgeBaseExecutionRequest = {
@@ -315,7 +361,7 @@ const executeSearchMutation = useMutation({
         config: payload.config,
       },
     }
-    return knowledgeApi.execute(workspaceInstanceUuid.value, request)
+    return knowledgeApi.execute(activeWorkspaceInstanceUuid.value, request)
   },
   onSuccess: (response) => {
     searchResult.value = response.data
@@ -325,6 +371,32 @@ const executeSearchMutation = useMutation({
     searchErrorMessage.value = error instanceof Error ? error.message : t('platform.workbench.knowledge.searchFailed')
     emitBusinessError(error)
   },
+})
+
+const updateChunkMutation = useMutation({
+  mutationFn: async (payload: KnowledgeChunkUpdatePayload) => {
+    if (!activeWorkspaceInstanceUuid.value) {
+      throw new Error(t('platform.workbench.errors.noWorkspaceInstance'))
+    }
+    return knowledgeApi.updateChunks(activeWorkspaceInstanceUuid.value, {
+      updates: {
+        [payload.chunkUuid]: payload.content,
+      },
+    })
+  },
+  onSuccess: (_response, payload) => {
+    const current = searchResult.value
+    if (!current) {
+      void documentChunksQuery.refetch()
+      return
+    }
+    searchResult.value = {
+      ...current,
+      chunks: current.chunks.map(chunk => (chunk.uuid === payload.chunkUuid ? { ...chunk, content: payload.content } : chunk)),
+    }
+    void documentChunksQuery.refetch()
+  },
+  onError: (error) => emitBusinessError(error),
 })
 
 const handleAddDocument = async (payload: { sourceUri: string; fileName?: string }): Promise<void> => {
@@ -378,6 +450,10 @@ const handleRunSearch = async (payload: KnowledgeSearchRequest): Promise<void> =
   await executeSearchMutation.mutateAsync(payload)
 }
 
+const handleUpdateChunk = async (payload: KnowledgeChunkUpdatePayload): Promise<void> => {
+  await updateChunkMutation.mutateAsync(payload)
+}
+
 const handlePublish = async (): Promise<void> => {
   await publishMutation.mutateAsync()
 }
@@ -399,7 +475,11 @@ const documentMutating = computed(() => {
 })
 
 const handleRefreshDocuments = async (): Promise<void> => {
-  await Promise.all([documentsQuery.refetch(), instanceQuery.refetch()])
+  await Promise.all([documentsQuery.refetch(), instanceQuery.refetch(), documentChunksQuery.refetch()])
+}
+
+const handleRefreshChunks = async (): Promise<void> => {
+  await documentChunksQuery.refetch()
 }
 
 const handleAssetSelected = async (assets: AssetRead[]): Promise<void> => {
@@ -432,8 +512,8 @@ const handleAssetSelected = async (assets: AssetRead[]): Promise<void> => {
     :resource-name="resourceName"
     :resource-description="resourceDescription"
     :updated-at="updatedAt"
-    :workspace-instance-uuid="workspaceInstanceUuid"
-    :latest-published-instance-uuid="latestPublishedInstanceUuid"
+    :workspace-instance-uuid="activeWorkspaceInstanceUuid"
+    :latest-published-instance-uuid="activeLatestPublishedInstanceUuid"
     :summary="summary"
     :status-filter="statusFilter"
     :keyword="keyword"
@@ -445,14 +525,19 @@ const handleAssetSelected = async (assets: AssetRead[]): Promise<void> => {
     :document-mutating="documentMutating"
     :selected-document-uuid="selectedDocumentUuid"
     :task-progress-map="taskProgressMap"
+    :chunks="chunks"
+    :loading-chunks="documentChunksQuery.isLoading.value"
+    :chunks-error-message="chunksErrorMessage"
     :config="instanceQuery.data.value?.config ?? null"
     :loading-config="instanceQuery.isLoading.value"
     :saving-config="saveConfigMutation.isPending.value"
     :publishing="publishMutation.isPending.value"
     :running-search="executeSearchMutation.isPending.value"
+    :updating-chunk="updateChunkMutation.isPending.value"
     :search-result="searchResult"
     :search-error-message="searchErrorMessage"
     @refresh-documents="handleRefreshDocuments"
+    @refresh-chunks="handleRefreshChunks"
     @add-document-from-local="handleAddDocumentFromLocal"
     @add-document-from-url="handleAddDocumentFromUrl"
     @update:status-filter="statusFilter = $event"
@@ -467,6 +552,7 @@ const handleAssetSelected = async (assets: AssetRead[]): Promise<void> => {
     @update:limit="limit = $event"
     @save-config="handleSaveConfig"
     @run-search="handleRunSearch"
+    @update-chunk="handleUpdateChunk"
     @back="router.push('/resources')"
     @publish="handlePublish"
   />

@@ -14,6 +14,7 @@ import type {
   KnowledgeBaseExecutionResponse,
   KnowledgeBaseInstanceRead,
   KnowledgeBaseInstanceUpdateRequest,
+  PaginatedDocumentChunksRead,
   PaginatedDocumentsRead,
 } from '@app/services/api/contracts'
 import type { SseConnection } from '@repo/common'
@@ -66,6 +67,24 @@ export const knowledgeApi = {
       method: 'POST',
       body: payload,
     })
+    return unwrap(response)
+  },
+
+  async listDocumentChunks(
+    instanceUuid: string,
+    documentUuid: string,
+    page = 1,
+    limit = 200,
+  ): Promise<PaginatedDocumentChunksRead> {
+    const response = await apiRequest<JsonResponse<PaginatedDocumentChunksRead>>(
+      `/api/v1/knowledge/${instanceUuid}/documents/${documentUuid}/chunks`,
+      {
+        query: {
+          page,
+          limit,
+        },
+      },
+    )
     return unwrap(response)
   },
 

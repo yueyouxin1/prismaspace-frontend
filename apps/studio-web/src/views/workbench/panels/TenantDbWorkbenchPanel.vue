@@ -997,26 +997,6 @@ const applyDataQueryAndClose = (): void => {
   queryDialogOpen.value = false
 }
 
-const gotoPreviousPage = (): void => {
-  if (appliedDataQuery.value.page <= 1) {
-    return
-  }
-  appliedDataQuery.value = {
-    ...appliedDataQuery.value,
-    page: appliedDataQuery.value.page - 1,
-  }
-}
-
-const gotoNextPage = (): void => {
-  if (appliedDataQuery.value.page >= dataPageCount.value) {
-    return
-  }
-  appliedDataQuery.value = {
-    ...appliedDataQuery.value,
-    page: appliedDataQuery.value.page + 1,
-  }
-}
-
 const buildRowInputMap = (row?: JsonRecord): Record<string, string> => {
   const result: Record<string, string> = {}
   editableColumns.value.forEach((column) => {
@@ -1108,14 +1088,28 @@ const runSql = async (): Promise<void> => {
   await sqlMutation.mutateAsync(sql)
 }
 
+const openQueryBuilder = (): void => {
+  if (!selectedTable.value) {
+    return
+  }
+  activeMainTab.value = 'data'
+  queryDialogOpen.value = true
+}
+
 const handleHeaderSave = (): void => {
   schemaDialogOpen.value = true
   openSchemaSaveConfirm()
 }
 
-const handleHeaderRun = (): void => {
-  activeMainTab.value = 'sql'
-  void runSql()
+const gotoDataPage = (nextPage: number): void => {
+  const normalizedPage = Math.max(1, Math.min(nextPage, dataPageCount.value))
+  if (normalizedPage === appliedDataQuery.value.page) {
+    return
+  }
+  appliedDataQuery.value = {
+    ...appliedDataQuery.value,
+    page: normalizedPage,
+  }
 }
 
 const handleHeaderPublish = (): void => {
@@ -1128,8 +1122,7 @@ const handleHeaderPublish = (): void => {
 const handleExplorerAction = (payload: TenantExplorerActionPayload): void => {
   selectedTableUuid.value = payload.tableUuid
   if (payload.action === 'query') {
-    activeMainTab.value = 'data'
-    queryDialogOpen.value = true
+    openQueryBuilder()
     return
   }
   if (payload.action === 'schema') {
@@ -1154,15 +1147,13 @@ const handleExplorerAction = (payload: TenantExplorerActionPayload): void => {
     :updated-at="updatedAt"
     :workspace-instance-uuid="workspaceInstanceUuid"
     :latest-published-instance-uuid="latestPublishedInstanceUuid"
+    :run-visible="false"
     :save-disabled="!hasSchemaChanges || updateTableMutation.isPending.value"
     :publish-disabled="!workspaceInstanceUuid || publishMutation.isPending.value"
-    :run-disabled="!selectedTable || sqlMutation.isPending.value"
-    :running="sqlMutation.isPending.value"
     :saving="updateTableMutation.isPending.value"
     :publishing="publishMutation.isPending.value"
     @back="router.push('/resources')"
     @save="handleHeaderSave"
-    @run="handleHeaderRun"
     @publish="handleHeaderPublish"
   >
     <Card v-if="!workspaceInstanceUuid">
@@ -1189,8 +1180,6 @@ const handleExplorerAction = (payload: TenantExplorerActionPayload): void => {
         :total-count="dataTotalCount"
         :page="appliedDataQuery.page"
         :page-count="dataPageCount"
-        :can-previous-page="appliedDataQuery.page > 1"
-        :can-next-page="appliedDataQuery.page < dataPageCount"
         :sql-text="sqlText"
         :sql-rows="sqlResultRows"
         :sql-columns="sqlResultColumns"
@@ -1201,8 +1190,9 @@ const handleExplorerAction = (payload: TenantExplorerActionPayload): void => {
         @open-action="handleExplorerAction"
         @create-table="openCreateTableDialog"
         @update:active-tab="activeMainTab = $event"
-        @previous-page="gotoPreviousPage"
-        @next-page="gotoNextPage"
+        @goto-page="gotoDataPage"
+        @query-data="openQueryBuilder"
+        @insert-row="openInsertRowDialog"
         @edit-row="openEditRowDialog"
         @delete-row="openDeleteRowDialog"
         @update:sql-text="sqlText = $event"

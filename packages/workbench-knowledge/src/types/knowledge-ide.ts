@@ -1,4 +1,6 @@
 export type KnowledgeDocumentStatus = 'pending' | 'uploading' | 'processing' | 'completed' | 'failed' | string
+export type KnowledgeChunkStatus = 'pending' | 'completed' | 'failed' | string
+export type KnowledgeSourceType = 'local' | 'uri' | 'web' | 'text' | 'qa' | 'feishu' | 'notion' | string
 
 export interface KnowledgeDocumentItem {
   uuid: string
@@ -64,6 +66,39 @@ export interface KnowledgeSearchResult {
   chunks: KnowledgeSearchResultChunk[]
 }
 
+export interface KnowledgeBaseResourceItem {
+  resource_uuid: string
+  workspace_instance_uuid: string
+  latest_published_instance_uuid?: string | null
+  name: string
+  description?: string | null
+  updated_at?: string | null
+  document_count?: number
+}
+
+export interface KnowledgeChunkUpdatePayload {
+  chunkUuid: string
+  content: string
+}
+
+export interface KnowledgeChunkItem {
+  uuid: string
+  content: string
+  token_count: number
+  status: KnowledgeChunkStatus
+  error_message?: string | null
+  context?: Record<string, unknown> | null
+  payload?: Record<string, unknown> | null
+}
+
+export interface KnowledgeWorkbenchSummary {
+  total: number
+  processing: number
+  failed: number
+}
+
+export type KnowledgeDocumentViewMode = 'list' | 'card'
+
 export interface ParserPolicyConfig {
   parser_name: string
   allowed_mime_types: string[]
@@ -78,4 +113,14 @@ export interface ChunkerPolicyConfig {
 export interface KnowledgeInstanceConfig {
   parser_policy?: ParserPolicyConfig | null
   chunker_policies: ChunkerPolicyConfig[]
+}
+
+export interface KnowledgeWorkbenchState {
+  statusFilter: KnowledgeDocumentStatus | 'all'
+  keyword: string
+  viewMode: KnowledgeDocumentViewMode
+  activeTab: 'chunks' | 'retrieval' | 'settings'
+  selectedDocumentUuid: string | null
+  selectedSourceType: KnowledgeSourceType
+  addDialogOpen: boolean
 }
