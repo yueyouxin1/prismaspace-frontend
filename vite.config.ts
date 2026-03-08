@@ -71,6 +71,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './packages/asset-hub/src'),
       },
       {
+        find: '@repo/agent-chat',
+        replacement: path.resolve(__dirname, './packages/agent-chat/src'),
+      },
+      {
         find: '@app',
         replacement: path.resolve(__dirname, './apps/studio-web/src'),
       },

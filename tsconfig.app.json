@@ -35,7 +35,9 @@
       "@repo/workbench-tool": ["./packages/workbench-tool/src/index.ts"],
       "@repo/workbench-tool/*": ["./packages/workbench-tool/src/*"],
       "@repo/asset-hub": ["./packages/asset-hub/src/index.ts"],
-      "@repo/asset-hub/*": ["./packages/asset-hub/src/*"]
+      "@repo/asset-hub/*": ["./packages/asset-hub/src/*"],
+      "@repo/agent-chat": ["./packages/agent-chat/src/index.ts"],
+      "@repo/agent-chat/*": ["./packages/agent-chat/src/*"]
     },
 
     /* Linting */
@@ -77,6 +79,8 @@
     "packages/workbench-tool/src/**/*.vue",
     "packages/asset-hub/src/**/*.ts",
     "packages/asset-hub/src/**/*.vue",
+    "packages/agent-chat/src/**/*.ts",
+    "packages/agent-chat/src/**/*.vue",
     "packages/workflow/src/**/*.ts",
     "packages/workflow/src/**/*.vue",
     "packages/workflow/playground/src/**/*.ts",

@@ -6,49 +6,64 @@ import {
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
+  Loader,
   Message,
+  MessageAction,
+  MessageActions,
   MessageContent,
   MessageResponse,
   PromptInput,
+  PromptInputActionAddAttachments,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuTrigger,
   PromptInputBody,
+  PromptInputButton,
   PromptInputFooter,
   PromptInputSubmit,
   PromptInputTextarea,
+  PromptInputTools,
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+  Source,
+  Sources,
+  SourcesContent,
+  SourcesTrigger,
 } from '@repo/ui-ai-elements'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
+import { RefreshCcwIcon } from 'lucide-vue-next'
 import { Button } from '@repo/ui-shadcn/components/ui/button'
 import type {
-  AgentSessionSummary,
   AgentWorkbenchMessage,
 } from '../types/agent-ide'
 
 const props = withDefaults(
   defineProps<{
-    resourceName: string
-    sessions: AgentSessionSummary[]
     activeSessionUuid?: string | null
     messages: AgentWorkbenchMessage[]
-    loadingSessions?: boolean
     loadingMessages?: boolean
-    creatingSession?: boolean
     executing?: boolean
     errorMessage?: string | null
+    suggestions?: string[]
+    canRetry?: boolean
   }>(),
   {
     activeSessionUuid: null,
-    loadingSessions: false,
     loadingMessages: false,
-    creatingSession: false,
     executing: false,
     errorMessage: null,
+    suggestions: () => [],
+    canRetry: false,
   },
 )
 
 const emit = defineEmits<{
-  (event: 'create-session'): void
-  (event: 'select-session', sessionUuid: string): void
   (event: 'send-message', text: string): void
+  (event: 'stop-stream'): void
+  (event: 'retry-last-user'): void
+  (event: 'continue-message'): void
 }>()
+
 const { t } = useI18n()
 
 const toJsonString = (value: unknown): string => {
@@ -75,6 +90,9 @@ const normalizedMessages = computed(() => {
       id: message.uuid,
       from: (message.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
       content,
+      reasoning: message.reasoning?.trim() || '',
+      streaming: Boolean(message.streaming),
+      references: message.references ?? [],
     }
   })
 })
@@ -83,8 +101,8 @@ const submitStatus = computed(() => {
   return props.executing ? 'submitted' : undefined
 })
 
-const handleSubmit = (payload: { text: string }): void => {
-  const nextText = payload.text.trim()
+const handleSubmit = (payload: { text?: string | null }): void => {
+  const nextText = (payload.text ?? '').trim()
   if (!nextText) {
     return
   }
@@ -93,34 +111,18 @@ const handleSubmit = (payload: { text: string }): void => {
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-3">
-    <div class="flex items-center justify-between gap-2">
-      <div class="flex items-center gap-2">
-        <h3 class="text-sm font-semibold">{{ t('platform.workbench.agent.chat.sessions') }}</h3>
-        <Badge variant="outline">{{ sessions.length }}</Badge>
-      </div>
+  <div class="flex min-h-0 flex-1 flex-col gap-3 rounded-md border bg-background p-3">
+    <div v-if="suggestions.length" class="flex flex-wrap items-center gap-2">
       <Button
+        v-for="item in suggestions.slice(0, 6)"
+        :key="item"
         size="sm"
         variant="outline"
-        :disabled="creatingSession"
-        @click="emit('create-session')"
+        :disabled="executing"
+        @click="emit('send-message', item)"
       >
-        {{ creatingSession ? t('platform.workbench.agent.chat.creatingSession') : t('platform.workbench.agent.chat.newSession') }}
+        {{ item }}
       </Button>
-    </div>
-
-    <div class="flex gap-2 overflow-auto pb-1">
-      <Button
-        v-for="session in sessions"
-        :key="session.uuid"
-        size="sm"
-        :variant="activeSessionUuid === session.uuid ? 'default' : 'outline'"
-        class="max-w-[220px] shrink-0 justify-start"
-        @click="emit('select-session', session.uuid)"
-      >
-        <span class="truncate">{{ session.title || t('platform.workbench.agent.chat.untitledSession') }}</span>
-      </Button>
-      <p v-if="loadingSessions" class="self-center text-xs text-muted-foreground">{{ t('platform.workbench.agent.chat.loadingSessions') }}</p>
     </div>
 
     <div class="relative min-h-0 flex-1 overflow-hidden rounded-md border bg-muted/10">
@@ -132,15 +134,45 @@ const handleSubmit = (payload: { text: string }): void => {
             :description="activeSessionUuid ? t('platform.workbench.agent.chat.sendToDebug') : t('platform.workbench.agent.chat.createSessionFirst')"
           />
           <p v-if="loadingMessages" class="text-sm text-muted-foreground">{{ t('platform.workbench.agent.chat.loadingMessages') }}</p>
-          <Message
+          <template
             v-for="message in normalizedMessages"
             :key="message.id"
-            :from="message.from"
           >
-            <MessageContent>
-              <MessageResponse :content="message.content" />
-            </MessageContent>
-          </Message>
+            <Sources
+              v-if="message.from === 'assistant' && message.references.length"
+              class="mb-1"
+            >
+              <SourcesTrigger :count="message.references.length" />
+              <SourcesContent
+                v-for="(source, index) in message.references"
+                :key="`${message.id}-source-${index}`"
+              >
+                <Source :href="source.url || '#'" :title="source.title" />
+              </SourcesContent>
+            </Sources>
+
+            <Message :from="message.from">
+              <div class="w-full">
+                <Reasoning
+                  v-if="message.reasoning && message.from === 'assistant'"
+                  class="mb-1 w-full"
+                  :is-streaming="executing && message.streaming"
+                >
+                  <ReasoningTrigger />
+                  <ReasoningContent :content="message.reasoning" />
+                </Reasoning>
+                <MessageContent>
+                  <MessageResponse :content="message.content" />
+                </MessageContent>
+                <MessageActions v-if="message.from === 'assistant' && canRetry && !executing">
+                  <MessageAction :label="t('common.retry')" @click="emit('retry-last-user')">
+                    <RefreshCcwIcon class="size-3" />
+                  </MessageAction>
+                </MessageActions>
+              </div>
+            </Message>
+          </template>
+          <Loader v-if="executing && !normalizedMessages.length" class="mx-auto" />
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -151,9 +183,30 @@ const handleSubmit = (payload: { text: string }): void => {
         <PromptInputTextarea :disabled="executing" :placeholder="t('platform.workbench.agent.chat.inputPlaceholder')" />
       </PromptInputBody>
       <PromptInputFooter>
-        <p class="text-xs text-muted-foreground">
-          {{ errorMessage || (activeSessionUuid ? t('platform.workbench.agent.chat.currentSession', { name: resourceName }) : t('platform.workbench.agent.chat.autoCreateSession')) }}
-        </p>
+        <PromptInputTools>
+          <PromptInputActionMenu>
+            <PromptInputActionMenuTrigger />
+            <PromptInputActionMenuContent>
+              <PromptInputActionAddAttachments />
+            </PromptInputActionMenuContent>
+          </PromptInputActionMenu>
+          <PromptInputButton :disabled="executing" variant="ghost" @click="emit('continue-message')">
+            {{ t('common.continue') }}
+          </PromptInputButton>
+        </PromptInputTools>
+        <div class="flex items-center gap-2">
+          <p class="text-xs text-muted-foreground">
+            {{ errorMessage || (activeSessionUuid ? t('platform.workbench.agent.chat.currentSessionActive') : t('platform.workbench.agent.chat.autoCreateSession')) }}
+          </p>
+          <Button
+            v-if="executing"
+            size="sm"
+            variant="outline"
+            @click="emit('stop-stream')"
+          >
+            {{ t('platform.workbench.agent.chat.stop') }}
+          </Button>
+        </div>
         <PromptInputSubmit :disabled="executing" :status="submitStatus" />
       </PromptInputFooter>
     </PromptInput>

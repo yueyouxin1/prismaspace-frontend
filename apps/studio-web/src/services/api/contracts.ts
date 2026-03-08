@@ -710,24 +710,74 @@ export interface WorkflowExecutionResponse {
   data: JsonRecord
 }
 
-export interface AgentExecutionRequest {
-  inputs: {
-    input_query: string
-    session_uuid?: string
-    history?: JsonRecord[]
-  }
-  context?: JsonRecord
-  metadata?: JsonRecord
+export type AgUiRole = 'developer' | 'system' | 'assistant' | 'user' | 'tool' | 'activity' | 'reasoning'
+
+export interface AgUiMessageRequest {
+  id: string
+  role: AgUiRole
+  content?: string | JsonRecord[] | null
+  name?: string | null
+  toolCalls?: JsonRecord[] | null
+  toolCallId?: string | null
+  error?: string | null
+  encryptedValue?: string | null
+  activityType?: string | null
 }
 
-export interface AgentExecutionResponse {
-  success?: boolean
-  error?: string | null
-  data: {
-    agent_result?: JsonRecord | null
-    session_uuid?: string | null
-    trace_id?: string | null
+export interface AgUiToolRequest {
+  name: string
+  description: string
+  parameters: JsonRecord
+}
+
+export interface AgUiContextRequest {
+  description: string
+  value: string
+}
+
+export interface AgUiResumeRequest {
+  interruptId: string
+  payload?: {
+    toolResults?: Array<{
+      toolCallId: string
+      content?: JsonRecord | string | number | boolean | null
+    }>
   }
+}
+
+export type RunAgentSessionMode = 'auto' | 'stateless' | 'stateful'
+
+export interface RunAgentPlatformForwardedPropsRequest {
+  // Platform-reserved session policy for agent execution.
+  sessionMode?: RunAgentSessionMode
+  // Platform protocol selector. Current supported value: ag-ui.
+  protocol?: 'ag-ui'
+  // WebSocket-only agent instance UUID used for transport routing.
+  agentUuid?: string
+}
+
+export interface RunAgentForwardedPropsRequest {
+  // Platform-reserved namespace. Keep other top-level keys for transport or middleware extensions.
+  platform?: RunAgentPlatformForwardedPropsRequest
+  [key: string]: unknown
+}
+
+export interface RunAgentInputExtRequest {
+  threadId: string
+  runId: string
+  parentRunId?: string
+  state: JsonRecord
+  messages: AgUiMessageRequest[]
+  tools: AgUiToolRequest[]
+  context: AgUiContextRequest[]
+  forwardedProps: RunAgentForwardedPropsRequest
+  resume?: AgUiResumeRequest
+}
+
+export interface RunEventsResponse {
+  threadId: string
+  runId: string
+  events: JsonRecord[]
 }
 
 export type AgentDiversityMode = 'precise' | 'balanced' | 'creative' | 'custom'
@@ -793,7 +843,7 @@ export interface ServiceModuleRead {
   versions: ServiceModuleVersionRead[]
 }
 
-export interface ChatSessionRead {
+export interface AgentSessionRead {
   uuid: string
   title?: string | null
   agent_instance_uuid: string
@@ -802,23 +852,34 @@ export interface ChatSessionRead {
   created_at: string
 }
 
-export interface ChatMessageRead {
+export interface AgentMessageRead {
   uuid: string
   role: string
   content?: string | null
+  text_content?: string | null
+  content_parts?: JsonRecord[] | null
+  reasoning_content?: string | null
+  activity_type?: string | null
+  encrypted_value?: string | null
   meta?: JsonRecord | null
   tool_calls?: JsonRecord[] | null
   tool_call_id?: string | null
+  run_id?: string | null
+  turn_id?: string | null
   trace_id?: string | null
   created_at: string
 }
 
-export interface ChatSessionCreateRequest {
+export interface AgentSessionCreateRequest {
   agent_instance_uuid: string
   title?: string
 }
 
-export interface ContextClearRequest {
+export interface AgentSessionUpdateRequest {
+  title?: string
+}
+
+export interface AgentSessionClearContextRequest {
   mode?: 'production' | 'debug'
 }
 
