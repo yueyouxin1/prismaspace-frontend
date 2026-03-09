@@ -7,13 +7,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@repo/ui-shadcn/components/ui/dropdown-menu'
+} from '@prismaspace/ui-shadcn/components/ui/dropdown-menu'
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from '@repo/ui-shadcn/components/ui/sidebar'
+} from '@prismaspace/ui-shadcn/components/ui/sidebar'
 
 interface WorkspaceOption {
   uuid: string

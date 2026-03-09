@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui-shadcn/components/ui/alert'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui-shadcn/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@prismaspace/ui-shadcn/components/ui/alert'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@prismaspace/ui-shadcn/components/ui/card'
 
 const route = useRoute()
 const status = computed(() => {

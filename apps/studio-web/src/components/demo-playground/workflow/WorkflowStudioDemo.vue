@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { Button } from "@repo/ui-shadcn/components/ui/button"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@repo/ui-shadcn/components/ui/select"
-import WorkflowStudio from "@repo/workflow/playground/src/editor/WorkflowStudio.vue"
-import type { WorkflowStudioMode } from "@repo/workflow"
+} from "@prismaspace/ui-shadcn/components/ui/select"
+import WorkflowStudio from "@prismaspace/workflow-playground/editor/WorkflowStudio.vue"
+import type { WorkflowStudioMode } from "@prismaspace/workflow"
 
 const mode = ref<WorkflowStudioMode>("default")
 

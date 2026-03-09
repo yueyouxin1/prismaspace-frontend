@@ -1,5 +1,5 @@
 import { createI18n } from 'vue-i18n'
-import { appI18nMessages, fallbackLocale, type AppLocale } from '@repo/common/i18n/messages'
+import { appI18nMessages, fallbackLocale, type AppLocale } from '@prismaspace/common/i18n/messages'
 
 const supportedLocales = Object.keys(appI18nMessages) as AppLocale[]
 

@@ -44,10 +44,10 @@ import {
   useVueTable,
 } from "@tanstack/vue-table"
 import { DragDropProvider } from "dnd-kit-vue"
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
 
-import { Button } from '@repo/ui-shadcn/components/ui/button'
-import { Checkbox } from '@repo/ui-shadcn/components/ui/checkbox'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
+import { Checkbox } from '@prismaspace/ui-shadcn/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -55,16 +55,16 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@repo/ui-shadcn/components/ui/dropdown-menu'
+} from '@prismaspace/ui-shadcn/components/ui/dropdown-menu'
 
-import { Label } from '@repo/ui-shadcn/components/ui/label'
+import { Label } from '@prismaspace/ui-shadcn/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui-shadcn/components/ui/select'
+} from '@prismaspace/ui-shadcn/components/ui/select'
 import {
   Table,
   TableBody,
@@ -72,14 +72,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@repo/ui-shadcn/components/ui/table'
+} from '@prismaspace/ui-shadcn/components/ui/table'
 
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@repo/ui-shadcn/components/ui/tabs'
+} from '@prismaspace/ui-shadcn/components/ui/tabs'
 
 const props = defineProps<{
   data: TableData[]

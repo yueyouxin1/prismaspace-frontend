@@ -7,7 +7,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from '@repo/ui-shadcn/components/ui/sidebar'
+} from '@prismaspace/ui-shadcn/components/ui/sidebar'
 
 interface DocumentNavItem {
   name: string

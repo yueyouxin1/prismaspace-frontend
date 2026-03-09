@@ -1,4 +1,4 @@
-import { connectSseStream, type SseConnectOptions, type SseConnection } from '@repo/common'
+import { connectSseStream, type SseConnectOptions, type SseConnection } from '@prismaspace/common'
 import { apiContextStorage } from '@app/services/api/context-storage'
 
 export interface ApiSseConnectOptions extends Omit<SseConnectOptions, 'url' | 'headers'> {

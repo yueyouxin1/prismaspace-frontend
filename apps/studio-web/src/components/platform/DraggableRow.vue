@@ -7,7 +7,7 @@ import { useSortable } from "dnd-kit-vue"
 import {
   TableCell,
   TableRow,
-} from '@repo/ui-shadcn/components/ui/table'
+} from '@prismaspace/ui-shadcn/components/ui/table'
 
 const props = defineProps<{ row: Row<z.infer<typeof schema>>, index: number }>()
 

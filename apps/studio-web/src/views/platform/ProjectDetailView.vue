@@ -4,25 +4,25 @@ import { useMutation, useQuery } from '@tanstack/vue-query'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
+import { resourceClient } from '@app/core/client/prismaspace-client'
 import { projectApi } from '@app/services/api/project-client'
-import { resourceApi } from '@app/services/api/resource-client'
 import { isHttpBusinessError } from '@app/services/http/business-error'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
+} from '@prismaspace/ui-shadcn/components/ui/card'
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@repo/ui-shadcn/components/ui/tabs'
-import { Textarea } from '@repo/ui-shadcn/components/ui/textarea'
+} from '@prismaspace/ui-shadcn/components/ui/tabs'
+import { Textarea } from '@prismaspace/ui-shadcn/components/ui/textarea'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -47,7 +47,7 @@ const envConfigQuery = useQuery({
 const refsQuery = useQuery({
   queryKey: computed(() => ['project', projectId.value, 'refs']),
   enabled: computed(() => Boolean(projectId.value)),
-  queryFn: async () => resourceApi.listProjectResourceRefs(projectId.value),
+  queryFn: async () => resourceClient.listProjectResourceRefs(projectId.value),
 })
 
 const dependencyQuery = useQuery({
@@ -340,4 +340,3 @@ const loading = computed(() => {
     </div>
   </PlatformShell>
 </template>
-

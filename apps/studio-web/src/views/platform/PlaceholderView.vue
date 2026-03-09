@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
-import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui-shadcn/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@prismaspace/ui-shadcn/components/ui/card'
 
 const props = defineProps<{
   titleKey: string

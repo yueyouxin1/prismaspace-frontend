@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Button } from "@repo/ui-shadcn/components/ui/button"
-import { Input } from "@repo/ui-shadcn/components/ui/input"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
+import { Input } from "@prismaspace/ui-shadcn/components/ui/input"
 import {
   Card,
   CardContent,
@@ -8,7 +8,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@repo/ui-shadcn/components/ui/card"
+} from "@prismaspace/ui-shadcn/components/ui/card"
 </script>
 
 <template>

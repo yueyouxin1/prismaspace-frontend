@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui-shadcn/components/ui/alert'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@prismaspace/ui-shadcn/components/ui/alert'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@repo/ui-shadcn/components/ui/dialog'
+} from '@prismaspace/ui-shadcn/components/ui/dialog'
 import { usePlatformStore } from '@app/stores/platform'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'

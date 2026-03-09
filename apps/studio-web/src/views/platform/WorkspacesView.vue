@@ -3,14 +3,14 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
 import { usePlatformStore } from '@app/stores/platform'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
+} from '@prismaspace/ui-shadcn/components/ui/card'
 
 const store = usePlatformStore()
 const { t } = useI18n()

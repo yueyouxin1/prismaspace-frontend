@@ -1,0 +1,14 @@
+{
+  "name": "@prismaspace/tenantdb",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./main": "./src/main/index.ts",
+    "./workbench": "./src/workbench/index.ts",
+    "./runtime": "./src/runtime/index.ts",
+    "./types": "./src/types/index.ts",
+    "./*": "./src/*"
+  }
+}

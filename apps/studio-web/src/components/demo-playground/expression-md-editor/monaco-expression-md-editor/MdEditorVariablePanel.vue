@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
-import type { ExpressionPopupContext, ExpressionPopupSelectPayload } from "@repo/editor"
+import type { ExpressionPopupContext, ExpressionPopupSelectPayload } from "@prismaspace/editor"
 
 const props = defineProps<{
   context?: ExpressionPopupContext

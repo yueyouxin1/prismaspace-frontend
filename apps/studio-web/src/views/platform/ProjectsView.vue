@@ -6,26 +6,26 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
 import { projectApi } from '@app/services/api/project-client'
-import { platformQueryKeys } from '@app/services/api/query-keys'
+import { platformQueryKeys } from '@prismaspace/resources-core'
 import { usePlatformStore } from '@app/stores/platform'
 import { useProjectCreationStore } from '@app/stores/project-creation'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
-import { Checkbox } from '@repo/ui-shadcn/components/ui/checkbox'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
+import { Checkbox } from '@prismaspace/ui-shadcn/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from '@repo/ui-shadcn/components/ui/dropdown-menu'
-import { Input } from '@repo/ui-shadcn/components/ui/input'
+} from '@prismaspace/ui-shadcn/components/ui/dropdown-menu'
+import { Input } from '@prismaspace/ui-shadcn/components/ui/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui-shadcn/components/ui/select'
-import { Skeleton } from '@repo/ui-shadcn/components/ui/skeleton'
+} from '@prismaspace/ui-shadcn/components/ui/select'
+import { Skeleton } from '@prismaspace/ui-shadcn/components/ui/skeleton'
 
 type ProjectTypeFilter = 'all' | 'uiapp' | 'agent' | 'unset'
 type VisibilityFilter = 'all' | 'private' | 'workspace' | 'public'

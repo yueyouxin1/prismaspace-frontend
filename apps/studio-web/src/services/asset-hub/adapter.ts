@@ -1,16 +1,16 @@
-import { assetApi } from '@app/services/api/asset-client'
-import type { AssetHubAdapter } from '@repo/asset-hub'
+import { assetClient } from '@app/core/client/prismaspace-client'
+import type { AssetHubAdapter } from '@prismaspace/asset-hub'
 
 export const studioAssetHubAdapter: AssetHubAdapter = {
-  createUploadTicket: (workspaceUuid, payload) => assetApi.createUploadTicket(workspaceUuid, payload),
-  confirmUpload: (payload) => assetApi.confirmUpload(payload),
-  listAssets: (query) => assetApi.listAssets(query),
-  getAsset: (assetUuid) => assetApi.getAsset(assetUuid),
-  patchAsset: (assetUuid, payload) => assetApi.patchAsset(assetUuid, payload),
-  deleteAsset: (assetUuid) => assetApi.deleteAsset(assetUuid),
-  createFolder: (workspaceUuid, payload) => assetApi.createFolder(workspaceUuid, payload),
-  listFolders: (workspaceUuid, parentUuid) => assetApi.listFolders(workspaceUuid, parentUuid),
-  listFolderTree: (workspaceUuid) => assetApi.listFolderTree(workspaceUuid),
-  patchFolder: (folderUuid, payload) => assetApi.patchFolder(folderUuid, payload),
-  deleteFolder: (folderUuid) => assetApi.deleteFolder(folderUuid),
+  createUploadTicket: (workspaceUuid, payload) => assetClient.createUploadTicket(workspaceUuid, payload),
+  confirmUpload: (payload) => assetClient.confirmUpload(payload),
+  listAssets: (query) => assetClient.listAssets(query),
+  getAsset: (assetUuid) => assetClient.getAsset(assetUuid),
+  patchAsset: (assetUuid, payload) => assetClient.patchAsset(assetUuid, payload),
+  deleteAsset: (assetUuid) => assetClient.deleteAsset(assetUuid),
+  createFolder: (workspaceUuid, payload) => assetClient.createFolder(workspaceUuid, payload),
+  listFolders: (workspaceUuid, parentUuid) => assetClient.listFolders(workspaceUuid, parentUuid),
+  listFolderTree: (workspaceUuid) => assetClient.listFolderTree(workspaceUuid),
+  patchFolder: (folderUuid, payload) => assetClient.patchFolder(folderUuid, payload),
+  deleteFolder: (folderUuid) => assetClient.deleteFolder(folderUuid),
 }

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { useI18n } from 'vue-i18n'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
 import { entitlementApi } from '@app/services/api/entitlement-client'
-import { platformQueryKeys } from '@app/services/api/query-keys'
+import { platformQueryKeys } from '@prismaspace/resources-core'
 import { usePlatformStore } from '@app/stores/platform'
 import {
   Card,
@@ -12,9 +12,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
-import { Progress } from '@repo/ui-shadcn/components/ui/progress'
-import { Skeleton } from '@repo/ui-shadcn/components/ui/skeleton'
+} from '@prismaspace/ui-shadcn/components/ui/card'
+import { Progress } from '@prismaspace/ui-shadcn/components/ui/progress'
+import { Skeleton } from '@prismaspace/ui-shadcn/components/ui/skeleton'
 
 const store = usePlatformStore()
 const { t } = useI18n()

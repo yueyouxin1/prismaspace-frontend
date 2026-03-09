@@ -23,7 +23,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-} from '@repo/ui-shadcn/components/ui/sidebar'
+} from '@prismaspace/ui-shadcn/components/ui/sidebar'
 
 const emit = defineEmits<{
   (e: 'open-settings'): void

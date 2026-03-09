@@ -6,15 +6,15 @@ import {
   type ParamSchemaRuntimeMode,
   type VariableTreeNode,
   useParamSchemaEditor,
-} from "@repo/editor";
-import { Button } from "@repo/ui-shadcn/components/ui/button";
+} from "@prismaspace/editor";
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui-shadcn/components/ui/card";
+} from "@prismaspace/ui-shadcn/components/ui/card";
 type EditorKind = "regular" | "professional";
 
 const activeEditorKind = ref<EditorKind>("regular");

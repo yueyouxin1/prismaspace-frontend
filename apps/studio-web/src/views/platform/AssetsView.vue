@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
 import { usePlatformStore } from '@app/stores/platform'
 import { studioAssetHubAdapter } from '@app/services/asset-hub/adapter'
-import { AssetManagerPanel } from '@repo/asset-hub'
+import { AssetManagerPanel } from '@prismaspace/asset-hub'
 
 const { t } = useI18n()
 const store = usePlatformStore()

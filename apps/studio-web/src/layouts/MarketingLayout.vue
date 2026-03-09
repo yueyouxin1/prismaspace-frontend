@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import { usePlatformStore } from '@app/stores/platform'
 
 const store = usePlatformStore()

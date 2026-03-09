@@ -5,22 +5,22 @@ import { IconEdit, IconExternalLink, IconPlus, IconSearch, IconTrash } from '@ta
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
+import { prismaspaceQueryKeys as platformQueryKeys } from '@prismaspace/resources-core'
+import { resourceClient } from '@app/core/client/prismaspace-client'
 import { trackEvent } from '@app/services/analytics/events'
-import { resourceApi } from '@app/services/api/resource-client'
 import { resourceTypeApi } from '@app/services/api/resource-type-client'
-import { platformQueryKeys } from '@app/services/api/query-keys'
 import { emitBusinessError } from '@app/services/http/error-gateway'
 import { usePlatformStore } from '@app/stores/platform'
 import type { ResourceRead } from '@app/services/api/contracts'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
+} from '@prismaspace/ui-shadcn/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -28,17 +28,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@repo/ui-shadcn/components/ui/dialog'
-import { Input } from '@repo/ui-shadcn/components/ui/input'
-import { Label } from '@repo/ui-shadcn/components/ui/label'
+} from '@prismaspace/ui-shadcn/components/ui/dialog'
+import { Input } from '@prismaspace/ui-shadcn/components/ui/input'
+import { Label } from '@prismaspace/ui-shadcn/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui-shadcn/components/ui/select'
-import { Skeleton } from '@repo/ui-shadcn/components/ui/skeleton'
+} from '@prismaspace/ui-shadcn/components/ui/select'
+import { Skeleton } from '@prismaspace/ui-shadcn/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -46,8 +46,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@repo/ui-shadcn/components/ui/table'
-import { Textarea } from '@repo/ui-shadcn/components/ui/textarea'
+} from '@prismaspace/ui-shadcn/components/ui/table'
+import { Textarea } from '@prismaspace/ui-shadcn/components/ui/textarea'
 
 const store = usePlatformStore()
 const router = useRouter()
@@ -120,7 +120,7 @@ const workspaceUuid = computed(() => store.currentWorkspace?.uuid ?? null)
 const resourcesQuery = useQuery({
   queryKey: computed(() => platformQueryKeys.workspaceResources(workspaceUuid.value)),
   enabled: computed(() => Boolean(workspaceUuid.value)),
-  queryFn: async () => resourceApi.listWorkspaceResources(workspaceUuid.value as string),
+  queryFn: async () => resourceClient.listWorkspaceResources(workspaceUuid.value as string),
 })
 
 const resourceTypesQuery = useQuery({
@@ -215,7 +215,7 @@ const createMutation = useMutation({
       throw new Error('Tool description is required.')
     }
 
-    return resourceApi.createWorkspaceResource(workspaceUuid.value, {
+    return resourceClient.createWorkspaceResource(workspaceUuid.value, {
       name,
       description: description || undefined,
       resource_type: resourceType,
@@ -252,7 +252,7 @@ const updateMutation = useMutation({
       throw new Error('No edit target.')
     }
 
-    return resourceApi.updateResource(editTarget.value.uuid, {
+    return resourceClient.updateResource(editTarget.value.uuid, {
       name: editName.value.trim(),
       description: editDescription.value.trim() || undefined,
     })
@@ -268,7 +268,7 @@ const updateMutation = useMutation({
 
 const deleteMutation = useMutation({
   mutationFn: async (resourceUuid: string) => {
-    return resourceApi.deleteResource(resourceUuid)
+    return resourceClient.deleteResource(resourceUuid)
   },
   onSuccess: async () => {
     deletingResourceUuid.value = ''

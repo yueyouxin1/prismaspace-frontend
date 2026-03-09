@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { MdEditor, type MdEditorExpose, type MdExpressionRule } from "@repo/editor"
-import { Button } from "@repo/ui-shadcn/components/ui/button"
+import { MdEditor, type MdEditorExpose, type MdExpressionRule } from "@prismaspace/editor"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui-shadcn/components/ui/card"
+} from "@prismaspace/ui-shadcn/components/ui/card"
 import MdEditorVariablePanel from "./MdEditorVariablePanel.vue"
 
 const DEMO_CONTENT = `# Monaco Markdown Edit

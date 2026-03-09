@@ -2,17 +2,21 @@
 import { computed, ref, watch } from 'vue'
 import {
   KnowledgeBaseIdeWorkbench,
+} from '@prismaspace/knowledge/workbench'
+import {
   createKnowledgeWorkbenchStore,
-  type KnowledgeChunkItem,
-  type KnowledgeChunkUpdatePayload,
-  type KnowledgeDocumentItem,
-  type KnowledgeDocumentSourcePayload,
-  type KnowledgeDocumentStatus,
-  type KnowledgeInstanceConfig,
-  type KnowledgeSearchRequest,
-  type KnowledgeSearchResult,
-  type KnowledgeTaskProgress,
-} from '@repo/workbench-knowledge'
+} from '@prismaspace/knowledge/runtime'
+import type {
+  KnowledgeChunkItem,
+  KnowledgeChunkUpdatePayload,
+  KnowledgeDocumentItem,
+  KnowledgeDocumentSourcePayload,
+  KnowledgeDocumentStatus,
+  KnowledgeInstanceConfig,
+  KnowledgeSearchRequest,
+  KnowledgeSearchResult,
+  KnowledgeTaskProgress,
+} from '@prismaspace/knowledge/types'
 
 const store = createKnowledgeWorkbenchStore({
   statusFilter: 'all',

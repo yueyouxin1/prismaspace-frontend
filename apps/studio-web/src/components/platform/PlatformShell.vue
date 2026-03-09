@@ -4,17 +4,17 @@ import { useColorMode, useStorage } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import AppSidebar from '@app/components/platform/AppSidebar.vue'
 import SiteHeader from '@app/components/platform/SiteHeader.vue'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@repo/ui-shadcn/components/ui/dialog'
-import { Label } from '@repo/ui-shadcn/components/ui/label'
-import { SidebarInset, SidebarProvider } from '@repo/ui-shadcn/components/ui/sidebar'
-import { Switch } from '@repo/ui-shadcn/components/ui/switch'
+} from '@prismaspace/ui-shadcn/components/ui/dialog'
+import { Label } from '@prismaspace/ui-shadcn/components/ui/label'
+import { SidebarInset, SidebarProvider } from '@prismaspace/ui-shadcn/components/ui/sidebar'
+import { Switch } from '@prismaspace/ui-shadcn/components/ui/switch'
 
 type ThemeName =
   | 'default'

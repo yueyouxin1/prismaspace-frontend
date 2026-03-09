@@ -3,81 +3,33 @@ import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 
-// https://vite.dev/config/
+const resolvePackage = (...segments: string[]) => path.resolve(__dirname, 'packages', 'prismaspace', ...segments)
+
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
   envPrefix: ['APP_', 'VITE_'],
   publicDir: path.resolve(__dirname, './apps/studio-web/public'),
   resolve: {
     alias: [
-      {
-        find: '@repo/ui-ai-elements',
-        replacement: path.resolve(__dirname, './packages/ui-ai-elements/src'),
-      },
-      {
-        find: '@repo/ui-shadcn',
-        replacement: path.resolve(__dirname, './packages/ui-shadcn/src'),
-      },
-      {
-        find: '@repo/ui-reka',
-        replacement: path.resolve(__dirname, './packages/ui-reka/src'),
-      },
-      {
-        find: '@repo/editor',
-        replacement: path.resolve(__dirname, './packages/editor/src'),
-      },
-      {
-        find: '@repo/common',
-        replacement: path.resolve(__dirname, './packages/common/src'),
-      },
-      {
-        find: '@repo/generator',
-        replacement: path.resolve(__dirname, './packages/generator/src'),
-      },
-      {
-        find: '@repo/workflow',
-        replacement: path.resolve(__dirname, './packages/workflow'),
-      },
-      {
-        find: '@repo/workbench-core',
-        replacement: path.resolve(__dirname, './packages/workbench-core/src'),
-      },
-      {
-        find: '@repo/workbench-uiapp',
-        replacement: path.resolve(__dirname, './packages/workbench-uiapp/src'),
-      },
-      {
-        find: '@repo/workbench-agent',
-        replacement: path.resolve(__dirname, './packages/workbench-agent/src'),
-      },
-      {
-        find: '@repo/workbench-workflow',
-        replacement: path.resolve(__dirname, './packages/workbench-workflow/src'),
-      },
-      {
-        find: '@repo/workbench-knowledge',
-        replacement: path.resolve(__dirname, './packages/workbench-knowledge/src'),
-      },
-      {
-        find: '@repo/workbench-tenantdb',
-        replacement: path.resolve(__dirname, './packages/workbench-tenantdb/src'),
-      },
-      {
-        find: '@repo/workbench-tool',
-        replacement: path.resolve(__dirname, './packages/workbench-tool/src'),
-      },
-      {
-        find: '@repo/asset-hub',
-        replacement: path.resolve(__dirname, './packages/asset-hub/src'),
-      },
-      {
-        find: '@repo/agent-chat',
-        replacement: path.resolve(__dirname, './packages/agent-chat/src'),
-      },
-      {
-        find: '@app',
-        replacement: path.resolve(__dirname, './apps/studio-web/src'),
-      },
+      { find: '@prismaspace/contracts', replacement: resolvePackage('contracts', 'src') },
+      { find: '@prismaspace/sdk', replacement: resolvePackage('sdk', 'src') },
+      { find: '@prismaspace/common', replacement: resolvePackage('common', 'src') },
+      { find: '@prismaspace/editor', replacement: resolvePackage('editor', 'src') },
+      { find: '@prismaspace/generator', replacement: resolvePackage('generator', 'src') },
+      { find: '@prismaspace/ui-ai-elements', replacement: resolvePackage('ui-ai-elements', 'src') },
+      { find: '@prismaspace/ui-shadcn', replacement: resolvePackage('ui-shadcn', 'src') },
+      { find: '@prismaspace/ui-reka', replacement: resolvePackage('ui-reka', 'src') },
+      { find: '@prismaspace/asset-hub', replacement: resolvePackage('asset-hub', 'src') },
+      { find: '@prismaspace/resources-core', replacement: resolvePackage('resources-core', 'src') },
+      { find: '@prismaspace/resources', replacement: resolvePackage('resources', 'src') },
+      { find: '@prismaspace/agent', replacement: resolvePackage('resources', 'agent', 'src') },
+      { find: '@prismaspace/tool', replacement: resolvePackage('resources', 'tool', 'src') },
+      { find: '@prismaspace/knowledge', replacement: resolvePackage('resources', 'knowledge', 'src') },
+      { find: '@prismaspace/tenantdb', replacement: resolvePackage('resources', 'tenantdb', 'src') },
+      { find: '@prismaspace/uiapp', replacement: resolvePackage('resources', 'uiapp', 'src') },
+      { find: '@prismaspace/workflow', replacement: resolvePackage('resources', 'workflow', 'src') },
+      { find: '@prismaspace/workflow-playground', replacement: resolvePackage('resources', 'workflow', 'playground', 'src') },
+      { find: '@app', replacement: path.resolve(__dirname, './apps/studio-web/src') },
     ],
   },
 })

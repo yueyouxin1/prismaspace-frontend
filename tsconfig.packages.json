@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": [
+    "packages/prismaspace/**/*.ts",
+    "packages/prismaspace/**/*.tsx",
+    "packages/prismaspace/**/*.vue"
+  ]
+}

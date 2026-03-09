@@ -8,7 +8,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@repo/ui-shadcn/components/ui/collapsible'
+} from '@prismaspace/ui-shadcn/components/ui/collapsible'
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -18,7 +18,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-} from '@repo/ui-shadcn/components/ui/sidebar'
+} from '@prismaspace/ui-shadcn/components/ui/sidebar'
 
 interface NavChildItem {
   title: string

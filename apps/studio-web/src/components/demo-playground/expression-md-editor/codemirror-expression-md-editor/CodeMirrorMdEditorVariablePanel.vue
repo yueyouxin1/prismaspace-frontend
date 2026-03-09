@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue"
 import type {
   CodeMirrorExpressionPopupContext,
   CodeMirrorExpressionPopupSelectPayload,
-} from "@repo/editor"
+} from "@prismaspace/editor"
 
 const props = defineProps<{
   context?: CodeMirrorExpressionPopupContext

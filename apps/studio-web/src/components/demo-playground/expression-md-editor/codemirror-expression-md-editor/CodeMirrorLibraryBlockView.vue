@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Box, FileText } from "lucide-vue-next"
-import type { CodeMirrorMdExpressionContext } from "@repo/editor"
+import type { CodeMirrorMdExpressionContext } from "@prismaspace/editor"
 
 const props = withDefaults(defineProps<{
   title?: string

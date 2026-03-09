@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui-shadcn/components/ui/card'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@prismaspace/ui-shadcn/components/ui/card'
 
 const { t } = useI18n()
 </script>

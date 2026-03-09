@@ -1,5 +1,6 @@
 import type { Component } from "vue"
 import AlertStatusDemo from "@app/components/demo-playground/AlertStatusDemo.vue"
+import AgentChatDemo from "@app/components/demo-playground/agent-chat/AgentChatDemo.vue"
 import ButtonVariantsDemo from "@app/components/demo-playground/ButtonVariantsDemo.vue"
 import CodeMirrorEditorDemo from "@app/components/demo-playground/CodeMirrorEditorDemo.vue"
 import CodeMirrorMdEditorDemo from "@app/components/demo-playground/expression-md-editor/codemirror-expression-md-editor/CodeMirrorMdEditorDemo.vue"
@@ -10,8 +11,6 @@ import MdEditorDemo from "@app/components/demo-playground/expression-md-editor/m
 import MonacoEditorDemo from "@app/components/demo-playground/MonacoEditorDemo.vue"
 import ParamSchemaEditorsDemo from "@app/components/demo-playground/param-schema-editor/ParamSchemaEditorsDemo.vue"
 import SaaSPlatformMvpDemo from "@app/components/demo-playground/SaaSPlatformMvpDemo.vue"
-import WorkflowInputTreeDemo from "@app/components/demo-playground/workflow-input-tree/WorkflowInputTreeDemo.vue"
-import WorkflowStudioDemo from "@app/components/demo-playground/workflow/WorkflowStudioDemo.vue"
 
 export type ComponentDemo = {
   slug: string
@@ -22,6 +21,13 @@ export type ComponentDemo = {
 }
 
 export const componentDemos: ComponentDemo[] = [
+  {
+    slug: "agent-chat",
+    title: "Agent Chat",
+    description: "基于统一 PrismaspaceClient 的 AG-UI AgentChat Demo，支持会话工作站与固定线程两种模式。",
+    tags: ["agent", "chat", "ag-ui", "sse"],
+    component: AgentChatDemo,
+  },
   {
     slug: "button-variants",
     title: "Button",
@@ -98,20 +104,6 @@ export const componentDemos: ComponentDemo[] = [
     description: "知识库文档解析与分块管理工作台",
     tags: ["knowledgebase", "rag", "workbench"],
     component: KnowledgeWorkbenchDemo,
-  },
-  {
-    slug: "workflow-input-tree",
-    title: "Workflow Input Tree",
-    description: "InputTree 像素级复刻 demo：支持层级编辑、折叠、列宽比与限制态展示。",
-    tags: ["workflow", "input-tree", "form", "playground"],
-    component: WorkflowInputTreeDemo,
-  },
-  {
-    slug: "workflow-studio",
-    title: "Workflow Studio",
-    description: "Workflow 画布编辑器像素级复刻 demo：节点连线、配置面板与试运行回放。",
-    tags: ["workflow", "canvas", "node", "playground"],
-    component: WorkflowStudioDemo,
   },
 ]
 

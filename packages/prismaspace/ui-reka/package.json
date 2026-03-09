@@ -1,0 +1,9 @@
+{
+  "name": "@prismaspace/ui-reka",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

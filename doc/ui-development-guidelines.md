@@ -1,8 +1,50 @@
 # UI 开发规范
 
+## 0. 文档职责与前置阅读
+
+本文件是“UI 具体怎么实现”的规范文档。
+
+它回答：
+
+- UI 开发时组件库应如何选型
+- 无现成组件时应按什么顺序兜底
+- 什么时候必须先查参考实现
+- 自定义 UI 实现应遵守哪些边界
+
+以下内容不在本文件承担：
+
+- 项目整体定位、Monorepo 分层、包域边界
+  - 看 `prismaspace-frontend/README.md`
+- 工程架构、alias、包创建、Demo 交付、PR 最小检查
+  - 看 `prismaspace-frontend/doc/Vue通用架构与开发规范指南.md`
+- 全局 UI 美学、产品层级、tokens 与视觉红线
+  - 看 `prismaspace-frontend/doc/prisma-space-ui.md`
+- 页面与模块级布局、状态、动效细节
+  - 看 `prismaspace-frontend/doc/prisma-space-pages-ui.md`
+
+开始 UI 开发前，必须按以下顺序补齐上下文：
+
+1. `prismaspace-frontend/README.md`
+2. `prismaspace-frontend/doc/Vue通用架构与开发规范指南.md`
+3. `prismaspace-frontend/doc/prisma-space-ui.md`
+4. `prismaspace-frontend/doc/prisma-space-pages-ui.md`（页面/模块开发时强制）
+
+按改动类型继续补充：
+
+- 涉及主题色、token、CSS 变量来源：
+  - `prismaspace-frontend/doc/shadcn-colors.md`
+- 涉及资源工作台 UI：
+  - `prismaspace-frontend/doc/resource-workbench-boundary.md`
+- 涉及运行时面板 / Headless Runtime：
+  - `prismaspace-frontend/doc/prisma-space-runtime.md`
+- 涉及素材库：
+  - `prismaspace-frontend/doc/asset-library-boundary.md`
+
+---
+
 ## 1. 适用范围
 
-- 本规范适用于本仓库所有 UI 相关开发工作，包括 `apps/*` 页面开发、`packages/*` 组件开发与样式维护。
+- 本规范适用于本仓库所有 UI 相关开发工作，包括 `apps/*` 页面开发、`packages/prismaspace/*` 组件开发与样式维护。
 - 新增页面、组件、交互或改造已有 UI 时，必须遵循本规范。
 - 未在本规范明确覆盖的场景，应当遵循“优先复用、保持一致、可持续维护”的原则。
 
@@ -10,21 +52,21 @@
 
 ### 2.1 基线要求
 
-- 项目 UI 开发必须基于 `@repo/ui-shadcn` 组件库。
-- 除智能场景外，禁止绕过 `@repo/ui-shadcn` 直接从低层能力开始实现。
+- 项目 UI 开发必须基于 `@prismaspace/ui-shadcn` 组件库。
+- 除智能场景外，禁止绕过 `@prismaspace/ui-shadcn` 直接从低层能力开始实现。
 
 ### 2.2 场景优先级
 
-- 通用/专业场景必须优先使用 `@repo/ui-shadcn`。
-- `@repo/ui-shadcn` 提供专业组件，适用于门面、IDE、管理面板等场景，应当作为保证视觉一致性与交付质量的默认方案。
-- 智能场景必须优先使用 `@repo/ui-ai-elements`。
-- `@repo/ui-ai-elements` 基于 `@repo/ui-shadcn` 封装，面向 AI 交互、IDE、PlayGround 等智能场景，强调交互体验与场景化能力。
+- 通用/专业场景必须优先使用 `@prismaspace/ui-shadcn`。
+- `@prismaspace/ui-shadcn` 提供专业组件，适用于门面、IDE、管理面板等场景，应当作为保证视觉一致性与交付质量的默认方案。
+- 智能场景必须优先使用 `@prismaspace/ui-ai-elements`。
+- `@prismaspace/ui-ai-elements` 基于 `@prismaspace/ui-shadcn` 封装，面向 AI 交互、IDE、PlayGround 等智能场景，强调交互体验与场景化能力。
 
 ### 2.3 无覆盖时的评估与实现顺序
 
-当 `@repo/ui-shadcn` 与 `@repo/ui-ai-elements` 均无法覆盖需求时，必须按以下顺序评估并实现：
+当 `@prismaspace/ui-shadcn` 与 `@prismaspace/ui-ai-elements` 均无法覆盖需求时，必须按以下顺序评估并实现：
 
-1. `@repo/ui-reka`
+1. `@prismaspace/ui-reka`
 2. `tailwindcss`
 3. 原生 CSS（可与以上方案组合）
 
@@ -33,10 +75,10 @@
 
 ## 3. 场景指引
 
-- 门面、运营后台、管理面板、非 AI 主导的 IDE 界面：应当优先选用 `@repo/ui-shadcn`。
-- AI 对话、智能输入、Agent 编排、PlayGround 交互等智能场景：应当优先选用 `@repo/ui-ai-elements`。
-- 同一页面包含通用模块与智能模块时，建议以模块边界拆分：通用模块使用 `@repo/ui-shadcn`，智能模块使用 `@repo/ui-ai-elements`。
-- 如 `@repo/ui-ai-elements` 已满足场景，不建议回退到重复封装的 `@repo/ui-shadcn` 实现。
+- 门面、运营后台、管理面板、非 AI 主导的 IDE 界面：应当优先选用 `@prismaspace/ui-shadcn`。
+- AI 对话、智能输入、Agent 编排、PlayGround 交互等智能场景：应当优先选用 `@prismaspace/ui-ai-elements`。
+- 同一页面包含通用模块与智能模块时，建议以模块边界拆分：通用模块使用 `@prismaspace/ui-shadcn`，智能模块使用 `@prismaspace/ui-ai-elements`。
+- 如 `@prismaspace/ui-ai-elements` 已满足场景，不建议回退到重复封装的 `@prismaspace/ui-shadcn` 实现。
 
 ## 4. 兜底方案
 

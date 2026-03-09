@@ -10,17 +10,22 @@ const forbiddenMatchers = [
   {
     alias: '@/',
     test: (line) => line.includes("'@/") || line.includes('"@/'),
-    hint: 'Use "@app/*" for app-local code or "@repo/*" for package code.',
+    hint: 'Use "@app/*" for app-local code or "@prismaspace/*" for package code.',
   },
   {
     alias: '@utils/',
     test: (line) => line.includes("'@utils/") || line.includes('"@utils/'),
-    hint: 'Use package-level imports such as "@repo/<pkg>/...".',
+    hint: 'Use package-level imports such as "@prismaspace/<pkg>/...".',
   },
   {
     alias: '@lib/',
     test: (line) => line.includes("'@lib/") || line.includes('"@lib/'),
-    hint: 'Use package-level imports such as "@repo/<pkg>/...".',
+    hint: 'Use package-level imports such as "@prismaspace/<pkg>/...".',
+  },
+  {
+    alias: '@app/',
+    test: (line, filePath) => filePath.includes(`${path.sep}packages${path.sep}prismaspace${path.sep}`) && (line.includes("'@app/") || line.includes('"@app/')),
+    hint: 'Public PrismaSpace packages must not depend on app-local code.',
   },
 ]
 
@@ -53,7 +58,7 @@ async function main() {
     const lines = text.split(/\r?\n/)
     lines.forEach((line, index) => {
       for (const matcher of forbiddenMatchers) {
-        if (matcher.test(line)) {
+        if (matcher.test(line, filePath)) {
           violations.push({
             filePath: path.relative(ROOT_DIR, filePath).replaceAll('\\', '/'),
             line: index + 1,

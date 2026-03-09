@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Button } from "@repo/ui-shadcn/components/ui/button"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 </script>
 
 <template>

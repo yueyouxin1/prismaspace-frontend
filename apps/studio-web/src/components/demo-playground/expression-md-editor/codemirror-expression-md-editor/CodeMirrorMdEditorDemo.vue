@@ -4,15 +4,15 @@ import {
   CodeMirrorMdEditor,
   type CodeMirrorMdEditorExpose,
   type CodeMirrorMdExpressionRule,
-} from "@repo/editor"
-import { Button } from "@repo/ui-shadcn/components/ui/button"
+} from "@prismaspace/editor"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui-shadcn/components/ui/card"
+} from "@prismaspace/ui-shadcn/components/ui/card"
 import CodeMirrorLibraryBlockView from "./CodeMirrorLibraryBlockView.vue"
 import CodeMirrorMdEditorVariablePanel from "./CodeMirrorMdEditorVariablePanel.vue"
 

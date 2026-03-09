@@ -6,9 +6,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui-shadcn/components/ui/card"
-import { Button } from "@repo/ui-shadcn/components/ui/button"
-import { FormGenerator, type FormGeneratorExposed, type FormItem } from "@repo/generator/form-generator"
+} from "@prismaspace/ui-shadcn/components/ui/card"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
+import { FormGenerator, type FormGeneratorExposed, type FormItem } from "@prismaspace/generator/form-generator"
 import CounterField from "./CounterField.vue"
 
 type DemoOption = {

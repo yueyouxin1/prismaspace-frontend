@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-vue"
 
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
 import {
   Card,
   CardAction,
@@ -9,7 +9,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
+} from '@prismaspace/ui-shadcn/components/ui/card'
 </script>
 
 <template>

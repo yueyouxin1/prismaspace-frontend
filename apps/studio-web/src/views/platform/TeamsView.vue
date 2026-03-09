@@ -9,7 +9,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
+} from '@prismaspace/ui-shadcn/components/ui/card'
 
 const store = usePlatformStore()
 const { t } = useI18n()

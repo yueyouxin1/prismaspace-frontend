@@ -3,17 +3,17 @@ import { computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { useI18n } from 'vue-i18n'
 import PlatformShell from '@app/components/platform/PlatformShell.vue'
-import { platformQueryKeys } from '@app/services/api/query-keys'
+import { platformQueryKeys } from '@prismaspace/resources-core'
 import { productApi } from '@app/services/api/product-client'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
-import { Skeleton } from '@repo/ui-shadcn/components/ui/skeleton'
+} from '@prismaspace/ui-shadcn/components/ui/card'
+import { Skeleton } from '@prismaspace/ui-shadcn/components/ui/skeleton'
 
 const { t, locale } = useI18n()
 

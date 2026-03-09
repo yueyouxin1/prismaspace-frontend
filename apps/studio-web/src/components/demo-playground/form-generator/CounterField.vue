@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { Button } from "@repo/ui-shadcn/components/ui/button"
-import { Input } from "@repo/ui-shadcn/components/ui/input"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
+import { Input } from "@prismaspace/ui-shadcn/components/ui/input"
 
 const props = withDefaults(defineProps<{
   modelValue?: number

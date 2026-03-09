@@ -1,0 +1,14 @@
+{
+  "name": "@prismaspace/contracts",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ]
+}

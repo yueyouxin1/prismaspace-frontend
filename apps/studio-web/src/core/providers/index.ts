@@ -1,7 +1,7 @@
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import type { App } from 'vue'
 import type { Router } from 'vue-router'
-import { CommonUiPlugin } from '@repo/common/plugin'
+import { CommonUiPlugin } from '@prismaspace/common/plugin'
 import { createAppI18n } from '@app/core/providers/i18n'
 import { pinia } from '@app/core/providers/pinia'
 import { queryClient } from '@app/core/providers/query-client'

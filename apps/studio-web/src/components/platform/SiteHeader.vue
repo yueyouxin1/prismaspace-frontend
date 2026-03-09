@@ -2,10 +2,10 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconRefresh } from '@tabler/icons-vue'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
-import { Separator } from '@repo/ui-shadcn/components/ui/separator'
-import { SidebarTrigger } from '@repo/ui-shadcn/components/ui/sidebar'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
+import { Separator } from '@prismaspace/ui-shadcn/components/ui/separator'
+import { SidebarTrigger } from '@prismaspace/ui-shadcn/components/ui/sidebar'
 import { usePlatformStore } from '@app/stores/platform'
 
 const props = withDefaults(

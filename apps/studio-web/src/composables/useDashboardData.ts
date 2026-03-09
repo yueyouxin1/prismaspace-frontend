@@ -1,9 +1,9 @@
 import { computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { entitlementApi } from '@app/services/api/entitlement-client'
-import { platformQueryKeys } from '@app/services/api/query-keys'
+import { prismaspaceQueryKeys as platformQueryKeys } from '@prismaspace/resources-core'
+import { resourceClient } from '@app/core/client/prismaspace-client'
 import { projectApi } from '@app/services/api/project-client'
-import { resourceApi } from '@app/services/api/resource-client'
 import { usePlatformStore } from '@app/stores/platform'
 import type { EntitlementBalanceRead, ProjectRead, ResourceRead } from '@app/services/api/contracts'
 
@@ -45,7 +45,7 @@ export const useDashboardData = () => {
   const resourcesQuery = useQuery({
     queryKey: computed(() => platformQueryKeys.workspaceResources(workspaceUuid.value)),
     enabled: computed(() => Boolean(workspaceUuid.value)),
-    queryFn: async () => resourceApi.listWorkspaceResources(workspaceUuid.value as string),
+    queryFn: async () => resourceClient.listWorkspaceResources(workspaceUuid.value as string),
   })
 
   const entitlementQuery = useQuery({
@@ -109,4 +109,3 @@ export const useDashboardData = () => {
     entitlementQuery,
   }
 }
-

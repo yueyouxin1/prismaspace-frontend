@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Alert, AlertDescription } from '@repo/ui-shadcn/components/ui/alert'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@repo/ui-shadcn/components/ui/card'
-import { Input } from '@repo/ui-shadcn/components/ui/input'
-import { Label } from '@repo/ui-shadcn/components/ui/label'
+import { Alert, AlertDescription } from '@prismaspace/ui-shadcn/components/ui/alert'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@prismaspace/ui-shadcn/components/ui/card'
+import { Input } from '@prismaspace/ui-shadcn/components/ui/input'
+import { Label } from '@prismaspace/ui-shadcn/components/ui/label'
 import { useSubmitGuard } from '@app/composables/useSubmitGuard'
 import { validatePassword } from '@app/composables/useAuthFormRules'
 

@@ -1,251 +1,143 @@
-# PrismaSpace Frontend Guide
+# PrismaSpace Frontend
 
-面向前端与后端正式对接阶段的协作指南。
+`prismaspace-frontend` 是 PrismaSpace 前端的 Monorepo。
 
-一句话定位：前端是 PrismaSpace 的产品壳与交互引擎，但默认以后端真实能力为唯一事实来源（SSOT），前端实现必须与后端能力一一对齐。
+它现在分成两类主体：
 
-**版本：** 1.1  
-**适用对象：** 前端架构师、前端开发工程师、UI/UX 设计师
+- `apps/studio-web`
+  - PrismaSpace 自己的 SaaS 门面壳
+  - 负责登录、团队、工作空间、营销与平台页面
+- `packages/prismaspace/*`
+  - PrismaSpace 核心能力包域
+  - 对外提供 `@prismaspace/*` 的 SDK、Workbench、共享 UI 与编辑器能力
 
----
+一句话理解：
 
-## 0. 前端开发前必读（强制）
+> `studio-web` 是第一方产品壳，`@prismaspace/*` 是可被外部项目安装和集成的核心能力包集。
 
-开始任何页面或组件开发前，必须先阅读并对齐以下文档：
-- `README.md`（仓库根目录）：统一架构白皮书与领域模型
-- `prismaspace-frontend/README.md`（本文件）：前端对齐后端执行手册
-- `prismaspace-frontend/doc/prisma-space-ui.md`：UI 美学规范（全局项目视野）
-- `prismaspace-frontend/doc/prisma-space-pages-ui.md`：UI 美学规范（细节与模块）
-- `prismaspace-frontend/doc/prisma-space-runtime.md`：资源运行时面板前端架构指导
-- `prismaspace-frontend/doc/resource-workbench-boundary.md`：Resource Workbench 宿主与资源子包职责边界
-- `prismaspace-frontend/doc/asset-library-boundary.md`：素材库与资源工作台职责边界
-- `prismaspace-frontend/doc/ui-development-guidelines.md`：UI 组件选型与兜底路径
-- `prismaspace-frontend/doc/Vue通用架构与开发规范指南.md`：Vue 工程结构与编码规范
-
-执行要求：
-- 未完成阅读，不进入代码实现阶段。
-- PR 描述中必须注明“已对齐前后端契约”。
-
----
-
-## 1. 对接总原则（Backend First）
-
-前端必须遵守以下硬规则：
-- 所有业务能力默认走真实后端接口，不以本地 mock 作为主路径。
-- 前端请求、缓存、路由状态必须绑定 `workspace` 上下文，不可做“无上下文请求”。
-- 前端必要能力但后端缺失时，在安全、无副作用前提下允许补全后端逻辑。
-- 仅在后端缺失且属于敏感域、不可安全补全时，前端才允许 mock。
-- 典型可 mock 场景：支付扣款、退款、风控审核、外部清结算等未明确且高风险流程。
-
----
-
-## 2. 后端架构速览（供前端理解）
-
-后端当前形态（FastAPI 单体 + 领域服务分层）：
-
-```txt
-src/app/
-├── api/          # 路由层（/api/v1）
-├── services/     # 业务编排层（权限、资源、计费、执行）
-├── dao/          # 数据访问层
-├── schemas/      # Pydantic 契约
-├── engine/       # 执行引擎（agent/tool/workflow/embedding）
-├── worker/       # 异步任务（ARQ + Redis）
-├── db/           # DB session 与基础设施
-└── system/       # 系统级能力（resource type、vectordb、node defs）
-```
-
-关键后端入口：
-- HTTP 总路由：`src/app/api/router.py`（前缀 `/api/v1`）
-- 应用启动与异常映射：`src/app/main.py`
-- 认证依赖：`src/app/api/dependencies/authentication.py`
-- 上下文依赖：`src/app/api/dependencies/context.py`
-
----
-
-## 3. 前端必须对齐的后端协议
-
-### 3.1 统一路由与鉴权
-
-- HTTP 前缀固定为 `/api/v1/*`。
-- 鉴权优先 `Authorization: Bearer <token>`。
-- WebSocket 使用 `?token=<jwt>`（不是 Header）。
-- 前端当前会自动注入 `X-Workspace-UUID`，后续所有需空间上下文接口必须兼容该语义。
-
-### 3.2 统一响应封装
-
-- 成功响应：`JsonResponse<T> => { data, msg, status }`
-- 简单成功：`MsgResponse => { msg }`
-- 前端类型定义以 `prismaspace-frontend/apps/studio-web/src/services/api/contracts.ts` 为落地点，并以后端 schema 为准持续对齐。
-
-### 3.3 统一错误语义
-
-- `400`：业务约束失败
-- `401`：未认证/令牌失效
-- `402`：额度或余额不足（业务错误，不是系统错误）
-- `403`：权限不足
-- `404`：资源不存在
-- `409`：冲突（如注册重复）
-- `422`：参数校验失败
-- `500+`：服务异常
-
-### 3.4 流式与实时协议
-
-- SSE：`POST /api/v1/agent/{uuid}/sse`、`POST /api/v1/workflow/{uuid}/sse`、`GET /api/v1/knowledge/tasks/{task_id}/progress`
-  - 协议核心：`prismaspace-frontend/packages/common/src/tools/sse.ts`（`connectSseStream`）。
-  - App 适配层：`prismaspace-frontend/apps/studio-web/src/services/http/sse.ts`（`connectApiSseStream`，负责 baseUrl + token + workspace header）。
-- WebSocket：`GET /api/v1/agent/chat?token=...`、`GET /api/v1/workflow/ws?token=...`
-- WS 包协议：`{ action, data, request_id }`，服务端回包 `{ event, data, request_id }`。
-
----
-
-## 4. 统一领域模型（前端必须遵守）
-
-- `User`：身份主体
-- `Team`：协作与团队计费主体
-- `Workspace`：创作容器与消费归属边界
-- `Project`：产品开发环境
-- `Resource`：逻辑资源身份
-- `ResourceInstance`：版本快照（`WORKSPACE`/`PUBLISHED` 等）
-
-前端约束：
-- 一切资源编辑默认作用于 `WORKSPACE` 实例。
-- 发布与编辑必须分离，禁止在发布态写入编辑数据。
-- 路由参数、缓存键、引用关系统一使用 UUID，禁止依赖自增 ID。
-
-### 4.1 资源工作台实现规范（强制）
-
-- 资源具体实现是非普适性的，不应由宿主工作台提供固定门面 UI。
-- `apps/studio-web/src/views/workbench` 应作为纯路由容器使用，不承载固定顶部导航、固定 tabs、固定 Versions/Metadata 面板等统一布局。
-- 每一种资源应基于自身特性独立设计与实现工作台 UI，确保体验与资源语义一致。
-- 宿主层可以沉淀可复用的通用非 UI 能力（如 autosave、versions、refs 等），由资源子包按需接入并自行完成 UI 呈现。
-- 在开始资源工作台 UI 设计前，必须先回答“该资源如何为用户带来更好的沉浸式与友好体验”，再进入视觉与交互实现。
-
----
-
-## 5. 后端能力矩阵（前端对齐清单）
-
-说明：下表“后端路由前缀”均隐含完整前缀 `/api/v1`。
-
-| 领域 | 后端路由前缀 | 后端入口文件 | 前端现状 | 对齐动作 |
-| :--- | :--- | :--- | :--- | :--- |
-| 身份认证 | `/identity` | `src/app/api/v1/identity.py` | 已接入 | 维持 |
-| 团队 | `/teams` | `src/app/api/v1/team.py` | 已接入 | 维持 |
-| 工作空间 | `/workspaces` | `src/app/api/v1/workspace.py` | 已接入 | 维持 |
-| 项目 | `/workspaces/{workspace_uuid}/projects`, `/projects` | `src/app/api/v1/project.py` | 已接入 | 维持 |
-| 通用资源/实例 | `/workspaces/{workspace_uuid}/resources`, `/resources`, `/instances` | `src/app/api/v1/resource.py` | 已接入 | 维持 |
-| 商品与额度 | `/products/public`, `/entitlements/*` | `src/app/api/v1/product.py`, `src/app/api/v1/entitlement.py` | 已接入 | 维持 |
-| 资产中心 | `/assets` | `src/app/api/v1/asset.py` | 已接入 | `asset-client.ts` + `@repo/asset-hub`（统一上传/选库/管理面板） |
-| 凭证管理 | `/workspaces/{workspace_uuid}/credentials/service-modules`, `/credentials/supported-providers` | `src/app/api/v1/credential.py` | 待接入 | 新增 `credential-client.ts` |
-| 资源类型 | `/resource-types` | `src/app/api/v1/resource_type.py` | 待接入 | 新增 `resource-type-client.ts` |
-| TenantDB | `/tenantdb/{instance_uuid}/tables` | `src/app/api/v1/tenantdb.py` | 待接入 | 新增 `tenantdb-client.ts` |
-| KnowledgeBase | `/knowledge/*` | `src/app/api/v1/knowledge.py` | 待接入 | 新增 `knowledge-client.ts`（含 SSE） |
-| UiApp 页面 DSL | `/uiapps/{app_uuid}/pages` | `src/app/api/v1/uiapp.py` | 待接入 | 新增 `uiapp-client.ts` |
-| Agent 执行 | `/agent/{uuid}/execute|sse`, `/agent/chat(ws)` | `src/app/api/v1/agent/agent_api.py` | 待接入 | 新增 `agent-client.ts` + WS 适配 |
-| Workflow 执行 | `/workflow/nodes`, `/workflow/{uuid}/execute|sse|validate`, `/workflow/ws` | `src/app/api/v1/workflow/workflow_api.py` | 待接入 | 新增 `workflow-client.ts` + WS 适配 |
-| 统一执行入口 | `/execute/instances/{instance_uuid}` | `src/app/api/v1/execution.py` | 待接入 | 新增 `execution-client.ts` |
-| Chat 会话 | `/chat/sessions*` | `src/app/api/v1/chat.py` | 待接入 | 新增 `chat-client.ts` |
-| 角色权限 | `/permissions`, `/teams/{team_uuid}/roles` | `src/app/api/v1/permission.py`, `src/app/api/v1/role.py` | 待接入 | 新增 `permission-client.ts`, `role-client.ts` |
-| 服务模块目录 | `/service-module-types`, `/service-module-providers`, `/service-modules` | `src/app/api/v1/module_type.py`, `src/app/api/v1/module_provider.py`, `src/app/api/v1/module.py` | 待接入 | 新增 `service-module-client.ts` |
-| 支付/账务交易写接口 | 当前未在主路由开放 | `src/app/api/v1/billing.py`（当前为空） | 无真实接口 | 仅允许受控 mock |
-
----
-
-## 6. 前端可补全后端逻辑的边界（允许）
-
-仅当满足全部条件时，允许前端为对接推进补全后端：
-- 前端上线阻塞且后端当前确实缺失接口/能力。
-- 可在本仓内安全实现，且不引入外部不可逆副作用。
-- 不涉及资金流、权限提升、安全凭证、风控策略。
-- 变更可被自动化测试覆盖，并可回滚。
-
-允许补全示例：
-- 缺失的只读查询接口。
-- 纯元数据 CRUD（不触发外部支付/清结算）。
-- 前端必须字段但后端 schema 未补齐的安全默认值处理。
-
-补全交付要求：
-- 路由归属到 `src/app/api/v1/*` 并统一 `JsonResponse/MsgResponse`。
-- 权限与上下文依赖使用 `AuthContextDep` 或 `PublicContextDep`。
-- 对应测试放入 `tests/api/v1/*`。
-- 同步更新前端 `contracts.ts` 与 client。
-
----
-
-## 7. Mock 准入规则（最后手段）
-
-只有同时满足以下条件，前端才能 mock：
-- 后端缺失能力短期无法补全。
-- 该能力属于敏感域或高副作用域，无法安全补全。
-- mock 仅用于前端交互演示，不得冒充真实业务闭环。
-
-强制约束：
-- mock 响应结构必须与后端契约一致。
-- mock 必须受环境开关控制，生产环境默认关闭。
-- mock 代码必须标注“触发条件、负责人、下线时间”。
-- 一旦后端接口可用，mock 需在同一迭代移除。
-
-支付示例（明确允许 mock）：
-- 若充值、扣款、退款、发票等流程未在后端开放正式接口，前端可 mock 结算结果与失败态展示。
-- 但不得在前端伪造“真实支付成功凭证”并写入业务主状态。
-
----
-
-## 8. 当前前端架构（保持不变）
+## 全局架构
 
 ```txt
 prismaspace-frontend/
-├── apps/studio-web/         # 应用壳：路由、布局、Provider、Playground
-├── packages/asset-hub/      # 素材库子包：统一上传能力 + 素材管理面板
-├── packages/common/         # 通用能力（i18n、tools）
-├── packages/editor/         # 编辑器能力
-├── packages/generator/      # 动态表单生成
-├── packages/ui-reka/        # primitives 导出层
-├── packages/ui-shadcn/      # 设计系统层
-├── packages/ui-ai-elements/ # AI 高阶组件层
-├── infra/                   # 工程基础设施
-└── doc/                     # 规范与协作文档
+├── apps/
+│   └── studio-web/                 # SaaS shell / first-party host
+├── packages/
+│   └── prismaspace/
+│       ├── contracts/              # 资源核心域契约
+│       ├── sdk/                    # 统一 client
+│       ├── resources-core/         # workbench 共享基础能力
+│       ├── resources/              # agent/tool/knowledge/tenantdb/uiapp/workflow
+│       ├── asset-hub/              # 资产库能力
+│       ├── common/                 # 公共 i18n / SSE / tools
+│       ├── editor/                 # 编辑器能力
+│       ├── generator/              # 动态生成能力
+│       ├── ui-reka/                # primitives facade
+│       ├── ui-shadcn/              # 设计系统层
+│       └── ui-ai-elements/         # AI 高阶组件层
+└── doc/                            # 规范、边界、模板、设计说明
 ```
 
-依赖方向必须保持单向：
+## 项目原则
 
-`@repo/ui-ai-elements` -> `@repo/ui-shadcn` -> `@repo/ui-reka`
+- `studio-web` 不再承载资源工作台业务编排
+- 资源工作台与资源运行逻辑留在 `@prismaspace/*`
+- 统一通过 `@prismaspace/sdk` 创建 client，并注入认证、workspace、locale 等上下文
+- 公开包不得反向依赖 `@app/*`
+- 文档职责分层：
+  - 本 README 只回答“项目是什么、有哪些层、边界在哪里”
+  - 工程实现细则看 [Vue通用架构与开发规范指南.md](D:/code/prismaspace/prismaspace-frontend/doc/Vue通用架构与开发规范指南.md)
+  - UI 实现规则看 [ui-development-guidelines.md](D:/code/prismaspace/prismaspace-frontend/doc/ui-development-guidelines.md)
+  - UI 全局美学与页面细节看 [prisma-space-ui.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-ui.md) / [prisma-space-pages-ui.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-pages-ui.md)
 
----
+## 核心包域
 
-## 9. 开发与验证
+- `@prismaspace/contracts`
+  - 核心能力域类型与 wire contract
+- `@prismaspace/sdk`
+  - 统一 client 工厂与领域 client
+- `@prismaspace/resources`
+  - 自动资源宿主与资源路由工作台容器
+- `@prismaspace/resources-core`
+  - workbench 共享 shell、query keys、autosave、refs、versions
+- `@prismaspace/agent`
+- `@prismaspace/tool`
+- `@prismaspace/knowledge`
+- `@prismaspace/tenantdb`
+- `@prismaspace/uiapp`
+- `@prismaspace/workflow`
 
-环境建议：
-- Node.js LTS
-- pnpm
+## 强制阅读顺序
 
-常用命令：
+任何进入 `prismaspace-frontend` 的前端开发，在开始改代码前，至少按以下顺序阅读：
 
-```bash
-pnpm install
-pnpm dev
-pnpm build
-pnpm preview
-pnpm check:aliases
-```
+1. [README.md](D:/code/prismaspace/prismaspace-frontend/README.md)
+   - 先理解项目定位、Monorepo 分层、应用壳与公开包域边界。
+2. [Vue通用架构与开发规范指南.md](D:/code/prismaspace/prismaspace-frontend/doc/Vue通用架构与开发规范指南.md)
+   - 负责工程实现规则：目录分层、依赖边界、alias、包创建、Demo 交付、变更检查。
+3. [ui-development-guidelines.md](D:/code/prismaspace/prismaspace-frontend/doc/ui-development-guidelines.md)
+   - 负责 UI 实现规则：组件选型优先级、兜底顺序、参考实现检索、自定义实现约束。
+4. [prisma-space-ui.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-ui.md)
+   - 负责全局 UI 美学：Marketing / Platform / Studio 分层、tokens、全局交互与视觉红线。
 
-Playground：
-- 路由：`/components`、`/components/:slug`
-- 注册：`apps/studio-web/src/data/component-demos.ts`
-- 要求：每个可复用能力都应提供可运行 Demo
+按场景继续补充阅读：
 
----
+- 页面与模块细节落地：
+  - [prisma-space-pages-ui.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-pages-ui.md)
+- 资源工作台宿主与资源包边界：
+  - [resource-workbench-boundary.md](D:/code/prismaspace/prismaspace-frontend/doc/resource-workbench-boundary.md)
+- 资源运行时 / Headless 分层：
+  - [prisma-space-runtime.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-runtime.md)
+- Asset Library 边界：
+  - [asset-library-boundary.md](D:/code/prismaspace/prismaspace-frontend/doc/asset-library-boundary.md)
+- 主题色与 token 来源：
+  - [shadcn-colors.md](D:/code/prismaspace/prismaspace-frontend/doc/shadcn-colors.md)
 
-## 10. 文档索引
+## 文档职责
 
-- `README.md`：统一架构白皮书（后端与领域模型）
-- `prismaspace-frontend/README.md`：前端对齐后端执行手册（本文件）
-- `prismaspace-frontend/doc/asset-library-boundary.md`：素材库职责边界
-- `prismaspace-frontend/doc/Vue通用架构与开发规范指南.md`：工程实现规范
-- `prismaspace-frontend/doc/ui-development-guidelines.md`：UI 与组件开发规范
+- [README.md](D:/code/prismaspace/prismaspace-frontend/README.md)
+  - 入口文档，只定义项目定位、目录总览、包域边界与阅读路径。
+- [Vue通用架构与开发规范指南.md](D:/code/prismaspace/prismaspace-frontend/doc/Vue通用架构与开发规范指南.md)
+  - 只定义工程架构与交付规范，不重复定义 UI 美学、页面风格细节。
+- [ui-development-guidelines.md](D:/code/prismaspace/prismaspace-frontend/doc/ui-development-guidelines.md)
+  - 只定义 UI 开发实现策略，不重复定义全局美学、页面视觉细节、工程 alias 规则。
+- [prisma-space-ui.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-ui.md)
+  - 只定义全局视觉层级、tokens 与跨层一致性红线。
+- [prisma-space-pages-ui.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-pages-ui.md)
+  - 只定义具体页面与模块的布局、状态、动效与信息层级细节。
+- `*-boundary.md` / `prisma-space-runtime.md`
+  - 只定义专项边界与架构约束，不承载通用工程规范或通用 UI 选型规则。
 
----
+## 文档入口
 
-## 一句话总结
+- [packages/README.md](D:/code/prismaspace/prismaspace-frontend/packages/README.md)
+  - `packages/` 层说明
+- [packages/prismaspace/README.md](D:/code/prismaspace/prismaspace-frontend/packages/prismaspace/README.md)
+  - PrismaSpace 包域总览
+- [Vue通用架构与开发规范指南.md](D:/code/prismaspace/prismaspace-frontend/doc/Vue通用架构与开发规范指南.md)
+  - 具体开发指南与工程规范
+- [ui-development-guidelines.md](D:/code/prismaspace/prismaspace-frontend/doc/ui-development-guidelines.md)
+  - UI 实现优先级、兜底策略与参考实现要求
+- [prisma-space-ui.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-ui.md)
+  - 全局 UI 美学与 tokens 规则
+- [prisma-space-pages-ui.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-pages-ui.md)
+  - 页面与模块 UI 细节规范
+- [resource-workbench-boundary.md](D:/code/prismaspace/prismaspace-frontend/doc/resource-workbench-boundary.md)
+  - workbench 宿主与资源包边界
+- [asset-library-boundary.md](D:/code/prismaspace/prismaspace-frontend/doc/asset-library-boundary.md)
+  - asset hub 边界
+- [prisma-space-runtime.md](D:/code/prismaspace/prismaspace-frontend/doc/prisma-space-runtime.md)
+  - runtime / headless 分层原则
 
-前端以真实后端能力为主路径，对齐全部后端域模型与接口；只在“缺失且敏感不可安全补全”时，才允许受控 mock。
+## 当前状态
+
+当前公开包已经具备：
+
+- `@prismaspace/*` 包名
+- 明确的导出入口
+- 本地 `pnpm pack:packages` 打包验证
+- `studio-web` 作为第一方宿主直接消费公开 workbench
+
+当前仍待补齐：
+
+- 正式 `dist` library build
+- 更完整的外部消费者验证与发布流程

@@ -4,11 +4,11 @@ import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { projectApi } from '@app/services/api/project-client'
-import { platformQueryKeys } from '@app/services/api/query-keys'
+import { platformQueryKeys } from '@prismaspace/resources-core'
 import { isHttpBusinessError } from '@app/services/http/business-error'
 import { usePlatformStore } from '@app/stores/platform'
 import { useProjectCreationStore, type ProjectMainApplicationType } from '@app/stores/project-creation'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -16,16 +16,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@repo/ui-shadcn/components/ui/dialog'
-import { Input } from '@repo/ui-shadcn/components/ui/input'
-import { Label } from '@repo/ui-shadcn/components/ui/label'
+} from '@prismaspace/ui-shadcn/components/ui/dialog'
+import { Input } from '@prismaspace/ui-shadcn/components/ui/input'
+import { Label } from '@prismaspace/ui-shadcn/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui-shadcn/components/ui/select'
+} from '@prismaspace/ui-shadcn/components/ui/select'
 
 const { t } = useI18n()
 const route = useRoute()

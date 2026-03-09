@@ -8,7 +8,7 @@
 ## Responsibilities
 - Provide a unified upload chain for all frontend uploads:
   - `ticket -> direct upload -> confirm`
-- Provide reusable upload/pick capabilities through `@repo/asset-hub`:
+- Provide reusable upload/pick capabilities through `@prismaspace/asset-hub`:
   - `useAssetUploader`
   - `AssetPickerDialog`
 - Provide independent management panel:
@@ -26,6 +26,7 @@
   - Local upload/pick from Asset Library (default)
   - Direct remote URL (`source_uri`)
 - Workspace context is required for all asset operations.
+- Asset library itself is a public reusable package and must not depend on `@app/*`.
 
 ## Routing Rules
 - Platform route: `/assets`

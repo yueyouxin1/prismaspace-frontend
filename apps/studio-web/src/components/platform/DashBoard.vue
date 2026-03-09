@@ -6,17 +6,17 @@ import PlatformShell from '@app/components/platform/PlatformShell.vue'
 import { useDashboardData } from '@app/composables/useDashboardData'
 import { templateMarketMockItems } from '@app/data/saas/template-market-mock'
 import { usePlatformStore } from '@app/stores/platform'
-import { Badge } from '@repo/ui-shadcn/components/ui/badge'
-import { Button } from '@repo/ui-shadcn/components/ui/button'
+import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
-import { Progress } from '@repo/ui-shadcn/components/ui/progress'
-import { Skeleton } from '@repo/ui-shadcn/components/ui/skeleton'
+} from '@prismaspace/ui-shadcn/components/ui/card'
+import { Progress } from '@prismaspace/ui-shadcn/components/ui/progress'
+import { Skeleton } from '@prismaspace/ui-shadcn/components/ui/skeleton'
 
 const store = usePlatformStore()
 const { t, locale } = useI18n()

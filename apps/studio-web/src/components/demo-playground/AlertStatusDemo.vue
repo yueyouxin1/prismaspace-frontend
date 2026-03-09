@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Alert, AlertDescription, AlertTitle } from "@repo/ui-shadcn/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@prismaspace/ui-shadcn/components/ui/alert"
 </script>
 
 <template>

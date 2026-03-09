@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { ChartConfig } from '@repo/ui-shadcn/components/ui/chart'
+import type { ChartConfig } from '@prismaspace/ui-shadcn/components/ui/chart'
 
 // import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { VisArea, VisAxis, VisLine, VisXYContainer } from "@unovis/vue"
@@ -10,7 +10,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui-shadcn/components/ui/card'
+} from '@prismaspace/ui-shadcn/components/ui/card'
 import {
 
   ChartContainer,
@@ -19,14 +19,14 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   componentToString,
-} from '@repo/ui-shadcn/components/ui/chart'
+} from '@prismaspace/ui-shadcn/components/ui/chart'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui-shadcn/components/ui/select'
+} from '@prismaspace/ui-shadcn/components/ui/select'
 
 const description = "An interactive area chart"
 

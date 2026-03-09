@@ -5,6 +5,36 @@
 
 ---
 
+## 0. 文档职责
+
+本文件是“具体怎么做”的开发规范文档。
+
+它回答：
+
+- 目录怎么分层
+- 依赖怎么约束
+- 包怎么创建
+- Demo 怎么交付
+- 开发改动如何验收
+
+以下内容不在本文件承担：
+
+- 项目全局定位与包域总览
+  - 看 `prismaspace-frontend/README.md`
+- PrismaSpace 包域总览
+  - 看 `prismaspace-frontend/packages/prismaspace/README.md`
+- UI 组件选型、兜底顺序、参考实现与自定义 UI 约束
+  - 看 `prismaspace-frontend/doc/ui-development-guidelines.md`
+- UI 全局美学、tokens 与页面细节
+  - 看 `prismaspace-frontend/doc/prisma-space-ui.md`
+  - 看 `prismaspace-frontend/doc/prisma-space-pages-ui.md`
+- 运行时 / 工作台 / 素材库专项边界
+  - 看 `prismaspace-frontend/doc/prisma-space-runtime.md`
+  - 看 `prismaspace-frontend/doc/resource-workbench-boundary.md`
+  - 看 `prismaspace-frontend/doc/asset-library-boundary.md`
+
+---
+
 ## 1. 当前架构总览
 
 本仓库采用 Monorepo（`pnpm-workspace.yaml`）：
@@ -14,15 +44,27 @@ prismaspace-frontend/
 ├── apps/
 │   └── studio-web/                 # 当前唯一应用壳
 ├── packages/
-│   ├── common/                     # 共享组件与工具（Monaco/MdEditor/expression-tool/i18n）
-│   ├── generator/                  # 动态表单生成运行时
-│   ├── ui-reka/                    # reka-ui 封装层
-│   ├── ui-shadcn/                  # 设计系统组件层（基于 ui-reka）
-│   ├── ui-ai-elements/             # AI 高阶组件层（基于 ui-shadcn）
+│   ├── prismaspace/
+│   │   ├── contracts/
+│   │   ├── sdk/
+│   │   ├── resources-core/
+│   │   ├── resources/
+│   │   │   ├── agent/
+│   │   │   ├── tool/
+│   │   │   ├── knowledge/
+│   │   │   ├── tenantdb/
+│   │   │   ├── uiapp/
+│   │   │   └── workflow/
+│   │   ├── asset-hub/
+│   │   ├── common/
+│   │   ├── editor/
+│   │   ├── generator/
+│   │   ├── ui-reka/
+│   │   ├── ui-shadcn/
+│   │   └── ui-ai-elements/
 │   ├── arch/                       # 预留
 │   ├── foundation/                 # 预留
-│   ├── domain/                     # 预留
-│   └── workflow/                   # 预留
+│   └── domain/                     # 预留
 ├── config/
 ├── infra/
 ├── scripts/
@@ -42,7 +84,7 @@ prismaspace-frontend/
 1. 启动流程固定在 `apps/studio-web/src/core/bootstrap/index.ts`：
    - 读取运行时配置：`runtime-config.ts`
    - 初始化日志：`logger.ts`
-   - 注册 providers：`pinia`、`router`、`i18n`、`vue-query`、`@repo/common/plugin`
+   - 注册 providers：`pinia`、`router`、`i18n`、`vue-query`、`@prismaspace/common/plugin`
    - 执行 preflight：`preflight.ts`
    - 挂载应用
 2. 路由聚合在 `apps/studio-web/src/router/routes/index.ts`。
@@ -52,17 +94,23 @@ prismaspace-frontend/
 
 ## 3. 包层（`packages/*`）职责
 
-### 3.1 已启用包（有 `package.json` + `src`）
+### 3.1 PrismaSpace 公开包域
 
-1. `@repo/common`：跨应用共享（`MdEditor`、`MonacoEditor`、i18n 消息、expression tool）。
-2. `@repo/generator`：`form-generator` 运行时及类型。
-3. `@repo/ui-reka`：底层 UI primitives 导出。
-4. `@repo/ui-shadcn`：UI 组件与样式工具（`cn`）。
-5. `@repo/ui-ai-elements`：AI Elements 组件集合。
+1. `@prismaspace/contracts`
+2. `@prismaspace/sdk`
+3. `@prismaspace/resources-core`
+4. `@prismaspace/agent`、`@prismaspace/tool`、`@prismaspace/knowledge`、`@prismaspace/tenantdb`、`@prismaspace/uiapp`、`@prismaspace/workflow`
+5. `@prismaspace/asset-hub`
+6. `@prismaspace/common`
+7. `@prismaspace/editor`
+8. `@prismaspace/generator`
+9. `@prismaspace/ui-reka`
+10. `@prismaspace/ui-shadcn`
+11. `@prismaspace/ui-ai-elements`
 
-### 3.2 预留包（当前未启用别名）
+### 3.2 预留目录
 
-`arch`、`foundation`、`domain`、`workflow` 当前作为预留目录使用。若要正式启用，需补齐第 7 节流程。
+`arch`、`foundation`、`domain` 当前仍为预留目录，不属于公开包域。
 
 ---
 
@@ -73,11 +121,21 @@ prismaspace-frontend/
 可用别名：
 
 - `@app/*` -> `apps/studio-web/src/*`
-- `@repo/common/*`
-- `@repo/generator/*`
-- `@repo/ui-reka/*`
-- `@repo/ui-shadcn/*`
-- `@repo/ui-ai-elements/*`
+- `@prismaspace/contracts/*`
+- `@prismaspace/sdk/*`
+- `@prismaspace/common/*`
+- `@prismaspace/editor/*`
+- `@prismaspace/generator/*`
+- `@prismaspace/ui-reka/*`
+- `@prismaspace/ui-shadcn/*`
+- `@prismaspace/ui-ai-elements/*`
+- `@prismaspace/resources-core/*`
+- `@prismaspace/agent/*`
+- `@prismaspace/tool/*`
+- `@prismaspace/knowledge/*`
+- `@prismaspace/tenantdb/*`
+- `@prismaspace/uiapp/*`
+- `@prismaspace/workflow/*`
 
 禁止别名（由 `scripts/validate-import-aliases.mjs` 校验）：
 
@@ -87,7 +145,7 @@ prismaspace-frontend/
 
 ### 4.2 依赖边界
 
-1. 应用层只能通过 `@repo/*` 消费包能力，不允许跨目录深层相对路径导入包源码。
+1. 应用层只能通过 `@prismaspace/*` 消费公开包能力，不允许跨目录深层相对路径导入包源码。
 2. 包对外能力必须从 `src/index.ts`（或子路径 exports）暴露，不允许应用层依赖“未导出内部文件”。
 3. 仅在必要时新增 alias；新增后必须同步更新 `vite.config.ts`、`tsconfig.json`、`tsconfig.app.json`。
 
@@ -131,14 +189,14 @@ prismaspace-frontend/
 ## 6. 组件与 Composable 放置约定
 
 1. 仅 `studio-web` 使用的逻辑放 `apps/studio-web/src/composables` / `src/hooks` / `src/stores`。
-2. 跨应用复用逻辑上移到 `packages/common` 或对应领域包。
+2. 跨应用复用逻辑上移到 `packages/prismaspace/*` 对应包域。
 3. 组件应优先保持“展示与编排分离”，复杂业务流程不要直接堆在路由页面。
 
 ---
 
 ## 7. 新增子包标准流程
 
-1. 创建目录：`packages/<pkg-name>/src`。
+1. 创建目录：`packages/prismaspace/<pkg-name>/src`，资源类能力放在 `packages/prismaspace/resources/<pkg-name>/src`。
 2. 新增 `package.json`（至少包含 `name`、`type`、`exports`）。
 3. 新增 `src/index.ts` 作为统一导出入口。
 4. 如需在应用层直接导入：
@@ -174,4 +232,3 @@ pnpm check:aliases
 ## 10. 一句话总纲
 
 **应用壳负责装配，能力沉淀在 packages；新增子包或组件必须可在统一 Demo Playground 中被演示和验证。**
-

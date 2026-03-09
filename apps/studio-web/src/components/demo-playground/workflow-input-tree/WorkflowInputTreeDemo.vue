@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
-import { Button } from "@repo/ui-shadcn/components/ui/button"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@repo/ui-shadcn/components/ui/select"
+} from "@prismaspace/ui-shadcn/components/ui/select"
 import {
   WorkflowInputTree,
   type InputTreeNodeValue,
-} from "@repo/workflow/playground/src/form-extensions"
+} from "@prismaspace/workflow-playground/form-extensions"
 
 type DemoMode = "default" | "readonly" | "disabled" | "top-level-readonly" | "max-limit" | "error"
 

@@ -1,0 +1,13 @@
+{
+  "name": "@prismaspace/resources",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./core": "./src/core/index.ts",
+    "./host": "./src/host/index.ts",
+    "./registry": "./src/registry/index.ts",
+    "./*": "./src/*"
+  }
+}

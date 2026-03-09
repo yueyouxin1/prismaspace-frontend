@@ -6,10 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "pnpm run typecheck && vite build",
+    "build:packages": "node ./scripts/build-prismaspace-packages.mjs",
     "typecheck": "vue-tsc -p tsconfig.app.build.json --noEmit",
+    "typecheck:packages": "vue-tsc -p tsconfig.packages.json --noEmit",
     "strict-check": "vue-tsc -b --noEmit",
     "preview": "vite preview",
     "check:aliases": "node ./scripts/validate-import-aliases.mjs",
+    "pack:packages": "node ./scripts/pack-prismaspace-packages.mjs",
     "test:smoke": "node ./scripts/smoke-saas-routes.mjs",
     "test:ag-ui-e2e": "node ./scripts/e2e-ag-ui-client.mjs"
   },

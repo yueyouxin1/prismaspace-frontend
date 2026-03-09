@@ -1,1 +1,1 @@
-export { expressionTool } from '@repo/common/tools/expression-tool'
+export { expressionTool } from '@prismaspace/common/tools/expression-tool'

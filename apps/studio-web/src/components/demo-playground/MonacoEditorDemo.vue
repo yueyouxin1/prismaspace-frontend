@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { MonacoEditor, type MonacoEditorExpose } from "@repo/editor"
-import { Button } from "@repo/ui-shadcn/components/ui/button"
+import { MonacoEditor, type MonacoEditorExpose } from "@prismaspace/editor"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui-shadcn/components/ui/card"
+} from "@prismaspace/ui-shadcn/components/ui/card"
 
 type MonacoLanguage = "typescript" | "javascript" | "json" | "html" | "css" | "markdown"
 type MonacoTheme = "vs-dark" | "vs-light" | "hc-black"

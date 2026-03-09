@@ -1,0 +1,7 @@
+export * from './types'
+export { default as WorkbenchSurface } from './components/WorkbenchSurface.vue'
+export { default as WorkbenchHeaderNav } from './components/WorkbenchHeaderNav.vue'
+export * from './composables/use-workbench-autosave'
+export * from './composables/use-workbench-versions'
+export * from './composables/use-workbench-refs'
+export * from './query/query-keys'
