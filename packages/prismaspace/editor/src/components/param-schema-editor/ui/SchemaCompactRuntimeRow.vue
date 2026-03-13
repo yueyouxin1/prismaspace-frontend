@@ -78,8 +78,9 @@ const emit = defineEmits<{
   (event: "delete-node", nodeId: string): void;
 }>();
 
-const INDENT = 16;
-const TREE_BASE_RAIL = 18;
+const INDENT = 15;
+const TREE_BASE_RAIL = 11;
+const ROW_HEADER_HEIGHT = 40;
 const UNSET = "__unset__";
 const BOOLEAN_TRUE = "__true__";
 const BOOLEAN_FALSE = "__false__";
@@ -129,7 +130,10 @@ const canAddChild = computed(() => {
   return false;
 });
 const canDelete = computed(() => isProperty.value && canMutateStructure.value);
-const treeRailWidth = computed(() => TREE_BASE_RAIL + props.level * INDENT);
+const currentBranchX = computed(() => TREE_BASE_RAIL + props.level * INDENT);
+const parentBranchX = computed(() => (props.level > 0 ? TREE_BASE_RAIL + (props.level - 1) * INDENT : 0));
+const treeRailWidth = computed(() => currentBranchX.value + 9);
+const showSubtreeBody = computed(() => isDetailOpen.value || (hasChildren.value && isExpanded.value));
 
 const nodeTitle = computed(() => {
   if (isItem.value) return "items";
@@ -438,21 +442,14 @@ function onArrayItemTypeChange(nextType: string) {
   emit("change-type", { nodeId: props.node.item.id, nextType: nextType as SchemaType });
 }
 
-function guideLeft(index: number) {
-  return `${8 + index * INDENT}px`;
-}
-
-function currentGuideLeft() {
-  return `${8 + props.level * INDENT}px`;
-}
-
 function isIssueError(issue: SchemaIssue) {
   return issue.level === "error";
 }
+
 </script>
 
 <template>
-  <div class="contents">
+  <div class="relative">
     <div
       :class="[
         'relative grid items-stretch shadow-[inset_0_-1px_0_0_#eceaf2] transition-colors',
@@ -465,38 +462,23 @@ function isIssueError(issue: SchemaIssue) {
         <div class="relative min-h-8 min-w-0" :style="{ paddingLeft: `${treeRailWidth}px` }">
           <div class="absolute inset-y-0 left-0" :style="{ width: `${treeRailWidth}px` }">
             <span
-              v-for="(hasNext, index) in lineage"
-              :key="`line-${props.node.id}-${index}`"
-              v-show="hasNext"
-              class="absolute inset-y-0 w-px bg-[#dddbe8]"
-              :style="{ left: guideLeft(index) }"
-            />
-            <span
               v-if="level > 0"
-              class="absolute top-1/2 h-px bg-[#dddbe8]"
+              class="absolute top-1/2 h-px bg-[#e6e4ee]"
               :style="{
-                left: `${8 + (level - 1) * INDENT}px`,
-                width: `${INDENT}px`,
+                left: `${parentBranchX}px`,
+                width: `${currentBranchX - parentBranchX}px`,
               }"
             />
             <span
-              v-if="level > 0"
-              class="absolute left-0 top-0 w-px bg-[#dddbe8]"
-              :style="{
-                left: currentGuideLeft(),
-                height: '50%',
-              }"
-            />
-            <span
-              v-if="level > 0 && !isLast"
+              v-if="hasChildren && isExpanded"
               class="absolute left-0 top-1/2 w-px bg-[#dddbe8]"
-              :style="{ left: currentGuideLeft(), height: '50%' }"
+              :style="{ left: `${currentBranchX}px`, height: '50%' }"
             />
             <button
               type="button"
               :disabled="!hasChildren"
               class="absolute top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-[7px] text-[#7d7c92] hover:bg-white disabled:opacity-40"
-              :style="{ left: `${props.level * INDENT}px` }"
+              :style="{ left: `${currentBranchX - 10}px` }"
               @click.stop="toggleTree"
             >
               <ChevronDown v-if="hasChildren && isExpanded" class="size-3.5" />
@@ -781,12 +763,19 @@ function isIssueError(issue: SchemaIssue) {
       </div>
     </div>
 
-    <div
-      v-if="isDetailOpen"
-      class="border-b border-[#eceaf2] bg-[#faf9fe] px-3 py-3"
-      :style="{ marginLeft: `${Math.max(0, treeRailWidth - 8)}px` }"
-    >
-      <div class="grid gap-3" :class="layout.density === 'xs' ? 'grid-cols-1' : 'grid-cols-2'">
+    <div v-if="showSubtreeBody" class="relative">
+      <span
+        v-if="hasChildren && isExpanded"
+        class="pointer-events-none absolute bottom-0 top-0 z-0 w-px bg-[#e6e4ee]"
+        :style="{ left: `${currentBranchX}px`, top: '0px' }"
+      />
+
+      <div
+        v-if="isDetailOpen"
+        class="relative z-10 border-b border-[#eceaf2] bg-[#faf9fe] px-3 py-3"
+        :style="{ marginLeft: `${Math.max(0, treeRailWidth - 8)}px` }"
+      >
+        <div class="grid gap-3" :class="layout.density === 'xs' ? 'grid-cols-1' : 'grid-cols-2'">
         <div v-if="props.mode === 'define' || props.mode === 'default' || props.mode === 'read'" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">默认值</label>
           <Textarea
@@ -975,39 +964,40 @@ function isIssueError(issue: SchemaIssue) {
         <div v-if="valueError" class="col-span-full rounded-[12px] border border-[#ffd6db] bg-[#fff6f7] px-3 py-2 text-[11px] text-[#d45460]">
           {{ valueError }}
         </div>
+        </div>
+      </div>
+
+      <div class="relative">
+        <div v-for="(child, index) in children" :key="child.id" class="relative z-10">
+          <SchemaCompactRuntimeRow
+            :node="child"
+            :level="level + 1"
+            :is-last="index === children.length - 1"
+            :lineage="[...lineage, !isLast]"
+            :selected-id="selectedId"
+            :tree-expanded-ids="treeExpandedIds"
+            :detail-open-ids="detailOpenIds"
+            :layout="layout"
+            :mode="mode"
+            :issues="issues"
+            :can-edit="canEdit"
+            :role-options="roleOptions"
+            :value-ref-tree="valueRefTree"
+            @select="emit('select', $event)"
+            @toggle-tree="emit('toggle-tree', $event)"
+            @toggle-detail="emit('toggle-detail', $event)"
+            @set-field="emit('set-field', $event)"
+            @change-type="emit('change-type', $event)"
+            @add-property="emit('add-property', $event)"
+            @add-item="emit('add-item', $event)"
+            @delete-node="emit('delete-node', $event)"
+          >
+            <template v-if="$slots['value-ref-picker']" #value-ref-picker="valueRefPickerSlotProps">
+              <slot name="value-ref-picker" v-bind="valueRefPickerSlotProps" />
+            </template>
+          </SchemaCompactRuntimeRow>
+        </div>
       </div>
     </div>
-
-    <template v-if="hasChildren && isExpanded">
-      <SchemaCompactRuntimeRow
-        v-for="(child, index) in children"
-        :key="child.id"
-        :node="child"
-        :level="level + 1"
-        :is-last="index === children.length - 1"
-        :lineage="[...lineage, !isLast]"
-        :selected-id="selectedId"
-        :tree-expanded-ids="treeExpandedIds"
-        :detail-open-ids="detailOpenIds"
-        :layout="layout"
-        :mode="mode"
-        :issues="issues"
-        :can-edit="canEdit"
-        :role-options="roleOptions"
-        :value-ref-tree="valueRefTree"
-        @select="emit('select', $event)"
-        @toggle-tree="emit('toggle-tree', $event)"
-        @toggle-detail="emit('toggle-detail', $event)"
-        @set-field="emit('set-field', $event)"
-        @change-type="emit('change-type', $event)"
-        @add-property="emit('add-property', $event)"
-        @add-item="emit('add-item', $event)"
-        @delete-node="emit('delete-node', $event)"
-      >
-        <template v-if="$slots['value-ref-picker']" #value-ref-picker="valueRefPickerSlotProps">
-          <slot name="value-ref-picker" v-bind="valueRefPickerSlotProps" />
-        </template>
-      </SchemaCompactRuntimeRow>
-    </template>
   </div>
 </template>

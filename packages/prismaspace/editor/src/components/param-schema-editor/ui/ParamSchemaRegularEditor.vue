@@ -94,7 +94,7 @@ const layout = computed<CompactRuntimeLayout>(() => resolveCompactLayout(runtime
 const expandedSet = computed(() => new Set(treeExpandedIds.value));
 const contentMinWidth = computed(() => {
   const depth = collectVisibleMaxDepth(props.state.tree, expandedSet.value);
-  const treeIndentWidth = 18 + depth * 16;
+  const treeIndentWidth = 20 + depth * 15;
   const nameInputMin = layout.value.density === "xs" ? 76 : 92;
   const typeMin = layout.value.inlineType ? (layout.value.density === "xs" ? 84 : 96) : 0;
   const valueMin =
@@ -676,7 +676,7 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
               item.key === 'required' ? 'text-center' : '',
               item.key === 'actions' ? 'text-right' : '',
             ]"
-            :style="item.key === 'name' ? { paddingLeft: '26px' } : undefined"
+            :style="item.key === 'name' ? { paddingLeft: '24px' } : undefined"
           >
             {{ item.label }}
           </div>
