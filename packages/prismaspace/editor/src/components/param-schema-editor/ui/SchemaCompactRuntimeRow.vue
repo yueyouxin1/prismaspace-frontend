@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { SchemaIssue, SchemaNode, SchemaType, ValueRefContent } from "../core";
 import type { ParamSchemaRuntimeMode } from "./mode";
 import type { VariableTreeNode } from "./tree-types";
@@ -45,6 +45,7 @@ import {
 } from "lucide-vue-next";
 import SchemaValueRefTreePanel from "./SchemaValueRefTreePanel.vue";
 import SchemaTypePicker from "./SchemaTypePicker.vue";
+import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT } from "./tree-visuals";
 
 defineOptions({ name: "SchemaCompactRuntimeRow" });
 defineSlots<{
@@ -53,6 +54,7 @@ defineSlots<{
 
 const props = defineProps<{
   node: SchemaNode;
+  parentNodeId?: string | null;
   level: number;
   isLast: boolean;
   lineage: boolean[];
@@ -78,8 +80,6 @@ const emit = defineEmits<{
   (event: "delete-node", nodeId: string): void;
 }>();
 
-const INDENT = 15;
-const TREE_BASE_RAIL = 11;
 const ROW_HEADER_HEIGHT = 40;
 const UNSET = "__unset__";
 const BOOLEAN_TRUE = "__true__";
@@ -130,10 +130,13 @@ const canAddChild = computed(() => {
   return false;
 });
 const canDelete = computed(() => isProperty.value && canMutateStructure.value);
-const currentBranchX = computed(() => TREE_BASE_RAIL + props.level * INDENT);
-const parentBranchX = computed(() => (props.level > 0 ? TREE_BASE_RAIL + (props.level - 1) * INDENT : 0));
+const currentBranchX = computed(() => TREE_BASE_RAIL + props.level * TREE_INDENT);
+const parentBranchX = computed(() => (props.level > 0 ? TREE_BASE_RAIL + (props.level - 1) * TREE_INDENT : 0));
 const treeRailWidth = computed(() => currentBranchX.value + 9);
 const showSubtreeBody = computed(() => isDetailOpen.value || (hasChildren.value && isExpanded.value));
+const rowShellRef = ref<HTMLElement | null>(null);
+const overlayApi = inject(schemaTreeOverlayKey, null);
+let rowResizeObserver: ResizeObserver | null = null;
 
 const nodeTitle = computed(() => {
   if (isItem.value) return "items";
@@ -446,11 +449,49 @@ function isIssueError(issue: SchemaIssue) {
   return issue.level === "error";
 }
 
+function syncOverlayRegistration() {
+  if (!overlayApi || !rowShellRef.value) return;
+  overlayApi.registerRow({
+    id: props.node.id,
+    parentId: props.parentNodeId ?? null,
+    level: props.level,
+    el: rowShellRef.value,
+  });
+}
+
+onMounted(() => {
+  syncOverlayRegistration();
+  nextTick(() => overlayApi?.scheduleMeasure());
+
+  if (rowShellRef.value && typeof ResizeObserver !== "undefined") {
+    rowResizeObserver = new ResizeObserver(() => {
+      overlayApi?.scheduleMeasure();
+    });
+    rowResizeObserver.observe(rowShellRef.value);
+  }
+});
+
+onBeforeUnmount(() => {
+  rowResizeObserver?.disconnect();
+  rowResizeObserver = null;
+  overlayApi?.unregisterRow(props.node.id);
+  overlayApi?.scheduleMeasure();
+});
+
+watch(
+  () => [props.node.id, props.parentNodeId, props.level] as const,
+  () => {
+    syncOverlayRegistration();
+    nextTick(() => overlayApi?.scheduleMeasure());
+  },
+);
+
 </script>
 
 <template>
   <div class="relative">
     <div
+      ref="rowShellRef"
       :class="[
         'relative grid items-stretch shadow-[inset_0_-1px_0_0_#eceaf2] transition-colors',
         isSelected ? 'bg-[#f5f2ff]' : 'bg-transparent hover:bg-[#faf9fe]',
@@ -458,22 +499,9 @@ function isIssueError(issue: SchemaIssue) {
       :style="{ gridTemplateColumns: layout.gridTemplate }"
       @click="onSelectRow"
     >
-      <div class="px-2 py-1.5">
+      <div class="relative z-20 px-2 py-1.5">
         <div class="relative min-h-8 min-w-0" :style="{ paddingLeft: `${treeRailWidth}px` }">
           <div class="absolute inset-y-0 left-0" :style="{ width: `${treeRailWidth}px` }">
-            <span
-              v-if="level > 0"
-              class="absolute top-1/2 h-px bg-[#e6e4ee]"
-              :style="{
-                left: `${parentBranchX}px`,
-                width: `${currentBranchX - parentBranchX}px`,
-              }"
-            />
-            <span
-              v-if="hasChildren && isExpanded"
-              class="absolute left-0 top-1/2 w-px bg-[#dddbe8]"
-              :style="{ left: `${currentBranchX}px`, height: '50%' }"
-            />
             <button
               type="button"
               :disabled="!hasChildren"
@@ -537,7 +565,7 @@ function isIssueError(issue: SchemaIssue) {
         </div>
       </div>
 
-      <div v-if="layout.inlineType" class="px-1 py-1.5" @click.stop>
+      <div v-if="layout.inlineType" class="relative z-20 px-1 py-1.5" @click.stop>
         <SchemaTypePicker
           :node="props.node"
           :disabled="!canEditType"
@@ -548,7 +576,7 @@ function isIssueError(issue: SchemaIssue) {
 
       <div
         v-if="layout.valueField === 'value'"
-        class="px-1 py-1.5"
+        class="relative z-20 px-1 py-1.5"
         @click.stop
       >
         <div class="flex min-h-7 items-center gap-1 rounded-[9px] border border-[#dddce6] bg-white px-1">
@@ -670,7 +698,7 @@ function isIssueError(issue: SchemaIssue) {
 
       <div
         v-if="layout.valueField === 'default'"
-        class="px-1 py-1.5"
+        class="relative z-20 px-1 py-1.5"
         @click.stop
       >
         <Input
@@ -709,7 +737,7 @@ function isIssueError(issue: SchemaIssue) {
 
       <div
         v-if="layout.inlineRequired"
-        class="flex items-center justify-center px-1 py-1.5"
+        class="relative z-20 flex items-center justify-center px-1 py-1.5"
         @click.stop
       >
         <Checkbox
@@ -724,7 +752,7 @@ function isIssueError(issue: SchemaIssue) {
 
       <div
         v-if="layout.actionButtons > 0"
-        class="flex items-center justify-end gap-0.5 px-1 py-1.5"
+        class="relative z-20 flex items-center justify-end gap-0.5 px-1 py-1.5"
         @click.stop
       >
         <Button
@@ -764,15 +792,9 @@ function isIssueError(issue: SchemaIssue) {
     </div>
 
     <div v-if="showSubtreeBody" class="relative">
-      <span
-        v-if="hasChildren && isExpanded"
-        class="pointer-events-none absolute bottom-0 top-0 z-0 w-px bg-[#e6e4ee]"
-        :style="{ left: `${currentBranchX}px`, top: '0px' }"
-      />
-
       <div
         v-if="isDetailOpen"
-        class="relative z-10 border-b border-[#eceaf2] bg-[#faf9fe] px-3 py-3"
+        class="relative z-20 border-b border-[#eceaf2] bg-[#faf9fe] px-3 py-3"
         :style="{ marginLeft: `${Math.max(0, treeRailWidth - 8)}px` }"
       >
         <div class="grid gap-3" :class="layout.density === 'xs' ? 'grid-cols-1' : 'grid-cols-2'">
@@ -971,6 +993,7 @@ function isIssueError(issue: SchemaIssue) {
         <div v-for="(child, index) in children" :key="child.id" class="relative z-10">
           <SchemaCompactRuntimeRow
             :node="child"
+            :parent-node-id="props.node.id"
             :level="level + 1"
             :is-last="index === children.length - 1"
             :lineage="[...lineage, !isLast]"

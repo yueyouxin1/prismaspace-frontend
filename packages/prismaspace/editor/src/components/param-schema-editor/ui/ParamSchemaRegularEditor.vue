@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
 import type { SchemaEditorAction, SchemaEditorState, SchemaIssue, SchemaNode, SchemaType } from "../core";
 import {
   applyOp,
@@ -26,6 +26,7 @@ import {
 import type { ParamSchemaRuntimeMode } from "./mode";
 import type { VariableTreeNode } from "./tree-types";
 import type { CompactRuntimeLayout } from "./compact-runtime-layout";
+import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT, type SchemaTreeOverlayRowRegistration } from "./tree-visuals";
 import {
   canEditFieldInMode,
   canMutateStructureInMode,
@@ -70,6 +71,7 @@ const props = withDefaults(
 );
 
 const containerRef = ref<HTMLElement | null>(null);
+const treeLayerRef = ref<HTMLElement | null>(null);
 const layoutWidth = ref(0);
 const treeExpandedIds = ref<string[]>([]);
 const detailOpenIds = ref<string[]>([]);
@@ -78,7 +80,11 @@ const isImportOpen = ref(false);
 const importMode = ref<"parameter" | "json-schema" | "json">("json-schema");
 const importText = ref("");
 const importError = ref<string | null>(null);
+const overlayPaths = ref<Array<{ key: string; d: string }>>([]);
 let resizeObserver: ResizeObserver | null = null;
+let overlayMeasureRaf: number | null = null;
+
+const rowRegistry = new Map<string, SchemaTreeOverlayRowRegistration>();
 
 const nameIdManager = new IdManager({ idKey: "uid", onDuplicate: "reassign" });
 
@@ -141,6 +147,18 @@ const exportPayloads = computed(() => ({
   json: JSON.stringify(exportJsonValue(props.state.tree), null, 2),
 }));
 
+provide(schemaTreeOverlayKey, {
+  registerRow(registration) {
+    rowRegistry.set(registration.id, registration);
+  },
+  unregisterRow(id) {
+    rowRegistry.delete(id);
+  },
+  scheduleMeasure() {
+    scheduleOverlayMeasure();
+  },
+});
+
 watch(
   () => props.state.tree,
   (root) => {
@@ -185,6 +203,15 @@ watch(
   { immediate: true },
 );
 
+watch(
+  [() => props.state.tree, treeExpandedIds, detailOpenIds, layoutWidth],
+  async () => {
+    await nextTick();
+    scheduleOverlayMeasure();
+  },
+  { deep: true, immediate: true },
+);
+
 onMounted(() => {
   if (!containerRef.value || typeof ResizeObserver === "undefined") return;
   layoutWidth.value = containerRef.value.clientWidth;
@@ -199,7 +226,51 @@ onMounted(() => {
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
+  if (overlayMeasureRaf !== null) {
+    cancelAnimationFrame(overlayMeasureRaf);
+    overlayMeasureRaf = null;
+  }
 });
+
+function scheduleOverlayMeasure() {
+  if (overlayMeasureRaf !== null) return;
+  overlayMeasureRaf = requestAnimationFrame(() => {
+    overlayMeasureRaf = null;
+    measureOverlayPaths();
+  });
+}
+
+function measureOverlayPaths() {
+  const layer = treeLayerRef.value;
+  if (!layer) {
+    overlayPaths.value = [];
+    return;
+  }
+
+  const layerRect = layer.getBoundingClientRect();
+  const nextPaths: Array<{ key: string; d: string }> = [];
+
+  for (const registration of rowRegistry.values()) {
+    if (!registration.parentId) continue;
+    const parent = rowRegistry.get(registration.parentId);
+    if (!parent) continue;
+
+    const rowRect = registration.el.getBoundingClientRect();
+    const parentRect = parent.el.getBoundingClientRect();
+
+    const childX = rowRect.left - layerRect.left + TREE_BASE_RAIL + registration.level * TREE_INDENT;
+    const parentX = parentRect.left - layerRect.left + TREE_BASE_RAIL + parent.level * TREE_INDENT;
+    const childY = rowRect.top - layerRect.top + rowRect.height / 2;
+    const parentY = parentRect.top - layerRect.top + parentRect.height / 2;
+
+    nextPaths.push({
+      key: registration.id,
+      d: `M ${parentX} ${parentY} V ${childY} H ${childX}`,
+    });
+  }
+
+  overlayPaths.value = nextPaths;
+}
 
 function resolveCompactLayout(mode: ParamSchemaRuntimeMode, width: number): CompactRuntimeLayout {
   const density = width < 360 ? "xs" : width < 520 ? "sm" : width < 760 ? "md" : "lg";
@@ -697,11 +768,12 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
           </Button>
         </div>
 
-        <div v-else class="min-w-full">
+        <div v-else ref="treeLayerRef" class="relative min-w-full">
           <SchemaCompactRuntimeRow
             v-for="(child, index) in rootChildren"
             :key="child.id"
             :node="child"
+            :parent-node-id="null"
             :level="0"
             :is-last="index === rootChildren.length - 1"
             :lineage="[]"
@@ -727,6 +799,23 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
               <slot name="value-ref-picker" v-bind="slotProps" />
             </template>
           </SchemaCompactRuntimeRow>
+
+          <svg
+            v-if="overlayPaths.length"
+            class="pointer-events-none absolute inset-0 z-10 size-full overflow-visible"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              v-for="path in overlayPaths"
+              :key="path.key"
+              :d="path.d"
+              fill="none"
+              stroke="#e6e4ee"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+          </svg>
         </div>
       </div>
       <ScrollBar orientation="horizontal" />
