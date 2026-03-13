@@ -693,21 +693,205 @@ export interface WorkflowNodeDefRead {
   icon?: string | null
   description?: string | null
   display_order: number
-  node: JsonRecord
-  forms: JsonRecord[]
+  node: WorkflowNodeDataRead
+  forms: WorkflowFormProperty[]
   is_active: boolean
+}
+
+export type WorkflowSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
+
+export interface WorkflowValueRefContent {
+  blockID: string
+  path: string
+  source?: string
+}
+
+export type WorkflowParameterValue
+  = | {
+      type: 'literal'
+      content: unknown
+    }
+    | {
+      type: 'expr'
+      content: string
+    }
+    | {
+      type: 'ref'
+      content: WorkflowValueRefContent
+    }
+
+export interface WorkflowSchemaBlueprint {
+  type: WorkflowSchemaType
+  uid?: number
+  description?: string
+  enum?: unknown[]
+  default?: unknown
+  properties?: WorkflowParameterSchema[]
+  items?: WorkflowSchemaBlueprint
+}
+
+export interface WorkflowParameterSchema extends WorkflowSchemaBlueprint {
+  name: string
+  required: boolean
+  open: boolean
+  role?: string
+  label?: string
+  value?: WorkflowParameterValue
+  meta?: JsonRecord
+}
+
+export interface WorkflowFormProperty {
+  id?: string
+  label?: string
+  desc?: string | null
+  type: 'form' | 'action'
+  control?: string
+  props?: JsonRecord
+  ui?: JsonRecord
+  meta?: JsonRecord
+  children?: WorkflowFormProperty[]
+  model_path?: string
+  state?: JsonRecord
+  required?: string | boolean
+  role?: string
+  action_type?: string
+  renderer?: string
+  on?: JsonRecord | null
+}
+
+export interface WorkflowNodeDataRead {
+  registryId: string
+  name: string
+  description?: string
+  config: JsonRecord
+  inputs: WorkflowParameterSchema[]
+  outputs: WorkflowParameterSchema[]
+  blocks?: WorkflowNodeRead[]
+  edges?: WorkflowEdgeRead[]
+}
+
+export interface WorkflowNodeRead {
+  id: string
+  data: WorkflowNodeDataRead
+  position?: {
+    x: number
+    y: number
+  } | null
+}
+
+export interface WorkflowEdgeRead {
+  id?: string | null
+  sourceNodeID: string
+  targetNodeID: string
+  sourcePortID: string
+  targetPortID: string
+}
+
+export interface WorkflowGraphRead {
+  nodes: WorkflowNodeRead[]
+  edges: WorkflowEdgeRead[]
+  viewport?: JsonRecord | null
+}
+
+export interface WorkflowRead extends InstanceReadBase {
+  graph: WorkflowGraphRead
+  inputs_schema: WorkflowParameterSchema[]
+  outputs_schema: WorkflowParameterSchema[]
+  is_stream: boolean
+}
+
+export interface WorkflowUpdateRequest {
+  name?: string
+  description?: string
+  graph?: WorkflowGraphRead
+  inputs_schema?: WorkflowParameterSchema[]
+  outputs_schema?: WorkflowParameterSchema[]
+  is_stream?: boolean
+}
+
+export interface WorkflowInterruptRead {
+  id?: string | null
+  node_id: string
+  reason: string
+  message?: string | null
+  payload: JsonRecord
+}
+
+export interface WorkflowExecutionResultData extends JsonRecord {
+  output?: JsonRecord
+  content?: string | null
+  error_msg?: string | null
+  trace_id?: string | null
+  run_id?: string | null
+  thread_id?: string | null
+  outcome?: 'success' | 'interrupt' | 'cancelled' | string | null
+  interrupt?: WorkflowInterruptRead | null
 }
 
 export interface WorkflowExecutionRequest {
   inputs?: JsonRecord
   context?: JsonRecord
   metadata?: JsonRecord
+  thread_id?: string
+  parent_run_id?: string
+  resume_from_run_id?: string
 }
 
 export interface WorkflowExecutionResponse {
   success?: boolean
   error?: string | null
-  data: JsonRecord
+  data: WorkflowExecutionResultData
+}
+
+export interface WorkflowRunNodeRead {
+  node_id: string
+  node_name: string
+  node_type: string
+  attempt: number
+  status: string
+  input?: JsonRecord | null
+  result?: JsonRecord | null
+  error_message?: string | null
+  activated_port?: string | null
+  executed_time: number
+  started_at?: string | null
+  finished_at?: string | null
+}
+
+export interface WorkflowCheckpointRead {
+  id: number
+  step_index: number
+  reason: string
+  node_id?: string | null
+  canonical?: JsonRecord | null
+  created_at: string
+}
+
+export interface WorkflowRunSummaryRead {
+  run_id: string
+  thread_id: string
+  parent_run_id?: string | null
+  status: string
+  trace_id?: string | null
+  error_code?: string | null
+  error_message?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  latest_checkpoint?: WorkflowCheckpointRead | null
+}
+
+export interface WorkflowRunRead extends WorkflowRunSummaryRead {
+  workflow_instance_uuid: string
+  workflow_name: string
+  node_executions: WorkflowRunNodeRead[]
+  can_resume: boolean
+}
+
+export interface WorkflowEventRead {
+  sequence_no: number
+  event_type: string
+  payload: JsonRecord
+  created_at: string
 }
 
 export type AgUiRole = 'developer' | 'system' | 'assistant' | 'user' | 'tool' | 'activity' | 'reasoning'

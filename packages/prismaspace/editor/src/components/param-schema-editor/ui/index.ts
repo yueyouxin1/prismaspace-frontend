@@ -4,6 +4,8 @@ export { default as SchemaTreePanel } from "./SchemaTreePanel.vue";
 export { default as SchemaDetailPanel } from "./SchemaDetailPanel.vue";
 export { default as SchemaPreviewPanel } from "./SchemaPreviewPanel.vue";
 export { default as SchemaRuntimePanel } from "./SchemaRuntimePanel.vue";
+export { default as SchemaValueRefTreePanel } from "./SchemaValueRefTreePanel.vue";
+export { default as SchemaTypePicker } from "./SchemaTypePicker.vue";
 export * from "./mode";
 export * from "./useParamSchemaEditor";
 export * from "./tree-types";

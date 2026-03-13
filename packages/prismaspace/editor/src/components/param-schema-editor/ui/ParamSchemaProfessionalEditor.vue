@@ -21,5 +21,9 @@ const props = withDefaults(
 </script>
 
 <template>
-  <ParamSchemaEditorShell v-bind="props" editor-kind="professional" />
+  <ParamSchemaEditorShell v-bind="props" editor-kind="professional">
+    <template v-if="$slots['value-ref-picker']" #value-ref-picker="slotProps">
+      <slot name="value-ref-picker" v-bind="slotProps" />
+    </template>
+  </ParamSchemaEditorShell>
 </template>

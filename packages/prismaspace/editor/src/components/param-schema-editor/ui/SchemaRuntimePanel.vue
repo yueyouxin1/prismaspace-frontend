@@ -45,17 +45,42 @@ const canAddRoot = computed(() => {
   if (!canMutateStructureInMode(props.mode)) return false;
   return props.canEdit ? props.canEdit(props.root) : true;
 });
+type TrackColumnKey = "name" | "type" | "default" | "required" | "open" | "actions";
 
-const trackByColumn = {
-  name: "minmax(240px,1.4fr)",
-  type: "minmax(120px,130px)",
-  default: "minmax(160px,1fr)",
-  required: "68px",
-  open: "68px",
-  actions: "auto",
-} as const;
+const trackByColumn = computed(() => {
+  if (density.value === "compact") {
+    return {
+      name: "minmax(0,1.2fr)",
+      type: "92px",
+      default: "minmax(120px,1fr)",
+      required: "56px",
+      open: "56px",
+      actions: "96px",
+    } as const;
+  }
 
-const orderedColumns: Array<keyof typeof trackByColumn> = [
+  if (density.value === "balanced") {
+    return {
+      name: "minmax(0,1.3fr)",
+      type: "108px",
+      default: "minmax(132px,1fr)",
+      required: "62px",
+      open: "62px",
+      actions: "108px",
+    } as const;
+  }
+
+  return {
+    name: "minmax(220px,1.4fr)",
+    type: "minmax(120px,130px)",
+    default: "minmax(160px,1fr)",
+    required: "68px",
+    open: "68px",
+    actions: "auto",
+  } as const;
+});
+
+const orderedColumns: TrackColumnKey[] = [
   "name",
   "type",
   "default",
@@ -66,7 +91,7 @@ const orderedColumns: Array<keyof typeof trackByColumn> = [
 
 const visibleColumns = computed(() => orderedColumns.filter((key) => columns.value[key]));
 
-const headerLabelByColumn: Record<keyof typeof trackByColumn, string> = {
+const headerLabelByColumn: Record<TrackColumnKey, string> = {
   name: "Name",
   type: "Type",
   default: "Default",
@@ -75,7 +100,7 @@ const headerLabelByColumn: Record<keyof typeof trackByColumn, string> = {
   actions: "Actions",
 };
 
-const rowTemplate = computed(() => visibleColumns.value.map((key) => trackByColumn[key]).join(" "));
+const rowTemplate = computed(() => visibleColumns.value.map((key) => trackByColumn.value[key]).join(" "));
 
 watch(
   () => props.root,
@@ -228,7 +253,7 @@ function findPathToNode(root: SchemaNode, targetId: string): string[] {
         <p class="text-sm text-muted-foreground">No properties yet.</p>
         <Button size="sm" variant="outline" :disabled="!canAddRoot" @click="onAddRootProperty">Add first property</Button>
       </div>
-      <div v-else class="min-w-max">
+      <div v-else class="min-w-full">
         <SchemaRuntimeRow
           v-for="child in rootChildren"
           :key="child.id"

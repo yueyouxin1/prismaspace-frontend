@@ -552,7 +552,11 @@ watch(
           @change-type="onChangeType"
           @wrap-array="onWrapArray"
           @unwrap-array="onUnwrapArray"
-        />
+        >
+          <template v-if="$slots['value-ref-picker']" #value-ref-picker="slotProps">
+            <slot name="value-ref-picker" v-bind="slotProps" />
+          </template>
+        </SchemaDetailPanel>
       </div>
       <div v-if="isPreviewInline" class="flex min-h-0 flex-col border-l bg-background">
         <div class="flex-1 min-h-0 overflow-hidden p-3">
@@ -637,7 +641,11 @@ watch(
           @change-type="onChangeType"
           @wrap-array="onWrapArray"
           @unwrap-array="onUnwrapArray"
-        />
+        >
+          <template v-if="$slots['value-ref-picker']" #value-ref-picker="slotProps">
+            <slot name="value-ref-picker" v-bind="slotProps" />
+          </template>
+        </SchemaDetailPanel>
       </DialogContent>
     </Dialog>
 

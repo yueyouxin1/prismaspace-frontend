@@ -711,8 +711,13 @@ const currentValueSection = computed(() => {
   <ValueRefPickerDialog
     v-model:open="refPickerOpen"
     :tree="valueRefTree || []"
+    :model-value="node?.value?.type === 'ref' ? node.value.content : null"
     title="Pick Reference Variable"
     description="Choose a variable to populate blockID/path/source."
     @select="onPickReference"
-  />
+  >
+    <template v-if="$slots['value-ref-picker']" #tree-panel="slotProps">
+      <slot name="value-ref-picker" v-bind="slotProps" />
+    </template>
+  </ValueRefPickerDialog>
 </template>

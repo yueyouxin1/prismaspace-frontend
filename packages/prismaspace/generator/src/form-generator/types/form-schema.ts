@@ -86,11 +86,8 @@ export interface FormFieldItem<P = Record<string, any>, Ctx = any> extends BaseI
    */
   modelPath: ModelPath;
 
-  /** 静态必填 */
-  required?: boolean;
-
-  /** 动态必填 */
-  requiredWhen?: Expr<boolean, Ctx>;
+  /** 必填条件：支持布尔或表达式 */
+  required?: Expr<boolean, Ctx>;
 
   /** 字段级校验规则 */
   rules?: FieldRule<Ctx>[];

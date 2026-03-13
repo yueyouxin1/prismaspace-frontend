@@ -166,10 +166,7 @@ const fieldRequired = computed(() => {
   if (!item) {
     return false
   }
-  if (item.required === true) {
-    return true
-  }
-  return evaluateExpr(item.requiredWhen, false) === true
+  return evaluateExpr(item.required, false) === true
 })
 
 const fieldChildren = computed(() => {

@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+const nullOptional = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((value) => (value === null ? undefined : value), schema.optional());
+
 /** 你们的路径格式：这里先做“非空字符串”约束；如需更严可扩展正则 */
 export const ModelPathSchema = z
   .string()
@@ -25,8 +28,8 @@ export const ExprSchema = <T extends z.ZodTypeAny>(valueSchema: T) =>
 /** state: visible/disabled，带默认值 */
 export const StateWhenSchema = z
   .object({
-    visible: ExprSchema(z.boolean()).optional(),
-    disabled: ExprSchema(z.boolean()).optional(),
+    visible: nullOptional(ExprSchema(z.boolean())),
+    disabled: nullOptional(ExprSchema(z.boolean())),
   })
   .default({}) // 先给空对象
   .transform((s) => ({
@@ -35,34 +38,34 @@ export const StateWhenSchema = z
   }));
 
 /** ui 提示（可选） */
-export const UIHintsSchema = z
-  .object({
-    className: z.string().optional(),
-    style: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
-    width: z.union([z.number(), z.string()]).optional(),
-    span: z.number().int().positive().optional(),
-    order: z.number().int().optional(),
-  })
-  .optional();
+export const UIHintsSchema = nullOptional(
+  z.object({
+    className: nullOptional(z.string()),
+    style: nullOptional(z.record(z.string(), z.union([z.string(), z.number()]))),
+    width: nullOptional(z.union([z.number(), z.string()])),
+    span: nullOptional(z.number().int().positive()),
+    order: nullOptional(z.number().int()),
+  }),
+);
 
 /** FieldRule */
 export const FieldRuleSchema = z.object({
-  name: z.string().optional(),
-  message: z.string().optional(),
-  when: ExprSchema(z.boolean()).optional(),
+  name: nullOptional(z.string()),
+  message: nullOptional(z.string()),
+  when: nullOptional(ExprSchema(z.boolean())),
   // validate 仅做占位：如果要支持函数，配置就不再是纯 JSON（建议只保留表达式字符串）
-  validate: z.union([ExprSchema(z.boolean())]).optional(),
+  validate: nullOptional(z.union([ExprSchema(z.boolean())])),
 });
 
 /** BaseItem */
 export const BaseItemSchema = z.object({
   id: z.string().trim().min(1, "id 不能为空"),
-  label: z.string().optional(),
-  desc: z.string().optional(),
+  label: nullOptional(z.string()),
+  desc: nullOptional(z.string()),
   ui: UIHintsSchema,
   state: StateWhenSchema, // transform 后一定有默认值
-  role: z.string().optional(),
-  meta: z.record(z.string(), z.any()).optional(),
+  role: nullOptional(z.string()),
+  meta: nullOptional(z.record(z.string(), z.any())),
 });
 
 /** ActionSpec（声明化动作） */
@@ -99,12 +102,11 @@ export const FormItemSchema: z.ZodTypeAny = z.lazy(() =>
 export const FormFieldItemSchema = BaseItemSchema.extend({
   type: z.literal("form"),
   control: z.string().trim().min(1, "control 不能为空"),
-  props: z.record(z.string(), z.any()).optional(),
+  props: nullOptional(z.record(z.string(), z.any())),
   modelPath: ModelPathSchema,
-  required: z.boolean().optional().default(false),
-  requiredWhen: ExprSchema(z.boolean()).optional(),
-  rules: z.array(FieldRuleSchema).optional(),
-  children: z.array(FormItemSchema).optional(),
+  required: nullOptional(ExprSchema(z.boolean())).default(false),
+  rules: nullOptional(z.array(FieldRuleSchema)),
+  children: nullOptional(z.array(FormItemSchema)),
 }).transform((v) => ({
   ...v,
   required: v.required ?? false,
@@ -114,9 +116,9 @@ export const FormFieldItemSchema = BaseItemSchema.extend({
 export const FormActionItemSchema = BaseItemSchema.extend({
   type: z.literal("action"),
   actionType: z.string().trim().min(1, "actionType 不能为空"),
-  renderer: z.string().optional(),
-  props: z.record(z.string(), z.any()).optional(),
-  on: ActionSpecSchema.optional(),
+  renderer: nullOptional(z.string()),
+  props: nullOptional(z.record(z.string(), z.any())),
+  on: nullOptional(ActionSpecSchema),
 });
 
 /** 再把 lazy union 的两个分支补齐引用 */

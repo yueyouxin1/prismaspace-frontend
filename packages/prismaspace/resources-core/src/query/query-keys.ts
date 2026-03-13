@@ -35,6 +35,12 @@ export const prismaspaceQueryKeys = {
   tenantTableRows: (instanceUuid: string, tableUuid: string, querySignature: string) =>
     ['tenantdb', instanceUuid, tableUuid, 'rows', querySignature] as const,
   workflowNodeDefs: ['workflow', 'nodes'] as const,
+  workflowInstance: (instanceUuid: string | null | undefined) => ['workflow', 'instance', instanceUuid ?? 'none'] as const,
+  workflowRuns: (instanceUuid: string | null | undefined, limit = 20) =>
+    ['workflow', 'instance', instanceUuid ?? 'none', 'runs', limit] as const,
+  workflowRun: (runId: string | null | undefined) => ['workflow', 'run', runId ?? 'none'] as const,
+  workflowRunEvents: (runId: string | null | undefined, limit = 1000) =>
+    ['workflow', 'run', runId ?? 'none', 'events', limit] as const,
   chatSessions: (agentInstanceUuid: string, page: number, limit: number) =>
     ['chat', 'sessions', agentInstanceUuid, page, limit] as const,
   chatMessages: (sessionUuid: string, cursor: number, limit: number) =>
