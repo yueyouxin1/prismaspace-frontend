@@ -455,13 +455,13 @@ function isIssueError(issue: SchemaIssue) {
   <div class="contents">
     <div
       :class="[
-        'grid items-stretch transition-colors',
+        'relative grid items-stretch shadow-[inset_0_-1px_0_0_#eceaf2] transition-colors',
         isSelected ? 'bg-[#f5f2ff]' : 'bg-transparent hover:bg-[#faf9fe]',
       ]"
       :style="{ gridTemplateColumns: layout.gridTemplate }"
       @click="onSelectRow"
     >
-      <div class="border-b border-[#eceaf2] px-2 py-1.5">
+      <div class="px-2 py-1.5">
         <div class="relative min-h-8 min-w-0" :style="{ paddingLeft: `${treeRailWidth}px` }">
           <div class="absolute inset-y-0 left-0" :style="{ width: `${treeRailWidth}px` }">
             <span
@@ -480,9 +480,17 @@ function isIssueError(issue: SchemaIssue) {
               }"
             />
             <span
+              v-if="level > 0"
+              class="absolute left-0 top-0 w-px bg-[#dddbe8]"
+              :style="{
+                left: currentGuideLeft(),
+                height: '50%',
+              }"
+            />
+            <span
               v-if="level > 0 && !isLast"
-              class="absolute bottom-0 top-1/2 w-px bg-[#dddbe8]"
-              :style="{ left: currentGuideLeft() }"
+              class="absolute left-0 top-1/2 w-px bg-[#dddbe8]"
+              :style="{ left: currentGuideLeft(), height: '50%' }"
             />
             <button
               type="button"
@@ -493,7 +501,7 @@ function isIssueError(issue: SchemaIssue) {
             >
               <ChevronDown v-if="hasChildren && isExpanded" class="size-3.5" />
               <ChevronRight v-else-if="hasChildren" class="size-3.5" />
-              <span v-else class="size-1.5 rounded-full bg-[#d7d6e3]" />
+              <span v-else class="size-3.5" />
             </button>
           </div>
 
@@ -547,7 +555,7 @@ function isIssueError(issue: SchemaIssue) {
         </div>
       </div>
 
-      <div v-if="layout.inlineType" class="border-b border-[#eceaf2] px-1 py-1.5" @click.stop>
+      <div v-if="layout.inlineType" class="px-1 py-1.5" @click.stop>
         <SchemaTypePicker
           :node="props.node"
           :disabled="!canEditType"
@@ -558,7 +566,7 @@ function isIssueError(issue: SchemaIssue) {
 
       <div
         v-if="layout.valueField === 'value'"
-        class="border-b border-[#eceaf2] px-1 py-1.5"
+        class="px-1 py-1.5"
         @click.stop
       >
         <div class="flex min-h-7 items-center gap-1 rounded-[9px] border border-[#dddce6] bg-white px-1">
@@ -680,7 +688,7 @@ function isIssueError(issue: SchemaIssue) {
 
       <div
         v-if="layout.valueField === 'default'"
-        class="border-b border-[#eceaf2] px-1 py-1.5"
+        class="px-1 py-1.5"
         @click.stop
       >
         <Input
@@ -719,7 +727,7 @@ function isIssueError(issue: SchemaIssue) {
 
       <div
         v-if="layout.inlineRequired"
-        class="flex items-center justify-center border-b border-[#eceaf2] px-1 py-1.5"
+        class="flex items-center justify-center px-1 py-1.5"
         @click.stop
       >
         <Checkbox
@@ -734,7 +742,7 @@ function isIssueError(issue: SchemaIssue) {
 
       <div
         v-if="layout.actionButtons > 0"
-        class="flex items-center justify-end gap-0.5 border-b border-[#eceaf2] px-1 py-1.5"
+        class="flex items-center justify-end gap-0.5 px-1 py-1.5"
         @click.stop
       >
         <Button
@@ -776,7 +784,7 @@ function isIssueError(issue: SchemaIssue) {
     <div
       v-if="isDetailOpen"
       class="border-b border-[#eceaf2] bg-[#faf9fe] px-3 py-3"
-      :style="{ marginLeft: `${Math.max(0, layout.railWidth - 12)}px` }"
+      :style="{ marginLeft: `${Math.max(0, treeRailWidth - 8)}px` }"
     >
       <div class="grid gap-3" :class="layout.density === 'xs' ? 'grid-cols-1' : 'grid-cols-2'">
         <div v-if="props.mode === 'define' || props.mode === 'default' || props.mode === 'read'" class="space-y-1.5">

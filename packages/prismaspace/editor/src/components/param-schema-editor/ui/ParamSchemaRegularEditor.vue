@@ -31,7 +31,7 @@ import {
   canMutateStructureInMode,
 } from "./mode";
 import SchemaCompactRuntimeRow from "./SchemaCompactRuntimeRow.vue";
-import { ScrollArea } from "@prismaspace/ui-shadcn/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@prismaspace/ui-shadcn/components/ui/scroll-area";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
 import { Badge } from "@prismaspace/ui-shadcn/components/ui/badge";
 import {
@@ -91,6 +91,26 @@ const allIssues = computed(() => [...validation.value.issues, ...localIssues.val
 const issueCount = computed(() => allIssues.value.length);
 
 const layout = computed<CompactRuntimeLayout>(() => resolveCompactLayout(runtimeMode.value, layoutWidth.value));
+const expandedSet = computed(() => new Set(treeExpandedIds.value));
+const contentMinWidth = computed(() => {
+  const depth = collectVisibleMaxDepth(props.state.tree, expandedSet.value);
+  const treeIndentWidth = 18 + depth * 16;
+  const nameInputMin = layout.value.density === "xs" ? 76 : 92;
+  const typeMin = layout.value.inlineType ? (layout.value.density === "xs" ? 84 : 96) : 0;
+  const valueMin =
+    layout.value.valueField === "value"
+      ? layout.value.density === "xs"
+        ? 112
+        : 132
+      : layout.value.valueField === "default"
+        ? layout.value.density === "xs"
+          ? 96
+          : 116
+        : 0;
+  const requiredMin = layout.value.inlineRequired ? 34 : 0;
+  const actionsMin = layout.value.actionButtons > 1 ? 54 : layout.value.actionButtons === 1 ? 34 : 0;
+  return treeIndentWidth + nameInputMin + typeMin + valueMin + requiredMin + actionsMin + 22;
+});
 const modeLabel = computed(() => {
   if (runtimeMode.value === "define") return "Define";
   if (runtimeMode.value === "refine") return "Refine";
@@ -396,6 +416,25 @@ function collectDefaultExpanded(node: SchemaNode, level: number, bag: string[]) 
   if (node.item) collectDefaultExpanded(node.item, level + 1, bag);
 }
 
+function collectVisibleMaxDepth(node: SchemaNode, expanded: Set<string>, level = -1): number {
+  let maxDepth = Math.max(level, 0);
+  const nextLevel = level + 1;
+
+  if (node.children?.length && (node.kind === "root" || expanded.has(node.id))) {
+    for (const child of node.children) {
+      maxDepth = Math.max(maxDepth, collectVisibleMaxDepth(child, expanded, nextLevel));
+    }
+  }
+
+  if (node.type === "array" && node.item?.type === "object" && node.item.children?.length && expanded.has(node.id)) {
+    for (const child of node.item.children) {
+      maxDepth = Math.max(maxDepth, collectVisibleMaxDepth(child, expanded, nextLevel));
+    }
+  }
+
+  return maxDepth;
+}
+
 function findPathToNode(root: SchemaNode, targetId: string): string[] {
   const path: string[] = [];
   const walk = (node: SchemaNode): boolean => {
@@ -622,72 +661,75 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
       </div>
     </div>
 
-    <div
-      v-if="showHeader"
-      class="grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb] px-2 py-1 text-[11px] font-semibold text-[#8b8ca0]"
-      :style="{ gridTemplateColumns: layout.gridTemplate }"
-    >
-      <div
-        v-for="item in headerLabels"
-        :key="item.key"
-        :class="[
-          'px-1.5',
-          item.key === 'required' ? 'text-center' : '',
-          item.key === 'actions' ? 'text-right' : '',
-        ]"
-        :style="item.key === 'name' ? { paddingLeft: '26px' } : undefined"
-      >
-        {{ item.label }}
-      </div>
-    </div>
-
     <ScrollArea class="min-h-0 flex-1">
-      <div v-if="!rootChildren.length" class="flex min-h-[220px] flex-col items-center justify-center gap-3 px-4 text-center">
-        <p class="text-[13px] text-[#8e90a1]">还没有参数，先创建一个顶层字段。</p>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          class="rounded-[10px]"
-          :disabled="!canAddRoot"
-          @click="onAddRootProperty"
+      <div class="min-w-full" :style="{ minWidth: `${contentMinWidth}px` }">
+        <div
+          v-if="showHeader"
+          class="sticky top-0 z-10 grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb]/95 px-2 py-1 text-[11px] font-semibold text-[#8b8ca0] backdrop-blur"
+          :style="{ gridTemplateColumns: layout.gridTemplate }"
         >
-          <Plus class="mr-1 size-3.5" />
-          新增参数
-        </Button>
-      </div>
+          <div
+            v-for="item in headerLabels"
+            :key="item.key"
+            :class="[
+              'px-1.5',
+              item.key === 'required' ? 'text-center' : '',
+              item.key === 'actions' ? 'text-right' : '',
+            ]"
+            :style="item.key === 'name' ? { paddingLeft: '26px' } : undefined"
+          >
+            {{ item.label }}
+          </div>
+        </div>
 
-      <div v-else class="min-w-full">
-        <SchemaCompactRuntimeRow
-          v-for="(child, index) in rootChildren"
-          :key="child.id"
-          :node="child"
-          :level="0"
-          :is-last="index === rootChildren.length - 1"
-          :lineage="[]"
-          :selected-id="props.state.selection.nodeId"
-          :tree-expanded-ids="treeExpandedIds"
-          :detail-open-ids="detailOpenIds"
-          :layout="layout"
-          :mode="runtimeMode"
-          :issues="allIssues"
-          :can-edit="canEdit"
-          :role-options="roleOptions"
-          :value-ref-tree="valueRefTree"
-          @select="onSelect"
-          @toggle-tree="onToggleTree"
-          @toggle-detail="onToggleDetail"
-          @set-field="onSetField"
-          @change-type="onChangeType"
-          @add-property="onAddProperty"
-          @add-item="onAddItem"
-          @delete-node="onDeleteNode"
-        >
-          <template v-if="$slots['value-ref-picker']" #value-ref-picker="slotProps">
-            <slot name="value-ref-picker" v-bind="slotProps" />
-          </template>
-        </SchemaCompactRuntimeRow>
+        <div v-if="!rootChildren.length" class="flex min-h-[220px] flex-col items-center justify-center gap-3 px-4 text-center">
+          <p class="text-[13px] text-[#8e90a1]">还没有参数，先创建一个顶层字段。</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            class="rounded-[10px]"
+            :disabled="!canAddRoot"
+            @click="onAddRootProperty"
+          >
+            <Plus class="mr-1 size-3.5" />
+            新增参数
+          </Button>
+        </div>
+
+        <div v-else class="min-w-full">
+          <SchemaCompactRuntimeRow
+            v-for="(child, index) in rootChildren"
+            :key="child.id"
+            :node="child"
+            :level="0"
+            :is-last="index === rootChildren.length - 1"
+            :lineage="[]"
+            :selected-id="props.state.selection.nodeId"
+            :tree-expanded-ids="treeExpandedIds"
+            :detail-open-ids="detailOpenIds"
+            :layout="layout"
+            :mode="runtimeMode"
+            :issues="allIssues"
+            :can-edit="canEdit"
+            :role-options="roleOptions"
+            :value-ref-tree="valueRefTree"
+            @select="onSelect"
+            @toggle-tree="onToggleTree"
+            @toggle-detail="onToggleDetail"
+            @set-field="onSetField"
+            @change-type="onChangeType"
+            @add-property="onAddProperty"
+            @add-item="onAddItem"
+            @delete-node="onDeleteNode"
+          >
+            <template v-if="$slots['value-ref-picker']" #value-ref-picker="slotProps">
+              <slot name="value-ref-picker" v-bind="slotProps" />
+            </template>
+          </SchemaCompactRuntimeRow>
+        </div>
       </div>
+      <ScrollBar orientation="horizontal" />
     </ScrollArea>
 
     <Dialog v-model:open="isImportOpen">
