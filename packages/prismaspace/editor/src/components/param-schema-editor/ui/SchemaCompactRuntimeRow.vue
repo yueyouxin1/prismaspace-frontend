@@ -46,6 +46,7 @@ import {
 import SchemaValueRefTreePanel from "./SchemaValueRefTreePanel.vue";
 import SchemaTypePicker from "./SchemaTypePicker.vue";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT } from "./tree-visuals";
+import { MonacoEditor } from "../../monaco-editor";
 
 defineOptions({ name: "SchemaCompactRuntimeRow" });
 defineSlots<{
@@ -154,6 +155,7 @@ const canEditInlineDefault = computed(() => {
 
 const defaultDisplay = computed(() => serializeJson(props.node.default));
 const inlineValueSummary = computed(() => formatRuntimeValueSummary(props.node.value));
+const detailPanelOffset = computed(() => `${treeRailWidth.value + 8}px`);
 const hasExpandableDetail = computed(() => {
   if (props.mode === "read") {
     return Boolean(props.node.description || props.node.default !== undefined || props.node.value || props.node.meta);
@@ -445,6 +447,16 @@ function onArrayItemTypeChange(nextType: string) {
   emit("change-type", { nodeId: props.node.item.id, nextType: nextType as SchemaType });
 }
 
+function onDetailBooleanDefaultChange(value: string) {
+  if (!canEditDefault.value) return;
+  defaultError.value = null;
+  if (value === UNSET) {
+    emitField("default", undefined);
+    return;
+  }
+  emitField("default", value === BOOLEAN_TRUE);
+}
+
 function isIssueError(issue: SchemaIssue) {
   return issue.level === "error";
 }
@@ -494,7 +506,7 @@ watch(
       ref="rowShellRef"
       :class="[
         'relative grid items-stretch shadow-[inset_0_-1px_0_0_#eceaf2] transition-colors',
-        isSelected ? 'bg-[#f5f2ff]' : 'bg-transparent hover:bg-[#faf9fe]',
+        isDetailOpen ? 'bg-[#f5f2ff]' : 'bg-transparent hover:bg-[#faf9fe]',
       ]"
       :style="{ gridTemplateColumns: layout.gridTemplate }"
       @click="onSelectRow"
@@ -794,22 +806,47 @@ watch(
     <div v-if="showSubtreeBody" class="relative">
       <div
         v-if="isDetailOpen"
-        class="relative z-20 border-b border-[#eceaf2] bg-[#faf9fe] px-3 py-3"
-        :style="{ marginLeft: `${Math.max(0, treeRailWidth - 8)}px` }"
+        class="relative z-20 border-b border-[#eceaf2] bg-[#f5f2ff] px-3 py-3"
+        :style="{ marginLeft: detailPanelOffset }"
       >
         <div class="grid gap-3" :class="layout.density === 'xs' ? 'grid-cols-1' : 'grid-cols-2'">
         <div v-if="props.mode === 'define' || props.mode === 'default' || props.mode === 'read'" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">默认值</label>
-          <Textarea
+          <MonacoEditor
             v-if="props.node.type === 'object' || props.node.type === 'array'"
+            :model-value="defaultDraft"
+            language="json"
+            height="180px"
+            :read-only="!canEditDefault"
+            @update:modelValue="defaultDraft = $event; commitDefault($event)"
+          />
+          <Select
+            v-else-if="props.node.type === 'boolean' && !layout.inlineDefault"
+            :disabled="!canEditDefault"
+            :model-value="booleanValueForDefault()"
+            @update:model-value="onDetailBooleanDefaultChange(String($event))"
+          >
+            <SelectTrigger class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]">
+              <SelectValue placeholder="默认值" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem :value="UNSET">未设置</SelectItem>
+              <SelectItem :value="BOOLEAN_TRUE">true</SelectItem>
+              <SelectItem :value="BOOLEAN_FALSE">false</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            v-else-if="(props.node.type === 'number' || props.node.type === 'integer') && !layout.inlineDefault"
             v-model="defaultDraft"
             :disabled="!canEditDefault"
-            class="min-h-[96px] rounded-[12px] border-[#dddce6] bg-white text-[12px]"
-            placeholder="输入 JSON 默认值"
+            type="number"
+            class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
+            placeholder="默认值"
             @blur="commitDefault"
+            @keydown.enter.prevent="commitDefault"
           />
           <Input
-            v-else-if="!layout.inlineDefault"
+            v-else-if="props.node.type === 'string' && !layout.inlineDefault"
             v-model="defaultDraft"
             :disabled="!canEditDefault"
             class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
@@ -924,6 +961,43 @@ watch(
             />
             展开状态
           </label>
+        </div>
+
+        <div v-if="(props.mode === 'refine' || props.mode === 'bind') && currentValueKind === 'literal'" class="col-span-full space-y-1.5">
+          <label class="text-[11px] font-medium text-[#7f8094]">值</label>
+          <MonacoEditor
+            v-if="props.node.type === 'object' || props.node.type === 'array'"
+            :model-value="valueLiteralDraft"
+            language="json"
+            height="180px"
+            :read-only="!canEditValue"
+            @update:modelValue="valueLiteralDraft = $event; commitValueLiteral($event)"
+          />
+          <Select
+            v-else-if="props.node.type === 'boolean'"
+            :disabled="!canEditValue"
+            :model-value="valueLiteralDraft || UNSET"
+            @update:model-value="commitValueLiteral($event === UNSET ? '' : String($event))"
+          >
+            <SelectTrigger class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]">
+              <SelectValue placeholder="值" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem :value="UNSET">未设置</SelectItem>
+              <SelectItem value="true">true</SelectItem>
+              <SelectItem value="false">false</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            v-else
+            v-model="valueLiteralDraft"
+            :disabled="!canEditValue"
+            :type="props.node.type === 'number' || props.node.type === 'integer' ? 'number' : 'text'"
+            class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
+            placeholder="输入值"
+            @blur="commitValueLiteral"
+            @keydown.enter.prevent="commitValueLiteral"
+          />
         </div>
 
         <div v-if="(props.mode === 'refine' || props.mode === 'bind') && currentValueKind === 'expr'" class="col-span-full space-y-1.5">

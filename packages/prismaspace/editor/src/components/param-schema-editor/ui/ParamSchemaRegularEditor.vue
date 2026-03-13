@@ -134,6 +134,7 @@ const headerLabels = computed(() => {
   if (layout.value.actionButtons > 0) labels.push({ key: "actions", label: "" });
   return labels;
 });
+const headerNamePadding = computed(() => `${8 + TREE_BASE_RAIL + 9}px`);
 
 const showHeader = computed(() => runtimeMode.value !== "read");
 const canAddRoot = computed(() => {
@@ -258,8 +259,8 @@ function measureOverlayPaths() {
     const rowRect = registration.el.getBoundingClientRect();
     const parentRect = parent.el.getBoundingClientRect();
 
-    const childX = rowRect.left - layerRect.left + TREE_BASE_RAIL + registration.level * TREE_INDENT;
-    const parentX = parentRect.left - layerRect.left + TREE_BASE_RAIL + parent.level * TREE_INDENT;
+    const childX = rowRect.left - layerRect.left + 8 + TREE_BASE_RAIL + registration.level * TREE_INDENT;
+    const parentX = parentRect.left - layerRect.left + 8 + TREE_BASE_RAIL + parent.level * TREE_INDENT;
     const childY = rowRect.top - layerRect.top + rowRect.height / 2;
     const parentY = parentRect.top - layerRect.top + parentRect.height / 2;
 
@@ -747,7 +748,7 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
               item.key === 'required' ? 'text-center' : '',
               item.key === 'actions' ? 'text-right' : '',
             ]"
-            :style="item.key === 'name' ? { paddingLeft: '24px' } : undefined"
+            :style="item.key === 'name' ? { paddingLeft: headerNamePadding } : undefined"
           >
             {{ item.label }}
           </div>
