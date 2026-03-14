@@ -1,3 +1,5 @@
+import type { SchemaType } from "../core";
+
 export interface VariableTreeNode {
   id?: string;
   key?: string | number;
@@ -7,5 +9,6 @@ export interface VariableTreeNode {
   path?: string;
   blockID?: string;
   source?: string;
+  schemaType?: SchemaType;
   children?: VariableTreeNode[];
 }

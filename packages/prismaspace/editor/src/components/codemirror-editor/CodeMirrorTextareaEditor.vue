@@ -25,6 +25,7 @@ const props = withDefaults(defineProps<CodeMirrorTextareaEditorProps>(), {
   autofocus: false,
   language: "json",
   extensions: undefined,
+  bare: false,
   minRows: 1,
   maxRows: undefined,
 });
@@ -40,7 +41,13 @@ const emit = defineEmits<{
 }>();
 
 const editorRef = ref<CodeMirrorEditorExpose>();
-const editorHeight = ref(resolveEditorTextareaHeight(0, props.fontSize, props.minRows, props.maxRows));
+const resolvedHorizontalPadding = computed(() => (props.bare ? 8 : EDITOR_TEXTAREA_PADDING_X_PX));
+const resolvedVerticalPadding = computed(() =>
+  props.bare ? 8 : EDITOR_TEXTAREA_PADDING_TOP_PX + EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
+);
+const editorHeight = ref(
+  resolveEditorTextareaHeight(0, props.fontSize, props.minRows, props.maxRows, resolvedVerticalPadding.value),
+);
 
 const textareaThemeExtension = computed<Extension>(() =>
   CmEditorView.theme({
@@ -57,7 +64,7 @@ const textareaThemeExtension = computed<Extension>(() =>
     },
     ".cm-content": {
       minHeight: "100%",
-      padding: `${EDITOR_TEXTAREA_PADDING_TOP_PX}px ${EDITOR_TEXTAREA_PADDING_X_PX}px ${EDITOR_TEXTAREA_PADDING_BOTTOM_PX}px`,
+      padding: `${props.bare ? 4 : EDITOR_TEXTAREA_PADDING_TOP_PX}px ${resolvedHorizontalPadding.value}px ${props.bare ? 4 : EDITOR_TEXTAREA_PADDING_BOTTOM_PX}px`,
       caretColor: "currentColor",
     },
     ".cm-line": {
@@ -73,6 +80,9 @@ const textareaThemeExtension = computed<Extension>(() =>
     ".cm-placeholder": {
       color: "hsl(var(--muted-foreground))",
     },
+    ".cm-cursor": {
+      borderLeftWidth: props.bare ? "1px" : "2px",
+    },
   }),
 );
 
@@ -87,7 +97,11 @@ const mergedExtensions = computed<Extension[]>(() => {
 });
 
 const rootClass = computed(() =>
-  cn("codemirror-textarea-editor-root", EDITOR_TEXTAREA_SHELL_CLASS, "bg-background dark:bg-input/30"),
+  cn(
+    "codemirror-textarea-editor-root",
+    props.bare ? "bg-transparent shadow-none border-0 rounded-none ring-0" : EDITOR_TEXTAREA_SHELL_CLASS,
+    props.bare ? "" : "bg-background dark:bg-input/30",
+  ),
 );
 
 const rootStyle = computed(() => ({
@@ -99,7 +113,13 @@ const containerHeight = computed(() => `${editorHeight.value}px`);
 function syncEditorHeight(view?: EditorView) {
   const currentView = view ?? editorRef.value?.getView();
   const contentHeight = currentView?.contentHeight ?? 0;
-  editorHeight.value = resolveEditorTextareaHeight(contentHeight, props.fontSize, props.minRows, props.maxRows);
+  editorHeight.value = resolveEditorTextareaHeight(
+    contentHeight,
+    props.fontSize,
+    props.minRows,
+    props.maxRows,
+    resolvedVerticalPadding.value,
+  );
 }
 
 function handleReady(payload: CodeMirrorEditorReadyPayload) {

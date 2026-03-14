@@ -38,6 +38,7 @@ import {
   resolveRegularDetailVisibility,
   resolveRegularInlineVisibility,
 } from "./mode";
+import { findVariableTreeNodeByRef, getNodeChildren } from "./runtime-editor-utils";
 import SchemaCompactRuntimeRow from "./SchemaCompactRuntimeRow.vue";
 import { ScrollArea, ScrollBar } from "@prismaspace/ui-shadcn/components/ui/scroll-area";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
@@ -101,7 +102,8 @@ const rootChildren = computed(() => props.state.tree.children ?? []);
 const canUndo = computed(() => props.state.undoStack.length > 0);
 const canRedo = computed(() => props.state.redoStack.length > 0);
 const validation = computed(() => validateTree(props.state.tree));
-const allIssues = computed(() => [...validation.value.issues, ...localIssues.value]);
+const runtimeValueIssues = computed(() => collectRuntimeValueIssues(props.state.tree));
+const allIssues = computed(() => [...validation.value.issues, ...runtimeValueIssues.value, ...localIssues.value]);
 const issueCount = computed(() => allIssues.value.length);
 
 const inlineVisibility = computed<ParamSchemaRegularInlineVisibility>(() =>
@@ -113,10 +115,11 @@ const detailVisibility = computed<ParamSchemaRegularDetailVisibility>(() =>
 const layout = computed<CompactRuntimeLayout>(() =>
   resolveCompactLayout(runtimeMode.value, layoutWidth.value, inlineVisibility.value),
 );
+const showTreeAffordance = computed(() => hasAnyNestedChildren(props.state.tree));
 const expandedSet = computed(() => new Set(treeExpandedIds.value));
 const contentMinWidth = computed(() => {
   const depth = collectVisibleMaxDepth(props.state.tree, expandedSet.value);
-  const treeIndentWidth = 20 + depth * 15;
+  const treeIndentWidth = showTreeAffordance.value ? 20 + depth * 15 : 0;
   const nameInputMin = layout.value.density === "xs" ? 76 : 92;
   const typeMin = layout.value.inlineType ? (layout.value.density === "xs" ? 84 : 96) : 0;
   const valueMin =
@@ -130,7 +133,7 @@ const contentMinWidth = computed(() => {
           : 116
         : 0;
   const requiredMin = layout.value.inlineRequired ? 34 : 0;
-  const actionsMin = layout.value.actionButtons > 1 ? 54 : layout.value.actionButtons === 1 ? 34 : 0;
+  const actionsMin = layout.value.actionButtons > 1 ? 46 : layout.value.actionButtons === 1 ? 28 : 0;
   return treeIndentWidth + nameInputMin + typeMin + valueMin + requiredMin + actionsMin + 22;
 });
 const modeLabel = computed(() => {
@@ -150,7 +153,7 @@ const headerLabels = computed(() => {
   if (layout.value.actionButtons > 0) labels.push({ key: "actions", label: "" });
   return labels;
 });
-const headerNamePadding = computed(() => `${8 + TREE_BASE_RAIL + 9}px`);
+const headerNamePadding = computed(() => (showTreeAffordance.value ? `${8 + TREE_BASE_RAIL + 9}px` : "8px"));
 
 const showHeader = computed(() => runtimeMode.value !== "read");
 const canAddRoot = computed(() => {
@@ -253,7 +256,7 @@ function scheduleOverlayMeasure() {
 
 function measureOverlayPaths() {
   const layer = treeLayerRef.value;
-  if (!layer) {
+  if (!layer || !showTreeAffordance.value) {
     overlayPaths.value = [];
     return;
   }
@@ -269,8 +272,8 @@ function measureOverlayPaths() {
     const rowRect = registration.el.getBoundingClientRect();
     const parentRect = parent.el.getBoundingClientRect();
 
-    const childX = rowRect.left - layerRect.left + 8 + TREE_BASE_RAIL + registration.level * TREE_INDENT;
-    const parentX = parentRect.left - layerRect.left + 8 + TREE_BASE_RAIL + parent.level * TREE_INDENT;
+    const childX = rowRect.left - layerRect.left + registration.branchCenterX;
+    const parentX = parentRect.left - layerRect.left + parent.branchCenterX;
     const childY = rowRect.top - layerRect.top + rowRect.height / 2;
     const parentY = parentRect.top - layerRect.top + parentRect.height / 2;
 
@@ -328,7 +331,7 @@ function resolveCompactLayout(
   }
 
   if (actionButtons > 0) {
-    columns.push(density === "xs" || density === "sm" ? "68px" : "72px");
+    columns.push(density === "xs" || density === "sm" ? "56px" : "64px");
   }
 
   if (mode === "read") {
@@ -513,6 +516,15 @@ function collectVisibleMaxDepth(node: SchemaNode, expanded: Set<string>, level =
   return maxDepth;
 }
 
+function hasAnyNestedChildren(node: SchemaNode): boolean {
+  const children = getNodeChildren(node);
+  for (const child of children) {
+    if (getNodeChildren(child).length > 0) return true;
+    if (hasAnyNestedChildren(child)) return true;
+  }
+  return false;
+}
+
 function findPathToNode(root: SchemaNode, targetId: string): string[] {
   const path: string[] = [];
   const walk = (node: SchemaNode): boolean => {
@@ -635,6 +647,43 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
     children: undefined,
     item: nextItem,
   });
+}
+
+function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
+  const issues: SchemaIssue[] = [];
+
+  const walk = (node: SchemaNode, path: string) => {
+    if (node.value?.type === "ref") {
+      const refNode = findVariableTreeNodeByRef(props.valueRefTree, node.value.content);
+      if (!refNode) {
+        issues.push({
+          level: "error",
+          code: "value-ref-missing",
+          message: "Referenced variable no longer exists.",
+          nodeId: node.id,
+          path,
+        });
+      } else if (refNode.schemaType && refNode.schemaType !== node.type) {
+        issues.push({
+          level: "error",
+          code: "value-ref-type-mismatch",
+          message: `Referenced variable type ${refNode.schemaType} does not match schema type ${node.type}.`,
+          nodeId: node.id,
+          path,
+        });
+      }
+    }
+
+    if (node.children?.length) {
+      node.children.forEach((child, index) => walk(child, `${path}.properties[${index}]`));
+    }
+    if (node.item) {
+      walk(node.item, `${path}.items`);
+    }
+  };
+
+  walk(root, "root");
+  return issues;
 }
 </script>
 
@@ -787,6 +836,7 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
             :selected-id="props.state.selection.nodeId"
             :tree-expanded-ids="treeExpandedIds"
             :detail-open-ids="detailOpenIds"
+            :show-tree-affordance="showTreeAffordance"
             :layout="layout"
             :inline-visibility="inlineVisibility"
             :detail-visibility="detailVisibility"

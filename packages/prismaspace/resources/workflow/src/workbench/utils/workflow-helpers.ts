@@ -442,6 +442,7 @@ export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
       path: string
       blockID: string
       source?: string
+      schemaType?: WorkflowParameterSchema['type']
     }>
   }>()
 
@@ -458,6 +459,7 @@ export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
       path: entry.path,
       blockID: entry.nodeId,
       source: entry.refValue.content.source,
+      schemaType: entry.schema.type,
     })
     nodeMap.set(entry.nodeId, group)
   })

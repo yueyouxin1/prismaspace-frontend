@@ -79,8 +79,8 @@ const DEFAULT_REGULAR_DETAIL_VISIBILITY: Record<
     enum: false,
     meta: false,
     open: false,
-    value: true,
-    arrayItemType: true,
+    value: false,
+    arrayItemType: false,
   },
   bind: {
     default: false,
@@ -90,8 +90,8 @@ const DEFAULT_REGULAR_DETAIL_VISIBILITY: Record<
     enum: false,
     meta: false,
     open: false,
-    value: true,
-    arrayItemType: true,
+    value: false,
+    arrayItemType: false,
   },
   default: {
     default: true,
@@ -209,11 +209,11 @@ export function canEditFieldInMode(mode: ParamSchemaRuntimeMode, field: SchemaEd
   }
 
   if (mode === "bind") {
-    return field === "value";
+    return field === "type" || field === "value";
   }
 
   if (mode === "refine") {
-    return field === "name" || field === "value";
+    return field === "name" || field === "type" || field === "value";
   }
 
   return false;

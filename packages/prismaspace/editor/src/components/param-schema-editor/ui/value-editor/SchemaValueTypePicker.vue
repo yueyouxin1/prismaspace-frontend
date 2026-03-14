@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { SchemaNode, SchemaType } from "../core";
+import type { SchemaNode, SchemaType } from "../../core";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,37 +11,32 @@ import {
 } from "@prismaspace/ui-shadcn/components/ui/dropdown-menu";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
 import { ChevronDown } from "lucide-vue-next";
-import { schemaTypeLabelMap, schemaTypeShortLabelMap } from "./runtime-editor-utils";
+import { schemaTypeLabelMap, schemaTypeShortLabelMap } from "../runtime-editor-utils";
 
 const props = withDefaults(
   defineProps<{
     node: SchemaNode;
+    valueMode: SchemaType | "expr";
     disabled?: boolean;
-    class?: string;
-    compact?: boolean;
   }>(),
   {
     disabled: false,
-    class: "",
-    compact: false,
   },
 );
 
 const emit = defineEmits<{
-  (event: "change", payload: { nextType: SchemaType; itemType?: SchemaType }): void;
+  (event: "change", payload: { nextType: SchemaType | "expr"; itemType?: SchemaType }): void;
 }>();
 
 const baseTypes: SchemaType[] = ["string", "integer", "number", "boolean", "object"];
 const arrayItemTypes: SchemaType[] = ["string", "integer", "number", "boolean", "object", "array"];
 
-const displayLabel = computed(() => {
-  if (props.node.type !== "array") {
-    return `${schemaTypeShortLabelMap[props.node.type]} ${schemaTypeLabelMap[props.node.type]}`;
-  }
-
+function getDisplayLabel() {
+  if (props.valueMode === "expr") return "expr";
+  if (props.node.type !== "array") return schemaTypeShortLabelMap[props.node.type];
   const itemType = props.node.item?.type ?? "string";
-  return `${schemaTypeShortLabelMap[itemType]} Array<${schemaTypeLabelMap[itemType]}>`;
-});
+  return `[${schemaTypeShortLabelMap[itemType].replace(".", "")}]`;
+}
 
 function onSelectBaseType(type: SchemaType) {
   emit("change", { nextType: type });
@@ -51,6 +45,10 @@ function onSelectBaseType(type: SchemaType) {
 function onSelectArrayType(itemType: SchemaType) {
   emit("change", { nextType: "array", itemType });
 }
+
+function onSelectExpr() {
+  emit("change", { nextType: "expr" });
+}
 </script>
 
 <template>
@@ -58,21 +56,20 @@ function onSelectArrayType(itemType: SchemaType) {
     <DropdownMenuTrigger as-child>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         :disabled="disabled"
-        :class="[
-          compact
-            ? 'h-7 w-full justify-between rounded-[9px] border-[#dddce6] bg-white px-1.5 text-[12px] font-normal text-[#373a48] shadow-none'
-            : 'h-8 w-full justify-between rounded-[10px] border-[#dddce6] bg-white px-2 text-[12px] font-normal text-[#373a48] shadow-none',
-          props.class,
-        ]"
+        class="h-auto min-h-7 min-w-[40px] max-w-[46px] shrink-0 self-stretch justify-between gap-0 rounded-none border-0 bg-[#f5f4fa] px-0.5 text-[11px] font-medium text-[#66687b] shadow-none hover:bg-[#efedf8] focus-visible:ring-0"
       >
-        <span class="truncate text-left">{{ displayLabel }}</span>
-        <ChevronDown class="ml-1 size-3.5 shrink-0 text-[#8d8fa2]" />
+        <span class="truncate text-left">{{ getDisplayLabel() }}</span>
+        <ChevronDown class="size-3 shrink-0 text-[#8d8fa2]" />
       </Button>
     </DropdownMenuTrigger>
 
     <DropdownMenuContent align="start" class="min-w-[196px] rounded-[14px] border-[#e7e5ef] p-1.5">
+      <DropdownMenuItem class="rounded-[10px] px-3 py-2 text-[13px]" @select="onSelectExpr">
+        Expression
+      </DropdownMenuItem>
+
       <DropdownMenuItem
         v-for="type in baseTypes"
         :key="type"
@@ -93,7 +90,7 @@ function onSelectArrayType(itemType: SchemaType) {
             class="rounded-[10px] px-3 py-2 text-[13px]"
             @select="onSelectArrayType(type)"
           >
-            {{ schemaTypeLabelMap[type] }}
+            Array&lt;{{ schemaTypeLabelMap[type] }}&gt;
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>

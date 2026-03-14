@@ -13,11 +13,13 @@ import {
   canMutateStructureInMode,
 } from "./mode";
 import {
+  findVariableTreeNodeByRef,
   formatRuntimeValueSummary,
   getDefaultLiteral,
   getNodeChildren,
   getRuntimeValueKind,
   getSchemaTypeDisplay,
+  getVariableTreeNodeCaption,
   parseValueByType,
   schemaTypeLabelMap,
   schemaTypeShortLabelMap,
@@ -29,26 +31,18 @@ import { Textarea } from "@prismaspace/ui-shadcn/components/ui/textarea";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
 import { Checkbox } from "@prismaspace/ui-shadcn/components/ui/checkbox";
 import { Badge } from "@prismaspace/ui-shadcn/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@prismaspace/ui-shadcn/components/ui/popover";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@prismaspace/ui-shadcn/components/ui/dropdown-menu";
+import { Field, FieldError } from "@prismaspace/ui-shadcn/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@prismaspace/ui-shadcn/components/ui/select";
 import {
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
-  Hexagon,
   Info,
-  Link2,
   Minus,
   Plus,
 } from "lucide-vue-next";
-import SchemaValueRefTreePanel from "./SchemaValueRefTreePanel.vue";
 import SchemaTypePicker from "./SchemaTypePicker.vue";
+import SchemaInlineValueEditor from "./value-editor/SchemaInlineValueEditor.vue";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT } from "./tree-visuals";
 import { MonacoEditor, MonacoTextareaEditor } from "../../monaco-editor";
 
@@ -66,6 +60,7 @@ const props = defineProps<{
   selectedId: string | null;
   treeExpandedIds: string[];
   detailOpenIds: string[];
+  showTreeAffordance: boolean;
   layout: CompactRuntimeLayout;
   inlineVisibility: ParamSchemaRegularInlineVisibility;
   detailVisibility: ParamSchemaRegularDetailVisibility;
@@ -111,6 +106,16 @@ const isExpanded = computed(() => props.treeExpandedIds.includes(props.node.id))
 const isDetailOpen = computed(() => props.detailOpenIds.includes(props.node.id));
 const isAccessible = computed(() => (props.canEdit ? props.canEdit(props.node) : true));
 const nodeIssues = computed(() => props.issues.filter((issue) => issue.nodeId === props.node.id));
+const nameFieldIssues = computed(() =>
+  nodeIssues.value.filter((issue) =>
+    issue.code === "property-name-missing" || issue.code === "property-name-duplicate" || issue.code === "property-name-duplicate-global",
+  ),
+);
+const valueFieldIssues = computed(() =>
+  nodeIssues.value.filter((issue) =>
+    issue.code === "value-type-mismatch" || issue.code === "value-ref-missing" || issue.code === "value-ref-type-mismatch",
+  ),
+);
 
 const canEditName = computed(() => isProperty.value && isAccessible.value && canEditFieldInMode(props.mode, "name"));
 const canEditType = computed(() => isAccessible.value && canEditFieldInMode(props.mode, "type"));
@@ -138,8 +143,7 @@ const canAddChild = computed(() => {
 });
 const canDelete = computed(() => isProperty.value && canMutateStructure.value);
 const currentBranchX = computed(() => TREE_BASE_RAIL + props.level * TREE_INDENT);
-const parentBranchX = computed(() => (props.level > 0 ? TREE_BASE_RAIL + (props.level - 1) * TREE_INDENT : 0));
-const treeRailWidth = computed(() => currentBranchX.value + 9);
+const treeRailWidth = computed(() => (props.showTreeAffordance ? currentBranchX.value + 9 : 0));
 const showSubtreeBody = computed(() => isDetailOpen.value || (hasChildren.value && isExpanded.value));
 const rowShellRef = ref<HTMLElement | null>(null);
 const overlayApi = inject(schemaTreeOverlayKey, null);
@@ -151,6 +155,12 @@ const nodeTitle = computed(() => {
 });
 const typeDisplay = computed(() => getSchemaTypeDisplay(props.node));
 const currentValueKind = computed(() => getRuntimeValueKind(props.node.value));
+const currentRefNode = computed(() =>
+  props.node.value?.type === "ref" ? findVariableTreeNodeByRef(props.valueRefTree, props.node.value.content) : null,
+);
+const inlineValueMode = computed<SchemaType | "expr">(() =>
+  currentValueKind.value === "expr" ? "expr" : props.node.type,
+);
 const useCompactTextareaMode = computed(() => props.layout.density === "xs" || props.layout.density === "sm");
 const compactTextareaRows = computed(() => (useCompactTextareaMode.value ? 1 : undefined));
 const autoTextareaClass = computed(() =>
@@ -158,6 +168,31 @@ const autoTextareaClass = computed(() =>
     ? "min-h-0 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
     : "min-h-[96px] rounded-[12px] border-[#dddce6] bg-white text-[12px]",
 );
+const showInlineValueTypeSelect = computed(() => props.mode === "bind" || props.mode === "refine");
+const showInlineValueRefTrigger = computed(() => props.mode === "bind" || props.mode === "refine");
+const hasReferenceSelection = computed(
+  () => props.node.value?.type === "ref" && Boolean(props.node.value.content.blockID || props.node.value.content.path),
+);
+const inlineRefTypeMismatch = computed(() => {
+  if (props.node.value?.type !== "ref") return null;
+  if (!hasReferenceSelection.value) return null;
+  if (!currentRefNode.value) return "引用变量不存在。";
+  if (!currentRefNode.value.schemaType || currentRefNode.value.schemaType === props.node.type) return null;
+  return `引用变量类型 ${currentRefNode.value.schemaType} 与当前类型 ${props.node.type} 不匹配。`;
+});
+const inlineMissingValueMessage = computed(() => {
+  if (props.mode !== "bind" && props.mode !== "refine") return null;
+  const value = props.node.value;
+  if (!value) return "变量值不可为空。";
+  if (value.type === "ref") return null;
+  if (value.type === "expr") {
+    return value.content.trim() ? null : "变量值不可为空。";
+  }
+  if (props.node.type === "string") {
+    return typeof value.content === "string" && value.content.length === 0 ? "变量值不可为空。" : null;
+  }
+  return value.content === undefined ? "变量值不可为空。" : null;
+});
 const showInlineNameInput = computed(
   () => props.inlineVisibility.name && isProperty.value && props.mode !== "read" && props.mode !== "bind" && props.mode !== "default",
 );
@@ -203,6 +238,7 @@ const canEditInlineDefault = computed(() => {
 
 const defaultDisplay = computed(() => serializeJson(props.node.default));
 const inlineValueSummary = computed(() => formatRuntimeValueSummary(props.node.value));
+const currentRefCaption = computed(() => getVariableTreeNodeCaption(currentRefNode.value) || inlineValueSummary.value);
 const detailPanelOffset = computed(() => `${treeRailWidth.value + 8}px`);
 const hasExpandableDetail = computed(() => {
   return (
@@ -236,6 +272,13 @@ const defaultError = ref<string | null>(null);
 const enumError = ref<string | null>(null);
 const metaError = ref<string | null>(null);
 const refPickerOpen = ref(false);
+const inlineValueValidationMessage = computed(
+  () => valueError.value ?? inlineRefTypeMismatch.value ?? inlineMissingValueMessage.value,
+);
+const inlineValueErrors = computed(() => [
+  ...valueFieldIssues.value.map((issue) => issue.message),
+  ...(inlineValueValidationMessage.value ? [inlineValueValidationMessage.value] : []),
+]);
 
 watch(
   () => [props.node.id, props.node.name, props.node.default, props.node.value, props.node.description, props.node.label, props.node.enum, props.node.meta] as const,
@@ -403,22 +446,40 @@ function onDeleteNode() {
   emit("delete-node", props.node.id);
 }
 
-function onValueModeChange(next: "literal" | "expr" | "ref" | "unset") {
+function syncNodeType(nextType: SchemaType, itemType?: SchemaType) {
+  if (!canEditType.value) return;
+  if (
+    props.node.type === nextType
+    && (nextType !== "array" || !itemType || props.node.item?.type === itemType)
+  ) {
+    return;
+  }
+  emit("change-type", { nodeId: props.node.id, nextType, itemType });
+}
+
+function onInlineValueModeChange(payload: { nextType: SchemaType | "expr"; itemType?: SchemaType }) {
+  if (payload.nextType === "expr") {
+    if (!canEditValue.value) return;
+    valueError.value = null;
+    emitField("value", { type: "expr", content: valueExprDraft.value ?? "" });
+    return;
+  }
+
+  if (!schemaTypes.includes(payload.nextType as SchemaType)) return;
+  const nextType = payload.nextType as SchemaType;
+  syncNodeType(nextType, payload.itemType);
   if (!canEditValue.value) return;
   valueError.value = null;
-  if (next === "unset") {
-    emitField("value", undefined);
+
+  if (props.node.value?.type === "ref") {
     return;
   }
-  if (next === "literal") {
-    emitField("value", { type: "literal", content: getDefaultLiteral(props.node.type) });
-    return;
+
+  if (!props.node.value || props.node.value.type !== "literal") {
+    const nextLiteral = getDefaultLiteral(nextType);
+    valueLiteralDraft.value = serializeJson(nextLiteral);
+    emitField("value", { type: "literal", content: nextLiteral });
   }
-  if (next === "expr") {
-    emitField("value", { type: "expr", content: "" });
-    return;
-  }
-  emitField("value", { type: "ref", content: { blockID: "", path: "" } });
 }
 
 function commitValueLiteral(raw = valueLiteralDraft.value) {
@@ -457,9 +518,23 @@ function commitValueRefField(field: keyof ValueRefContent, raw: string) {
 
 function onPickReference(ref: ValueRefContent) {
   refPickerOpen.value = false;
-  commitValueRefField("blockID", ref.blockID);
-  commitValueRefField("path", ref.path);
-  commitValueRefField("source", ref.source ?? "");
+  valueError.value = null;
+  const refNode = findVariableTreeNodeByRef(props.valueRefTree, ref);
+  if (refNode?.schemaType) {
+    syncNodeType(refNode.schemaType);
+  }
+  emitField("value", { type: "ref", content: ref });
+}
+
+function onOpenReferencePicker() {
+  if (!canEditValue.value || !props.valueRefTree?.length) return;
+  refPickerOpen.value = true;
+}
+
+function clearReferenceSelection() {
+  if (!canEditValue.value) return;
+  valueError.value = null;
+  emitField("value", undefined);
 }
 
 function onInlineValueCommit(event?: KeyboardEvent) {
@@ -512,16 +587,13 @@ function onDetailBooleanDefaultChange(value: string) {
   emitField("default", value === BOOLEAN_TRUE);
 }
 
-function isIssueError(issue: SchemaIssue) {
-  return issue.level === "error";
-}
-
 function syncOverlayRegistration() {
   if (!overlayApi || !rowShellRef.value) return;
   overlayApi.registerRow({
     id: props.node.id,
     parentId: props.parentNodeId ?? null,
     level: props.level,
+    branchCenterX: props.showTreeAffordance ? 4 + currentBranchX.value : 0,
     el: rowShellRef.value,
   });
 }
@@ -563,73 +635,70 @@ watch(
       :style="{ gridTemplateColumns: layout.gridTemplate }"
       @click="onSelectRow"
     >
-      <div class="relative z-20 px-2 py-1.5">
-        <div class="relative min-h-8 min-w-0" :style="{ paddingLeft: `${treeRailWidth}px` }">
-          <div class="absolute inset-y-0 left-0" :style="{ width: `${treeRailWidth}px` }">
-            <button
-              type="button"
-              :disabled="!hasChildren"
-              class="absolute top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-[7px] text-[#7d7c92] disabled:opacity-40"
-              :style="{ left: `${currentBranchX - 10}px` }"
-              @click.stop="toggleTree"
-            >
-              <ChevronDown v-if="hasChildren && isExpanded" class="size-3.5" />
-              <ChevronRight v-else-if="hasChildren" class="size-3.5" />
-              <span v-else class="size-3.5" />
-            </button>
+      <div class="relative z-20 px-1 py-1">
+        <Field :data-invalid="nameFieldIssues.length ? true : undefined" class="gap-1">
+          <div class="relative min-h-8 min-w-0" :style="{ paddingLeft: `${treeRailWidth}px` }">
+            <div v-if="showTreeAffordance" class="absolute inset-y-0 left-0" :style="{ width: `${treeRailWidth}px` }">
+              <button
+                type="button"
+                :disabled="!hasChildren"
+                class="absolute top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-[7px] text-[#7d7c92] disabled:opacity-40"
+                :style="{ left: `${currentBranchX - 10}px` }"
+                @click.stop="toggleTree"
+              >
+                <ChevronDown v-if="hasChildren && isExpanded" class="size-3.5" />
+                <ChevronRight v-else-if="hasChildren" class="size-3.5" />
+                <span v-else class="size-3.5" />
+              </button>
+            </div>
+
+            <div class="flex min-h-7 min-w-0 items-center gap-1">
+              <Input
+                v-if="showInlineNameInput"
+                v-model="nameDraft"
+                :disabled="!canEditName"
+                class="h-7 min-w-0 w-full flex-1 rounded-[9px] border-[#dddce6] bg-white px-2 text-[13px]"
+                placeholder="变量名"
+                @click.stop
+                @blur="commitName"
+                @keydown.enter.prevent="commitName"
+              />
+              <span
+                v-else
+                class="min-w-0 flex-1 truncate text-[13px] font-medium text-[#2e3243]"
+                :title="nodeTitle"
+              >
+                {{ nodeTitle }}
+              </span>
+
+              <button
+                v-if="props.node.description"
+                type="button"
+                class="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[#9a9bad] hover:bg-white"
+                :title="props.node.description"
+                @click.stop
+              >
+                <Info class="size-3.5" />
+              </button>
+
+              <Badge
+                v-if="showTypeBadge"
+                variant="secondary"
+                class="rounded-full bg-[#f3f3f8] px-1 py-0 text-[11px] font-medium text-[#6f7083]"
+              >
+                {{ typeDisplay }}
+              </Badge>
+            </div>
           </div>
-
-          <div class="flex min-h-7 min-w-0 items-center gap-1.5">
-            <Input
-              v-if="showInlineNameInput"
-              v-model="nameDraft"
-              :disabled="!canEditName"
-              class="h-7 min-w-0 w-full flex-1 rounded-[9px] border-[#dddce6] bg-white px-2 text-[13px]"
-              placeholder="变量名"
-              @click.stop
-              @blur="commitName"
-              @keydown.enter.prevent="commitName"
-            />
-            <span
-              v-else
-              class="min-w-0 flex-1 truncate text-[13px] font-medium text-[#2e3243]"
-              :title="nodeTitle"
-            >
-              {{ nodeTitle }}
-            </span>
-
-            <button
-              v-if="props.node.description"
-              type="button"
-              class="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[#9a9bad] hover:bg-white"
-              :title="props.node.description"
-              @click.stop
-            >
-              <Info class="size-3.5" />
-            </button>
-
-            <Badge
-              v-if="showTypeBadge"
-              variant="secondary"
-              class="rounded-full bg-[#f3f3f8] px-1.5 py-0 text-[11px] font-medium text-[#6f7083]"
-            >
-              {{ typeDisplay }}
-            </Badge>
-
-            <span
-              v-if="nodeIssues.length"
-              :class="[
-                'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold',
-                nodeIssues.some(isIssueError) ? 'bg-[#ffe8e9] text-[#d14f5c]' : 'bg-[#fff4db] text-[#bf8a29]',
-              ]"
-            >
-              {{ nodeIssues.length }}
-            </span>
-          </div>
-        </div>
+          <FieldError
+            v-if="nameFieldIssues.length"
+            :errors="nameFieldIssues.map((issue) => issue.message)"
+            class="px-1 text-[10px] leading-4"
+          />
+        </Field>
       </div>
 
-      <div v-if="showInlineType" class="relative z-20 px-1 py-1.5" @click.stop>
+      <div v-if="showInlineType" class="relative z-20 px-0.5 py-1" @click.stop>
         <SchemaTypePicker
           :node="props.node"
           :disabled="!canEditType"
@@ -640,129 +709,39 @@ watch(
 
       <div
         v-if="showInlineValue"
-        class="relative z-20 px-1 py-1.5"
+        class="relative z-20 px-0.5 py-1"
         @click.stop
       >
-        <div class="flex min-h-7 items-center gap-1 rounded-[9px] border border-[#dddce6] bg-white px-1">
-          <span class="inline-flex shrink-0 items-center rounded-[8px] bg-[#f5f4fa] px-1.5 py-1 text-[11px] font-medium text-[#66687b]">
-            {{ schemaTypeShortLabelMap[props.node.type] }}
-          </span>
-
-          <Input
-            v-if="currentValueKind === 'literal' && (props.node.type === 'string' || props.node.type === 'number' || props.node.type === 'integer')"
-            v-model="valueLiteralDraft"
-            :disabled="!canEditValue"
-            class="h-6 min-w-0 border-0 bg-transparent px-1 text-[12px] shadow-none focus-visible:ring-0"
-            :placeholder="props.mode === 'refine' ? '输入或覆盖值' : '输入或引用参数值'"
-            @blur="commitValueLiteral"
-            @keydown.enter="onInlineValueCommit"
-          />
-
-          <Select
-            v-else-if="currentValueKind === 'literal' && props.node.type === 'boolean'"
-            :disabled="!canEditValue"
-            :model-value="valueLiteralDraft || UNSET"
-            @update:model-value="commitValueLiteral($event === UNSET ? '' : String($event))"
-          >
-            <SelectTrigger class="h-6 min-w-0 border-0 bg-transparent px-1 text-[12px] shadow-none focus-visible:ring-0">
-              <SelectValue placeholder="布尔值" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem :value="UNSET">未设置</SelectItem>
-              <SelectItem value="true">true</SelectItem>
-              <SelectItem value="false">false</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <button
-            v-else-if="currentValueKind === 'ref'"
-            type="button"
-            class="flex min-w-0 flex-1 items-center gap-1 rounded-[7px] bg-[#f6f3ff] px-2 py-1 text-left text-[12px] text-[#5848a5]"
-            :disabled="!canEditValue"
-            @click="refPickerOpen = true"
-          >
-            <Link2 class="size-3.5 shrink-0" />
-            <span class="truncate">
-              {{ inlineValueSummary || "选择变量引用" }}
-            </span>
-          </button>
-
-          <Input
-            v-else-if="currentValueKind === 'expr'"
-            v-model="valueExprDraft"
-            :disabled="!canEditValue"
-            class="h-6 min-w-0 border-0 bg-transparent px-1 text-[12px] shadow-none focus-visible:ring-0"
-            placeholder="输入表达式"
-            @blur="commitValueExpr"
-            @keydown.enter="onInlineValueCommit"
-          />
-
-          <button
-            v-else
-            type="button"
-            class="flex min-w-0 flex-1 items-center rounded-[8px] px-2 py-1 text-left text-[12px] text-[#9899a8]"
-            :disabled="!canEditValue"
-            @click="onValueModeChange('literal')"
-          >
-            点击输入值
-          </button>
-
-          <Popover v-model:open="refPickerOpen">
-            <PopoverTrigger as-child>
-              <Button
-                v-if="currentValueKind === 'ref'"
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                class="size-6 shrink-0 rounded-[7px] text-[#6053ad]"
-              >
-                <Link2 class="size-3.5" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              side="bottom"
-              :side-offset="6"
-              class="flex h-[360px] w-[min(520px,calc(100vw-24px))] flex-col rounded-[18px] border-[#e9e7f1] p-3"
-            >
-              <SchemaValueRefTreePanel
-                :tree="valueRefTree || []"
-                :model-value="props.node.value?.type === 'ref' ? props.node.value.content : null"
-                class="min-h-0 flex-1"
-                @select="onPickReference"
-                @request-close="refPickerOpen = false"
-              >
-                <template v-if="$slots['value-ref-picker']" #tree-panel="slotProps">
-                  <slot name="value-ref-picker" v-bind="slotProps" />
-                </template>
-              </SchemaValueRefTreePanel>
-            </PopoverContent>
-          </Popover>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                class="size-6 shrink-0 rounded-[7px] text-[#7c7d90]"
-              >
-                <Hexagon class="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" class="min-w-[140px]">
-              <DropdownMenuItem @select="onValueModeChange('literal')">字面量</DropdownMenuItem>
-              <DropdownMenuItem @select="onValueModeChange('expr')">表达式</DropdownMenuItem>
-              <DropdownMenuItem @select="onValueModeChange('ref')">变量引用</DropdownMenuItem>
-              <DropdownMenuItem @select="onValueModeChange('unset')">清空</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <SchemaInlineValueEditor
+          :node="props.node"
+          :mode="mode"
+          :value-kind="currentValueKind"
+          :value-mode="inlineValueMode"
+          :literal-draft="valueLiteralDraft"
+          :expr-draft="valueExprDraft"
+          :can-edit-type="canEditType"
+          :can-edit-value="canEditValue"
+          :current-ref="props.node.value?.type === 'ref' ? props.node.value.content : null"
+          :current-ref-caption="currentRefCaption"
+          :value-ref-tree="valueRefTree"
+          :errors="inlineValueErrors"
+          @change-type="onInlineValueModeChange($event)"
+          @update:literalDraft="valueLiteralDraft = $event"
+          @update:exprDraft="valueExprDraft = $event"
+          @commit-literal="commitValueLiteral(typeof $event === 'string' ? $event : valueLiteralDraft)"
+          @commit-expr="commitValueExpr(typeof $event === 'string' ? $event : valueExprDraft)"
+          @select-reference="onPickReference"
+          @clear-reference="clearReferenceSelection"
+        >
+          <template v-if="$slots['value-ref-picker']" #value-ref-picker="slotProps">
+            <slot name="value-ref-picker" v-bind="slotProps" />
+          </template>
+        </SchemaInlineValueEditor>
       </div>
 
       <div
         v-if="showInlineDefault"
-        class="relative z-20 px-1 py-1.5"
+        class="relative z-20 px-0.5 py-1"
         @click.stop
       >
         <Input
@@ -807,7 +786,7 @@ watch(
 
       <div
         v-if="layout.inlineRequired"
-        class="relative z-20 flex items-center justify-center px-1 py-1.5"
+        class="relative z-20 flex items-center justify-center px-0.5 py-1"
         @click.stop
       >
         <Checkbox
@@ -822,7 +801,7 @@ watch(
 
       <div
         v-if="layout.actionButtons > 0"
-        class="relative z-20 flex items-center justify-end gap-0.5 px-1 py-1.5"
+        class="relative z-20 flex items-center justify-end gap-0.5 px-0.5 py-1"
         @click.stop
       >
         <Button
@@ -1180,6 +1159,7 @@ watch(
             :selected-id="selectedId"
             :tree-expanded-ids="treeExpandedIds"
             :detail-open-ids="detailOpenIds"
+            :show-tree-affordance="showTreeAffordance"
             :layout="layout"
             :inline-visibility="inlineVisibility"
             :detail-visibility="detailVisibility"

@@ -22,9 +22,9 @@ export function resolveEditorTextareaHeight(
   fontSize: number,
   minRows = 1,
   maxRows?: number,
+  verticalPadding = EDITOR_TEXTAREA_PADDING_TOP_PX + EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
 ): number {
   const lineHeight = resolveEditorTextareaLineHeight(fontSize);
-  const verticalPadding = EDITOR_TEXTAREA_PADDING_TOP_PX + EDITOR_TEXTAREA_PADDING_BOTTOM_PX;
   const minHeight = lineHeight * Math.max(1, minRows) + verticalPadding;
   const maxHeight =
     typeof maxRows === "number" && maxRows > 0 ? lineHeight * maxRows + verticalPadding : Number.POSITIVE_INFINITY;

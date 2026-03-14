@@ -7,6 +7,7 @@ export interface SchemaTreeOverlayRowRegistration {
   id: string;
   parentId: string | null;
   level: number;
+  branchCenterX: number;
   el: HTMLElement;
 }
 

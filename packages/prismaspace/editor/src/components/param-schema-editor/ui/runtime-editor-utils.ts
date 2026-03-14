@@ -22,6 +22,7 @@ export const schemaTypeShortLabelMap: Record<SchemaType, string> = {
 };
 
 export type RuntimeValueKind = "literal" | "expr" | "ref";
+export type RuntimeInlineValueMode = SchemaType | "expr";
 
 export function getNodeChildren(node: SchemaNode): SchemaNode[] {
   if (node.type === "object") return node.children ?? [];
@@ -122,4 +123,52 @@ export function cloneVariableTree(tree: VariableTreeNode[] | undefined | null): 
     ...node,
     children: cloneVariableTree(node.children),
   }));
+}
+
+export function buildValueRefKey(ref: ValueRefContent | null | undefined): string {
+  if (!ref) return "";
+  return `${ref.blockID ?? ""}::${ref.path ?? ""}::${ref.source ?? ""}`;
+}
+
+export function findVariableTreeNodeByRef(
+  tree: VariableTreeNode[] | undefined | null,
+  ref: ValueRefContent | null | undefined,
+): VariableTreeNode | null {
+  const targetKey = buildValueRefKey(ref);
+  if (!targetKey) return null;
+
+  const walk = (nodes: VariableTreeNode[]): VariableTreeNode | null => {
+    for (const node of nodes) {
+      const nodeRef =
+        node.blockID || node.path
+          ? {
+              blockID: node.blockID ?? "",
+              path: node.path ?? "",
+              source: node.source,
+            }
+          : null;
+      if (buildValueRefKey(nodeRef) === targetKey) {
+        return node;
+      }
+      const child = walk(node.children ?? []);
+      if (child) return child;
+    }
+    return null;
+  };
+
+  return walk(tree ?? []);
+}
+
+export function getVariableTreeNodeLabel(node: VariableTreeNode | null | undefined): string {
+  if (!node) return "";
+  return String(node.label ?? node.name ?? node.title ?? node.path ?? node.id ?? "").trim();
+}
+
+export function getVariableTreeNodeCaption(node: VariableTreeNode | null | undefined): string {
+  if (!node) return "";
+  const label = getVariableTreeNodeLabel(node);
+  const path = String(node.path ?? "").trim();
+  if (!label) return path;
+  if (!path || path === label) return label;
+  return `${label} · ${path}`;
 }

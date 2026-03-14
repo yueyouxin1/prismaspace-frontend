@@ -25,6 +25,7 @@ const props = withDefaults(defineProps<MonacoTextareaEditorProps>(), {
   autofocus: false,
   options: undefined,
   path: undefined,
+  bare: false,
   minRows: 1,
   maxRows: undefined,
 });
@@ -40,7 +41,16 @@ const emit = defineEmits<{
 }>();
 
 const editorRef = ref<MonacoEditorExpose>();
-const editorHeight = ref(resolveEditorTextareaHeight(0, props.fontSize, props.minRows, props.maxRows));
+const resolvedHorizontalPadding = computed(() => (props.bare ? 8 : EDITOR_TEXTAREA_PADDING_X_PX));
+const resolvedVerticalPadding = computed(() =>
+  props.bare ? 8 : EDITOR_TEXTAREA_PADDING_TOP_PX + EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
+);
+const resolvedLineHeight = computed(() =>
+  props.bare ? Math.max(16, Math.round(props.fontSize * 1.35)) : resolveEditorTextareaLineHeight(props.fontSize),
+);
+const editorHeight = ref(
+  resolveEditorTextareaHeight(0, props.fontSize, props.minRows, props.maxRows, resolvedVerticalPadding.value),
+);
 
 let contentSizeListener: monaco.IDisposable | undefined;
 
@@ -77,6 +87,7 @@ const resolvedOptions = computed<monaco.editor.IStandaloneEditorConstructionOpti
   snippetSuggestions: "none",
   scrollBeyondLastLine: false,
   suggestOnTriggerCharacters: false,
+  cursorWidth: props.bare ? 1 : props.options?.cursorWidth,
   scrollbar: {
     alwaysConsumeMouseWheel: false,
     handleMouseWheel: false,
@@ -88,16 +99,20 @@ const resolvedOptions = computed<monaco.editor.IStandaloneEditorConstructionOpti
   tabCompletion: "off",
   wordBasedSuggestions: "off",
   padding: {
-    top: EDITOR_TEXTAREA_PADDING_TOP_PX,
-    bottom: EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
+    top: props.bare ? 4 : EDITOR_TEXTAREA_PADDING_TOP_PX,
+    bottom: props.bare ? 4 : EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
     ...(props.options?.padding ?? {}),
   },
   wordWrap: "on",
-  lineHeight: resolveEditorTextareaLineHeight(props.fontSize),
+  lineHeight: resolvedLineHeight.value,
 }));
 
 const rootClass = computed(() =>
-  cn("monaco-textarea-editor-root", EDITOR_TEXTAREA_SHELL_CLASS, "bg-background dark:bg-input/30"),
+  cn(
+    "monaco-textarea-editor-root",
+    props.bare ? "bg-transparent shadow-none border-0 rounded-none ring-0" : EDITOR_TEXTAREA_SHELL_CLASS,
+    props.bare ? "" : "bg-background dark:bg-input/30",
+  ),
 );
 
 const rootStyle = computed(() => ({
@@ -109,7 +124,13 @@ const containerHeight = computed(() => `${editorHeight.value}px`);
 function syncEditorHeight() {
   const editor = editorRef.value?.getEditor();
   const contentHeight = editor?.getContentHeight() ?? 0;
-  editorHeight.value = resolveEditorTextareaHeight(contentHeight, props.fontSize, props.minRows, props.maxRows);
+  editorHeight.value = resolveEditorTextareaHeight(
+    contentHeight,
+    props.fontSize,
+    props.minRows,
+    props.maxRows,
+    resolvedVerticalPadding.value,
+  );
   nextTick(() => editor?.layout());
 }
 
@@ -151,7 +172,7 @@ defineExpose<MonacoTextareaEditorExpose>({
 
 <template>
   <div :class="rootClass" :style="rootStyle">
-    <div class="monaco-textarea-editor-inner" :style="{ paddingInline: `${EDITOR_TEXTAREA_PADDING_X_PX}px` }">
+    <div class="monaco-textarea-editor-inner" :style="{ paddingInline: `${resolvedHorizontalPadding}px` }">
       <MonacoEditor
         ref="editorRef"
         :model-value="modelValue"
