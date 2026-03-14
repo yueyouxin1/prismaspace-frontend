@@ -44,7 +44,7 @@ import {
 import SchemaTypePicker from "./SchemaTypePicker.vue";
 import SchemaInlineValueEditor from "./value-editor/SchemaInlineValueEditor.vue";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT } from "./tree-visuals";
-import { MonacoEditor, MonacoTextareaEditor } from "../../monaco-editor";
+import { MonacoTextareaEditor } from "../../monaco-editor";
 
 defineOptions({ name: "SchemaCompactRuntimeRow" });
 defineSlots<{
@@ -160,13 +160,6 @@ const currentRefNode = computed(() =>
 );
 const inlineValueMode = computed<SchemaType | "expr">(() =>
   currentValueKind.value === "expr" ? "expr" : props.node.type,
-);
-const useCompactTextareaMode = computed(() => props.layout.density === "xs" || props.layout.density === "sm");
-const compactTextareaRows = computed(() => (useCompactTextareaMode.value ? 1 : undefined));
-const autoTextareaClass = computed(() =>
-  useCompactTextareaMode.value
-    ? "min-h-0 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
-    : "min-h-[96px] rounded-[12px] border-[#dddce6] bg-white text-[12px]",
 );
 const showInlineValueTypeSelect = computed(() => props.mode === "bind" || props.mode === "refine");
 const showInlineValueRefTrigger = computed(() => props.mode === "bind" || props.mode === "refine");
@@ -850,20 +843,11 @@ watch(
         <div v-if="showDetailDefault" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">默认值</label>
           <MonacoTextareaEditor
-            v-if="useCompactTextareaMode && (props.node.type === 'object' || props.node.type === 'array')"
+            v-if="props.node.type === 'object' || props.node.type === 'array'"
             :model-value="defaultDraft"
             language="json"
             :font-size="12"
             :min-rows="1"
-            :readonly="!canEditDefault"
-            @update:modelValue="defaultDraft = $event"
-            @blur="commitDefault()"
-          />
-          <MonacoEditor
-            v-else-if="props.node.type === 'object' || props.node.type === 'array'"
-            :model-value="defaultDraft"
-            language="json"
-            height="180px"
             :readonly="!canEditDefault"
             @update:modelValue="defaultDraft = $event"
             @blur="commitDefault()"
@@ -912,9 +896,9 @@ watch(
           <label class="text-[11px] font-medium text-[#7f8094]">描述</label>
           <Textarea
             v-model="descriptionDraft"
-            :rows="compactTextareaRows"
+            :rows="1"
             :disabled="!canEditDescription"
-            :class="autoTextareaClass"
+            class="min-h-0 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
             placeholder="帮助描述此参数的用途"
             @blur="commitDescription"
           />
@@ -979,20 +963,10 @@ watch(
         <div v-if="showDetailEnum" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">枚举（JSON 数组）</label>
           <MonacoTextareaEditor
-            v-if="useCompactTextareaMode"
             :model-value="enumDraft"
             language="json"
             :font-size="12"
             :min-rows="1"
-            :readonly="!canEditEnum"
-            @update:modelValue="enumDraft = $event"
-            @blur="commitEnum"
-          />
-          <MonacoEditor
-            v-else
-            :model-value="enumDraft"
-            language="json"
-            height="180px"
             :readonly="!canEditEnum"
             @update:modelValue="enumDraft = $event"
             @blur="commitEnum"
@@ -1003,20 +977,10 @@ watch(
         <div v-if="showDetailMeta" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">Meta（JSON 对象）</label>
           <MonacoTextareaEditor
-            v-if="useCompactTextareaMode"
             :model-value="metaDraft"
             language="json"
             :font-size="12"
             :min-rows="1"
-            :readonly="!canEditMeta"
-            @update:modelValue="metaDraft = $event"
-            @blur="commitMeta"
-          />
-          <MonacoEditor
-            v-else
-            :model-value="metaDraft"
-            language="json"
-            height="180px"
             :readonly="!canEditMeta"
             @update:modelValue="metaDraft = $event"
             @blur="commitMeta"
@@ -1039,20 +1003,11 @@ watch(
         <div v-if="showDetailValueLiteral" class="col-span-full space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">值</label>
           <MonacoTextareaEditor
-            v-if="useCompactTextareaMode && (props.node.type === 'object' || props.node.type === 'array')"
+            v-if="props.node.type === 'object' || props.node.type === 'array'"
             :model-value="valueLiteralDraft"
             language="json"
             :font-size="12"
             :min-rows="1"
-            :readonly="!canEditValue"
-            @update:modelValue="valueLiteralDraft = $event"
-            @blur="commitValueLiteral()"
-          />
-          <MonacoEditor
-            v-else-if="props.node.type === 'object' || props.node.type === 'array'"
-            :model-value="valueLiteralDraft"
-            language="json"
-            height="180px"
             :readonly="!canEditValue"
             @update:modelValue="valueLiteralDraft = $event"
             @blur="commitValueLiteral()"
@@ -1088,9 +1043,9 @@ watch(
           <label class="text-[11px] font-medium text-[#7f8094]">表达式</label>
           <Textarea
             v-model="valueExprDraft"
-            :rows="compactTextareaRows"
+            :rows="1"
             :disabled="!canEditValue"
-            :class="autoTextareaClass"
+            class="min-h-0 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
             placeholder="{{ expression }}"
             @blur="commitValueExpr"
           />
