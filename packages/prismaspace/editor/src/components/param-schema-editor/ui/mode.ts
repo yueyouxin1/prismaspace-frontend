@@ -1,4 +1,4 @@
-export type ParamSchemaRuntimeMode = "define" | "refine" | "bind" | "default" | "read";
+export type ParamSchemaRuntimeMode = "define" | "refine" | "bind" | "read";
 export type SchemaEditorDensity = "compact" | "balanced" | "full";
 
 export type SchemaEditableField =
@@ -93,17 +93,6 @@ const DEFAULT_REGULAR_DETAIL_VISIBILITY: Record<
     value: false,
     arrayItemType: false,
   },
-  default: {
-    default: true,
-    description: false,
-    label: false,
-    role: false,
-    enum: false,
-    meta: false,
-    open: false,
-    value: false,
-    arrayItemType: true,
-  },
   read: {
     default: true,
     description: true,
@@ -160,19 +149,6 @@ const DEFAULT_PROFESSIONAL_DETAIL_VISIBILITY: Record<
     meta: false,
     value: true,
   },
-  default: {
-    name: true,
-    type: true,
-    label: false,
-    description: false,
-    required: false,
-    open: false,
-    role: false,
-    default: true,
-    enum: false,
-    meta: false,
-    value: false,
-  },
   read: {
     name: true,
     type: true,
@@ -203,10 +179,6 @@ export function canEditFieldInMode(mode: ParamSchemaRuntimeMode, field: SchemaEd
   if (mode === "read") return false;
 
   if (mode === "define") return true;
-
-  if (mode === "default") {
-    return field === "default";
-  }
 
   if (mode === "bind") {
     return field === "type" || field === "value";
@@ -244,28 +216,20 @@ export function resolveRegularInlineVisibility(
             actions: true,
           }
         : mode === "refine"
-          ? {
+        ? {
+            name: true,
+            type: false,
+            required: false,
+            valueField: "value",
+            actions: true,
+          }
+          : {
               name: true,
-              type: false,
-              required: false,
-              valueField: "value",
+              type: true,
+              required: true,
+              valueField: density === "lg" ? "default" : null,
               actions: true,
-            }
-          : mode === "default"
-            ? {
-                name: false,
-                type: false,
-                required: false,
-                valueField: "default",
-                actions: true,
-              }
-            : {
-                name: true,
-                type: true,
-                required: true,
-                valueField: density === "lg" ? "default" : null,
-                actions: true,
-              };
+            };
 
   return {
     ...baseVisibility,
@@ -314,15 +278,6 @@ export function resolveRuntimeColumns(
       name: true,
       type: density !== "compact",
       default: false,
-      required: false,
-      open: false,
-      actions: true,
-    };
-  } else if (mode === "default") {
-    columns = {
-      name: true,
-      type: density !== "compact",
-      default: true,
       required: false,
       open: false,
       actions: true,

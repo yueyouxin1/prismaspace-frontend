@@ -147,7 +147,6 @@ const modeLabel = computed(() => {
   if (runtimeMode.value === "define") return "Define";
   if (runtimeMode.value === "refine") return "Refine";
   if (runtimeMode.value === "bind") return "Bind";
-  if (runtimeMode.value === "default") return "Default";
   return "Read";
 });
 
@@ -308,7 +307,7 @@ function resolveCompactLayout(
     inlineVisibility.actions
       ? mode === "read"
         ? 0
-        : mode === "bind" || mode === "refine" || mode === "default"
+        : mode === "bind" || mode === "refine"
           ? 2
           : 3
       : 0;

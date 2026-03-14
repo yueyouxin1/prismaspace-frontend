@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
-  ParamSchemaProfessionalEditor,
   ParamSchemaRegularEditor,
   type ParamSchemaRuntimeMode,
   type VariableTreeNode,
@@ -15,13 +14,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@prismaspace/ui-shadcn/components/ui/card";
-type EditorKind = "regular" | "professional";
-
-const activeEditorKind = ref<EditorKind>("regular");
 const runtimeMode = ref<ParamSchemaRuntimeMode>("define");
 
 const regularEditor = useParamSchemaEditor();
-const professionalEditor = useParamSchemaEditor();
 
 const roleOptions = ["system", "input", "output"];
 
@@ -47,19 +42,10 @@ const valueRefTree: VariableTreeNode[] = [
   },
 ];
 
-const runtimeModes: ParamSchemaRuntimeMode[] = ["define", "refine", "bind", "default", "read"];
-
-const activeEditorComponent = computed(() =>
-  activeEditorKind.value === "regular" ? ParamSchemaRegularEditor : ParamSchemaProfessionalEditor,
-);
-
-const activeState = computed(() =>
-  activeEditorKind.value === "regular" ? regularEditor.state.value : professionalEditor.state.value,
-);
-
-const activeDispatch = computed(() =>
-  activeEditorKind.value === "regular" ? regularEditor.dispatch : professionalEditor.dispatch,
-);
+const runtimeModes: ParamSchemaRuntimeMode[] = ["define", "refine", "bind", "read"];
+const activeEditorComponent = computed(() => ParamSchemaRegularEditor);
+const activeState = computed(() => regularEditor.state.value);
+const activeDispatch = computed(() => regularEditor.dispatch);
 </script>
 
 <template>
@@ -67,29 +53,10 @@ const activeDispatch = computed(() =>
     <CardHeader>
       <CardTitle>Param Schema Editors</CardTitle>
       <CardDescription>
-        Regular / Professional 已拆分为独立组件，支持 define/refine/bind/default/read 运行态权限。
+        Param Schema Editor 当前仅保留 Regular 入口，支持 define/refine/bind/read 运行态权限。
       </CardDescription>
     </CardHeader>
     <CardContent class="space-y-4">
-      <div class="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          :variant="activeEditorKind === 'regular' ? 'default' : 'outline'"
-          @click="activeEditorKind = 'regular'"
-        >
-          Regular Editor
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          :variant="activeEditorKind === 'professional' ? 'default' : 'outline'"
-          @click="activeEditorKind = 'professional'"
-        >
-          Professional Editor
-        </Button>
-      </div>
-
       <div class="flex flex-wrap gap-2">
         <Button
           v-for="mode in runtimeModes"
@@ -105,9 +72,9 @@ const activeDispatch = computed(() =>
 
       <div class="rounded-md border bg-muted/30 p-3 text-xs leading-6">
         <p class="font-medium">检查点</p>
-        <p>1. 切换 editor 不会相互污染状态，两个组件可独立消费。</p>
-        <p>2. 切换 runtime mode 后，字段/结构编辑权限会按模式变化。</p>
-        <p>3. 支持导入导出、undo/redo、节点结构编辑与详情联动。</p>
+        <p>1. 切换 runtime mode 后，字段/结构编辑权限会按模式变化。</p>
+        <p>2. 支持导入导出、undo/redo、节点结构编辑与详情联动。</p>
+        <p>3. refine/bind 模式下值编辑器支持类型切换、引用变量和校验提示。</p>
       </div>
 
       <component

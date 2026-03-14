@@ -26,11 +26,5 @@ export const EditorUiPlugin = {
         () => import('./components/param-schema-editor/ui/ParamSchemaRegularEditor.vue'),
       ),
     )
-    app.component(
-      'ParamSchemaProfessionalEditor',
-      defineAsyncComponent(
-        () => import('./components/param-schema-editor/ui/ParamSchemaProfessionalEditor.vue'),
-      ),
-    )
   },
 }

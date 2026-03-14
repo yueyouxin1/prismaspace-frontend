@@ -194,7 +194,7 @@ const inlineMissingValueMessage = computed(() => {
   return value.content === undefined ? "变量值不可为空。" : null;
 });
 const showInlineNameInput = computed(
-  () => props.inlineVisibility.name && isProperty.value && props.mode !== "read" && props.mode !== "bind" && props.mode !== "default",
+  () => props.inlineVisibility.name && isProperty.value && props.mode !== "read" && props.mode !== "bind",
 );
 const showInlineType = computed(() => props.layout.inlineType && props.inlineVisibility.type);
 const showTypeBadge = computed(() => props.inlineVisibility.type && (props.mode === "read" || !props.layout.inlineType));
