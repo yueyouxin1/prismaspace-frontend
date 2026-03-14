@@ -7,7 +7,7 @@ import type { MonacoEditorExpose, MonacoEditorProps } from './types'
 
 const props = withDefaults(defineProps<MonacoEditorProps>(), {
   language: 'json',
-  theme: 'vs-dark',
+  theme: 'vs-light',
   width: '100%',
   height: '320px',
   placeholder: '',

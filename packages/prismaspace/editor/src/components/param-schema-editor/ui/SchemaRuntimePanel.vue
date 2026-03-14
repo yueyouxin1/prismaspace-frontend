@@ -7,6 +7,7 @@ import SchemaRuntimeRow from "./SchemaRuntimeRow.vue";
 import {
   canMutateStructureInMode,
   resolveRuntimeColumns,
+  type ParamSchemaFieldVisibilityOverrides,
   type ParamSchemaRuntimeMode,
   type SchemaEditorDensity,
 } from "./mode";
@@ -18,6 +19,7 @@ const props = withDefaults(
     issues: SchemaIssue[];
     canEdit?: (node: SchemaNode) => boolean;
     mode?: ParamSchemaRuntimeMode;
+    fieldVisibility?: ParamSchemaFieldVisibilityOverrides;
   }>(),
   {
     mode: "define",
@@ -40,7 +42,7 @@ const expandedIds = ref<string[]>([]);
 let resizeObserver: ResizeObserver | null = null;
 
 const rootChildren = computed(() => props.root.children ?? []);
-const columns = computed(() => resolveRuntimeColumns(props.mode, density.value));
+const columns = computed(() => resolveRuntimeColumns(props.mode, density.value, props.fieldVisibility));
 const canAddRoot = computed(() => {
   if (!canMutateStructureInMode(props.mode)) return false;
   return props.canEdit ? props.canEdit(props.root) : true;

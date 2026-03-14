@@ -11,7 +11,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@p
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
 import ValueRefPickerDialog from "./ValueRefPickerDialog.vue";
 import type { VariableTreeNode } from "./tree-types";
-import { canEditFieldInMode, type ParamSchemaRuntimeMode, type SchemaEditableField } from "./mode";
+import {
+  canEditFieldInMode,
+  resolveProfessionalDetailVisibility,
+  type ParamSchemaProfessionalDetailVisibility,
+  type ParamSchemaRuntimeMode,
+  type SchemaEditableField,
+} from "./mode";
 
 const props = withDefaults(
   defineProps<{
@@ -20,6 +26,7 @@ const props = withDefaults(
     roleOptions?: string[];
     mode?: ParamSchemaRuntimeMode;
     valueRefTree?: VariableTreeNode[];
+    detailVisibility?: ParamSchemaProfessionalDetailVisibility;
   }>(),
   {
     mode: "define",
@@ -53,6 +60,9 @@ const displayValue = computed(() => {
 
 const canAccessNode = computed(() => (props.node ? (props.canEdit ? props.canEdit(props.node) : true) : false));
 const isPropertyNode = computed(() => props.node?.kind === "property");
+const resolvedDetailVisibility = computed(() =>
+  props.detailVisibility ?? resolveProfessionalDetailVisibility(props.mode),
+);
 
 function canEditField(field: SchemaEditableField) {
   if (!props.node) return false;
@@ -71,21 +81,19 @@ const canEditEnum = computed(() => canEditField("enum"));
 const canEditMeta = computed(() => canEditField("meta"));
 const canEditValue = computed(() => canEditField("value"));
 
-const showTypeField = computed(() => props.mode !== "bind" && props.mode !== "refine");
-const showNameField = computed(() => isPropertyNode.value && props.mode !== "bind");
-const showLabelField = computed(() => props.mode === "define" || props.mode === "read");
-const showDescriptionField = computed(() => props.mode === "define" || props.mode === "read");
-const showRoleField = computed(() => props.mode === "define" || props.mode === "read");
-const showPropertyFlags = computed(
-  () => isPropertyNode.value && (props.mode === "define" || props.mode === "read"),
-);
-const showConstraints = computed(() => props.mode !== "bind" && props.mode !== "refine");
-const showDefaultEditor = computed(() => props.mode === "define" || props.mode === "default" || props.mode === "read");
-const showEnumEditor = computed(() => props.mode === "define" || props.mode === "read");
-const showAdvancedMeta = computed(() => props.mode === "define" || props.mode === "read");
-const showRuntimeValue = computed(
-  () => props.mode === "define" || props.mode === "refine" || props.mode === "bind" || props.mode === "read",
-);
+const showTypeField = computed(() => resolvedDetailVisibility.value.type);
+const showNameField = computed(() => isPropertyNode.value && resolvedDetailVisibility.value.name);
+const showLabelField = computed(() => resolvedDetailVisibility.value.label);
+const showDescriptionField = computed(() => resolvedDetailVisibility.value.description);
+const showRoleField = computed(() => resolvedDetailVisibility.value.role);
+const showRequiredField = computed(() => isPropertyNode.value && resolvedDetailVisibility.value.required);
+const showOpenField = computed(() => isPropertyNode.value && resolvedDetailVisibility.value.open);
+const showPropertyFlags = computed(() => showRequiredField.value || showOpenField.value);
+const showDefaultEditor = computed(() => resolvedDetailVisibility.value.default);
+const showEnumEditor = computed(() => resolvedDetailVisibility.value.enum);
+const showConstraints = computed(() => showDefaultEditor.value || showEnumEditor.value);
+const showAdvancedMeta = computed(() => resolvedDetailVisibility.value.meta);
+const showRuntimeValue = computed(() => resolvedDetailVisibility.value.value);
 const showArrayWrapActions = computed(() => props.mode === "define" || props.mode === "read");
 
 const enumError = ref<string | null>(null);
@@ -101,6 +109,7 @@ const valueRefBlockId = ref("");
 const valueRefPath = ref("");
 const valueRefSource = ref("");
 const refPickerOpen = ref(false);
+const expandedSections = ref<string[]>([]);
 
 watch(
   () => props.node?.id,
@@ -393,12 +402,22 @@ const defaultDisplay = computed(() => defaultText.value);
 const enumDisplay = computed(() => enumText.value);
 const metaDisplay = computed(() => metaText.value);
 const currentValueType = computed(() => props.node?.value?.type ?? VALUE_UNSET);
-const currentValueSection = computed(() => {
+const availableSections = computed(() => {
   const sections: string[] = [];
   if (showRuntimeValue.value) sections.push("runtime-value");
   if (showConstraints.value) sections.push("constraints");
+  if (showAdvancedMeta.value) sections.push("advanced");
   return sections;
 });
+
+watch(
+  availableSections,
+  (sections) => {
+    const visible = new Set(sections);
+    expandedSections.value = expandedSections.value.filter((section) => visible.has(section));
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -454,7 +473,7 @@ const currentValueSection = computed(() => {
       </div>
 
       <div v-if="showPropertyFlags" class="grid grid-cols-2 gap-3">
-        <label class="flex items-center gap-2 text-xs text-muted-foreground">
+        <label v-if="showRequiredField" class="flex items-center gap-2 text-xs text-muted-foreground">
           <Switch
             :checked="node.required ?? false"
             :disabled="!canEditRequired"
@@ -462,7 +481,7 @@ const currentValueSection = computed(() => {
           />
           Required
         </label>
-        <label class="flex items-center gap-2 text-xs text-muted-foreground">
+        <label v-if="showOpenField" class="flex items-center gap-2 text-xs text-muted-foreground">
           <Switch
             :checked="node.open ?? true"
             :disabled="!canEditOpen"
@@ -497,7 +516,7 @@ const currentValueSection = computed(() => {
         />
       </div>
 
-      <Accordion type="multiple" :default-value="currentValueSection" class="space-y-2">
+      <Accordion v-model="expandedSections" type="multiple" class="space-y-2">
         <AccordionItem v-if="showRuntimeValue" value="runtime-value">
           <AccordionTrigger class="text-xs">Runtime Value</AccordionTrigger>
           <AccordionContent container-class="overflow-visible" class="space-y-4 pt-2">

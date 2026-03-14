@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SchemaEditorAction, SchemaEditorState, SchemaNode } from "../core";
-import type { ParamSchemaRuntimeMode } from "./mode";
+import type { ParamSchemaFieldVisibilityOverrides, ParamSchemaRuntimeMode } from "./mode";
 import type { VariableTreeNode } from "./tree-types";
 import ParamSchemaEditorShell from "./ParamSchemaEditorShell.vue";
 
@@ -12,6 +12,7 @@ const props = withDefaults(
     roleOptions?: string[];
     runtimeMode?: ParamSchemaRuntimeMode;
     valueRefTree?: VariableTreeNode[];
+    fieldVisibility?: ParamSchemaFieldVisibilityOverrides;
   }>(),
   {
     runtimeMode: "define",

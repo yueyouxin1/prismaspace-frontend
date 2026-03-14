@@ -23,13 +23,20 @@ import {
   createWrapArrayOp,
   validateTree,
 } from "../core";
-import type { ParamSchemaRuntimeMode } from "./mode";
+import type {
+  ParamSchemaFieldVisibilityOverrides,
+  ParamSchemaRegularDetailVisibility,
+  ParamSchemaRegularInlineVisibility,
+  ParamSchemaRuntimeMode,
+} from "./mode";
 import type { VariableTreeNode } from "./tree-types";
 import type { CompactRuntimeLayout } from "./compact-runtime-layout";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT, type SchemaTreeOverlayRowRegistration } from "./tree-visuals";
 import {
   canEditFieldInMode,
   canMutateStructureInMode,
+  resolveRegularDetailVisibility,
+  resolveRegularInlineVisibility,
 } from "./mode";
 import SchemaCompactRuntimeRow from "./SchemaCompactRuntimeRow.vue";
 import { ScrollArea, ScrollBar } from "@prismaspace/ui-shadcn/components/ui/scroll-area";
@@ -63,6 +70,7 @@ const props = withDefaults(
     roleOptions?: string[];
     runtimeMode?: ParamSchemaRuntimeMode;
     valueRefTree?: VariableTreeNode[];
+    fieldVisibility?: ParamSchemaFieldVisibilityOverrides;
   }>(),
   {
     runtimeMode: "define",
@@ -96,7 +104,15 @@ const validation = computed(() => validateTree(props.state.tree));
 const allIssues = computed(() => [...validation.value.issues, ...localIssues.value]);
 const issueCount = computed(() => allIssues.value.length);
 
-const layout = computed<CompactRuntimeLayout>(() => resolveCompactLayout(runtimeMode.value, layoutWidth.value));
+const inlineVisibility = computed<ParamSchemaRegularInlineVisibility>(() =>
+  resolveRegularInlineVisibility(runtimeMode.value, layoutWidth.value, props.fieldVisibility),
+);
+const detailVisibility = computed<ParamSchemaRegularDetailVisibility>(() =>
+  resolveRegularDetailVisibility(runtimeMode.value, props.fieldVisibility),
+);
+const layout = computed<CompactRuntimeLayout>(() =>
+  resolveCompactLayout(runtimeMode.value, layoutWidth.value, inlineVisibility.value),
+);
 const expandedSet = computed(() => new Set(treeExpandedIds.value));
 const contentMinWidth = computed(() => {
   const depth = collectVisibleMaxDepth(props.state.tree, expandedSet.value);
@@ -184,12 +200,6 @@ watch(
     const next = new Set(treeExpandedIds.value);
     path.slice(0, -1).forEach((nodeId) => next.add(nodeId));
     treeExpandedIds.value = [...next];
-    if (
-      !detailOpenIds.value.length
-      && (runtimeMode.value === "define" || runtimeMode.value === "default")
-    ) {
-      detailOpenIds.value = [selectedId];
-    }
   },
   { immediate: true },
 );
@@ -273,82 +283,78 @@ function measureOverlayPaths() {
   overlayPaths.value = nextPaths;
 }
 
-function resolveCompactLayout(mode: ParamSchemaRuntimeMode, width: number): CompactRuntimeLayout {
+function resolveCompactLayout(
+  mode: ParamSchemaRuntimeMode,
+  width: number,
+  inlineVisibility: ParamSchemaRegularInlineVisibility,
+): CompactRuntimeLayout {
   const density = width < 360 ? "xs" : width < 520 ? "sm" : width < 760 ? "md" : "lg";
   const railWidth = density === "xs" ? 22 : density === "sm" ? 28 : density === "md" ? 32 : 36;
+  const inlineType = mode !== "read" && inlineVisibility.type;
+  const inlineRequired = mode !== "read" && inlineVisibility.required;
+  const valueField = inlineVisibility.valueField;
+  const inlineDefault = valueField === "default";
+  const actionButtons =
+    inlineVisibility.actions
+      ? mode === "read"
+        ? 0
+        : mode === "bind" || mode === "refine" || mode === "default"
+          ? 1
+          : 2
+      : 0;
+
+  const columns = ["minmax(0,1fr)"];
+
+  if (inlineType) {
+    columns.push(density === "xs" ? "96px" : density === "sm" ? "104px" : "108px");
+  }
+
+  if (valueField === "value") {
+    columns.push(density === "xs" ? "minmax(112px,1fr)" : "minmax(152px,1.12fr)");
+  }
+
+  if (valueField === "default") {
+    columns.push(
+      density === "lg"
+        ? "minmax(124px,0.92fr)"
+        : density === "xs"
+          ? "minmax(108px,1fr)"
+          : "minmax(148px,1.1fr)",
+    );
+  }
+
+  if (inlineRequired) {
+    columns.push(density === "xs" || density === "sm" ? "38px" : "40px");
+  }
+
+  if (actionButtons > 0) {
+    columns.push(density === "xs" || density === "sm" ? "68px" : "72px");
+  }
 
   if (mode === "read") {
     return {
       density,
       railWidth,
-      gridTemplate: "minmax(0,1fr)",
+      gridTemplate: columns.join(" "),
       inlineType: false,
       inlineRequired: false,
-      inlineDefault: false,
-      valueField: null,
+      inlineDefault,
+      valueField,
       readBadgeOnly: true,
-      actionButtons: 0,
-    };
-  }
-
-  if (mode === "bind" || mode === "refine") {
-    return {
-      density,
-      railWidth,
-      gridTemplate:
-        density === "xs"
-          ? "minmax(0,1fr) minmax(112px,1fr) 38px"
-          : "minmax(0,1.08fr) minmax(152px,1.12fr) 44px",
-      inlineType: false,
-      inlineRequired: false,
-      inlineDefault: false,
-      valueField: "value",
-      readBadgeOnly: false,
-      actionButtons: 1,
-    };
-  }
-
-  if (mode === "default") {
-    return {
-      density,
-      railWidth,
-      gridTemplate:
-        density === "xs"
-          ? "minmax(0,1fr) minmax(108px,1fr) 38px"
-          : "minmax(0,1.1fr) minmax(148px,1.1fr) 44px",
-      inlineType: false,
-      inlineRequired: false,
-      inlineDefault: true,
-      valueField: "default",
-      readBadgeOnly: false,
-      actionButtons: 1,
-    };
-  }
-
-  if (width >= 720) {
-    return {
-      density,
-      railWidth,
-      gridTemplate: "minmax(0,1.16fr) 108px minmax(124px,0.92fr) 40px 72px",
-      inlineType: true,
-      inlineRequired: true,
-      inlineDefault: true,
-      valueField: "default",
-      readBadgeOnly: false,
-      actionButtons: 2,
+      actionButtons,
     };
   }
 
   return {
     density,
     railWidth,
-    gridTemplate: "minmax(0,1fr) 104px 38px 68px",
-    inlineType: true,
-    inlineRequired: true,
-    inlineDefault: false,
-    valueField: null,
+    gridTemplate: columns.join(" "),
+    inlineType,
+    inlineRequired,
+    inlineDefault,
+    valueField,
     readBadgeOnly: false,
-    actionButtons: 2,
+    actionButtons,
   };
 }
 
@@ -782,6 +788,8 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
             :tree-expanded-ids="treeExpandedIds"
             :detail-open-ids="detailOpenIds"
             :layout="layout"
+            :inline-visibility="inlineVisibility"
+            :detail-visibility="detailVisibility"
             :mode="runtimeMode"
             :issues="allIssues"
             :can-edit="canEdit"

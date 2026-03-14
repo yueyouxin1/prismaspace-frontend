@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { SchemaIssue, SchemaNode, SchemaType, ValueRefContent } from "../core";
-import type { ParamSchemaRuntimeMode } from "./mode";
+import type {
+  ParamSchemaRegularDetailVisibility,
+  ParamSchemaRegularInlineVisibility,
+  ParamSchemaRuntimeMode,
+} from "./mode";
 import type { VariableTreeNode } from "./tree-types";
 import type { CompactRuntimeLayout } from "./compact-runtime-layout";
 import {
@@ -63,6 +67,8 @@ const props = defineProps<{
   treeExpandedIds: string[];
   detailOpenIds: string[];
   layout: CompactRuntimeLayout;
+  inlineVisibility: ParamSchemaRegularInlineVisibility;
+  detailVisibility: ParamSchemaRegularDetailVisibility;
   mode: ParamSchemaRuntimeMode;
   issues: SchemaIssue[];
   canEdit?: (node: SchemaNode) => boolean;
@@ -145,6 +151,41 @@ const nodeTitle = computed(() => {
 });
 const typeDisplay = computed(() => getSchemaTypeDisplay(props.node));
 const currentValueKind = computed(() => getRuntimeValueKind(props.node.value));
+const showInlineNameInput = computed(
+  () => props.inlineVisibility.name && isProperty.value && props.mode !== "read" && props.mode !== "bind" && props.mode !== "default",
+);
+const showInlineType = computed(() => props.layout.inlineType && props.inlineVisibility.type);
+const showTypeBadge = computed(() => props.inlineVisibility.type && (props.mode === "read" || !props.layout.inlineType));
+const showInlineValue = computed(() => props.layout.valueField === "value");
+const showInlineDefault = computed(() => props.layout.valueField === "default");
+const showDetailDefault = computed(() => {
+  if (!props.detailVisibility.default) return false;
+  if (!showInlineDefault.value) return true;
+  return props.node.type === "object" || props.node.type === "array";
+});
+const showDetailDescription = computed(() => props.detailVisibility.description);
+const showDetailLabel = computed(() => props.detailVisibility.label);
+const showDetailRole = computed(() => props.detailVisibility.role);
+const showDetailArrayItemType = computed(() => props.detailVisibility.arrayItemType && props.node.type === "array");
+const showDetailEnum = computed(() => props.detailVisibility.enum);
+const showDetailMeta = computed(() => props.detailVisibility.meta);
+const showDetailOpen = computed(() => props.detailVisibility.open);
+const showDetailValueLiteral = computed(() => {
+  if (!props.detailVisibility.value) return false;
+  if (props.mode !== "refine" && props.mode !== "bind") return false;
+  if (currentValueKind.value !== "literal") return false;
+  return props.node.type === "object" || props.node.type === "array" || !showInlineValue.value;
+});
+const showDetailValueExpr = computed(() => {
+  if (!props.detailVisibility.value) return false;
+  if (props.mode !== "refine" && props.mode !== "bind") return false;
+  return currentValueKind.value === "expr" && !showInlineValue.value;
+});
+const showDetailValueRef = computed(() => {
+  if (!props.detailVisibility.value) return false;
+  if (props.mode !== "refine" && props.mode !== "bind") return false;
+  return currentValueKind.value === "ref";
+});
 
 const canEditInlineDefault = computed(() => {
   return (
@@ -157,12 +198,19 @@ const defaultDisplay = computed(() => serializeJson(props.node.default));
 const inlineValueSummary = computed(() => formatRuntimeValueSummary(props.node.value));
 const detailPanelOffset = computed(() => `${treeRailWidth.value + 8}px`);
 const hasExpandableDetail = computed(() => {
-  if (props.mode === "read") {
-    return Boolean(props.node.description || props.node.default !== undefined || props.node.value || props.node.meta);
-  }
-  if (props.mode === "bind") return currentValueKind.value === "expr" || currentValueKind.value === "ref";
-  if (props.mode === "default") return props.node.type === "object" || props.node.type === "array" || Boolean(props.node.description);
-  return true;
+  return (
+    showDetailDefault.value
+    || showDetailDescription.value
+    || showDetailLabel.value
+    || showDetailRole.value
+    || showDetailArrayItemType.value
+    || showDetailEnum.value
+    || showDetailMeta.value
+    || showDetailOpen.value
+    || showDetailValueLiteral.value
+    || showDetailValueExpr.value
+    || showDetailValueRef.value
+  );
 });
 
 const nameDraft = ref("");
@@ -504,10 +552,7 @@ watch(
   <div class="relative">
     <div
       ref="rowShellRef"
-      :class="[
-        'relative grid items-stretch shadow-[inset_0_-1px_0_0_#eceaf2] transition-colors',
-        isDetailOpen ? 'bg-[#f5f2ff]' : 'bg-transparent hover:bg-[#faf9fe]',
-      ]"
+      class="relative grid items-stretch shadow-[inset_0_-1px_0_0_#eceaf2] transition-colors"
       :style="{ gridTemplateColumns: layout.gridTemplate }"
       @click="onSelectRow"
     >
@@ -517,7 +562,7 @@ watch(
             <button
               type="button"
               :disabled="!hasChildren"
-              class="absolute top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-[7px] text-[#7d7c92] hover:bg-white disabled:opacity-40"
+              class="absolute top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-[7px] text-[#7d7c92] disabled:opacity-40"
               :style="{ left: `${currentBranchX - 10}px` }"
               @click.stop="toggleTree"
             >
@@ -529,7 +574,7 @@ watch(
 
           <div class="flex min-h-7 min-w-0 items-center gap-1.5">
             <Input
-              v-if="isProperty && props.mode !== 'read' && props.mode !== 'bind' && props.mode !== 'default'"
+              v-if="showInlineNameInput"
               v-model="nameDraft"
               :disabled="!canEditName"
               class="h-7 min-w-0 w-full flex-1 rounded-[9px] border-[#dddce6] bg-white px-2 text-[13px]"
@@ -557,7 +602,7 @@ watch(
             </button>
 
             <Badge
-              v-if="props.mode === 'read' || !layout.inlineType"
+              v-if="showTypeBadge"
               variant="secondary"
               class="rounded-full bg-[#f3f3f8] px-1.5 py-0 text-[11px] font-medium text-[#6f7083]"
             >
@@ -577,7 +622,7 @@ watch(
         </div>
       </div>
 
-      <div v-if="layout.inlineType" class="relative z-20 px-1 py-1.5" @click.stop>
+      <div v-if="showInlineType" class="relative z-20 px-1 py-1.5" @click.stop>
         <SchemaTypePicker
           :node="props.node"
           :disabled="!canEditType"
@@ -587,7 +632,7 @@ watch(
       </div>
 
       <div
-        v-if="layout.valueField === 'value'"
+        v-if="showInlineValue"
         class="relative z-20 px-1 py-1.5"
         @click.stop
       >
@@ -709,7 +754,7 @@ watch(
       </div>
 
       <div
-        v-if="layout.valueField === 'default'"
+        v-if="showInlineDefault"
         class="relative z-20 px-1 py-1.5"
         @click.stop
       >
@@ -738,13 +783,19 @@ watch(
           </SelectContent>
         </Select>
         <button
-          v-else
+          v-else-if="showDetailDefault"
           type="button"
           class="flex h-7 w-full items-center rounded-[9px] border border-dashed border-[#dddce6] px-2 text-[12px] text-[#8f91a2]"
           @click="toggleDetail"
         >
           配置默认值
         </button>
+        <div
+          v-else
+          class="flex h-7 w-full items-center rounded-[9px] border border-dashed border-[#dddce6] px-2 text-[12px] text-[#8f91a2]"
+        >
+          默认值
+        </div>
       </div>
 
       <div
@@ -803,14 +854,14 @@ watch(
       </div>
     </div>
 
-    <div v-if="showSubtreeBody" class="relative">
+      <div v-if="showSubtreeBody" class="relative">
       <div
         v-if="isDetailOpen"
-        class="relative z-20 border-b border-[#eceaf2] bg-[#f5f2ff] px-3 py-3"
+        class="relative z-20 mb-1 overflow-hidden rounded-[16px] border border-[#ece8f6] bg-[linear-gradient(180deg,#fbfaff_0%,#f7f6fc_100%)] px-3 py-3 shadow-[0_1px_0_rgba(255,255,255,0.72)_inset]"
         :style="{ marginLeft: detailPanelOffset }"
       >
         <div class="grid gap-3" :class="layout.density === 'xs' ? 'grid-cols-1' : 'grid-cols-2'">
-        <div v-if="props.mode === 'define' || props.mode === 'default' || props.mode === 'read'" class="space-y-1.5">
+        <div v-if="showDetailDefault" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">默认值</label>
           <MonacoEditor
             v-if="props.node.type === 'object' || props.node.type === 'array'"
@@ -860,7 +911,7 @@ watch(
           <p v-if="defaultError" class="text-[11px] text-[#d45460]">{{ defaultError }}</p>
         </div>
 
-        <div v-if="props.mode === 'define' || props.mode === 'read'" class="space-y-1.5">
+        <div v-if="showDetailDescription" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">描述</label>
           <Textarea
             v-model="descriptionDraft"
@@ -871,7 +922,7 @@ watch(
           />
         </div>
 
-        <div v-if="props.mode === 'define' || props.mode === 'read'" class="space-y-1.5">
+        <div v-if="showDetailLabel" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">标签</label>
           <Input
             v-model="labelDraft"
@@ -883,7 +934,7 @@ watch(
           />
         </div>
 
-        <div v-if="props.mode === 'define' || props.mode === 'read'" class="space-y-1.5">
+        <div v-if="showDetailRole" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">角色</label>
           <Select
             v-if="roleOptions?.length"
@@ -909,7 +960,7 @@ watch(
           />
         </div>
 
-        <div v-if="props.node.type === 'array'" class="space-y-1.5">
+        <div v-if="showDetailArrayItemType" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">数组元素类型</label>
           <Select
             :disabled="!canEditType"
@@ -924,34 +975,34 @@ watch(
                 {{ schemaTypeLabelMap[type] }}
               </SelectItem>
             </SelectContent>
-          </Select>
+            </Select>
         </div>
 
-        <div v-if="props.mode === 'define'" class="space-y-1.5">
+        <div v-if="showDetailEnum" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">枚举（JSON 数组）</label>
-          <Textarea
-            v-model="enumDraft"
-            :disabled="!canEditEnum"
-            class="min-h-[96px] rounded-[12px] border-[#dddce6] bg-white text-[12px]"
-            placeholder='["a", "b"]'
-            @blur="commitEnum"
+          <MonacoEditor
+            :model-value="enumDraft"
+            language="json"
+            height="180px"
+            :read-only="!canEditEnum"
+            @update:modelValue="enumDraft = $event; commitEnum()"
           />
           <p v-if="enumError" class="text-[11px] text-[#d45460]">{{ enumError }}</p>
         </div>
 
-        <div v-if="props.mode === 'define'" class="space-y-1.5">
+        <div v-if="showDetailMeta" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">Meta（JSON 对象）</label>
-          <Textarea
-            v-model="metaDraft"
-            :disabled="!canEditMeta"
-            class="min-h-[96px] rounded-[12px] border-[#dddce6] bg-white text-[12px]"
-            placeholder='{"key":"value"}'
-            @blur="commitMeta"
+          <MonacoEditor
+            :model-value="metaDraft"
+            language="json"
+            height="180px"
+            :read-only="!canEditMeta"
+            @update:modelValue="metaDraft = $event; commitMeta()"
           />
           <p v-if="metaError" class="text-[11px] text-[#d45460]">{{ metaError }}</p>
         </div>
 
-        <div v-if="props.mode === 'define' || props.mode === 'read'" class="space-y-1.5">
+        <div v-if="showDetailOpen" class="space-y-1.5">
           <label class="flex items-center gap-2 text-[11px] font-medium text-[#7f8094]">
             <Checkbox
               :model-value="props.node.open ?? true"
@@ -959,11 +1010,11 @@ watch(
               class="border-[#cfcde0] data-[state=checked]:border-[#7366d5] data-[state=checked]:bg-[#7366d5]"
               @update:model-value="onOpenChange"
             />
-            展开状态
+            公开
           </label>
         </div>
 
-        <div v-if="(props.mode === 'refine' || props.mode === 'bind') && currentValueKind === 'literal'" class="col-span-full space-y-1.5">
+        <div v-if="showDetailValueLiteral" class="col-span-full space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">值</label>
           <MonacoEditor
             v-if="props.node.type === 'object' || props.node.type === 'array'"
@@ -1000,7 +1051,7 @@ watch(
           />
         </div>
 
-        <div v-if="(props.mode === 'refine' || props.mode === 'bind') && currentValueKind === 'expr'" class="col-span-full space-y-1.5">
+        <div v-if="showDetailValueExpr" class="col-span-full space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">表达式</label>
           <Textarea
             v-model="valueExprDraft"
@@ -1011,7 +1062,7 @@ watch(
           />
         </div>
 
-        <template v-if="(props.mode === 'refine' || props.mode === 'bind') && currentValueKind === 'ref'">
+        <template v-if="showDetailValueRef">
           <div class="space-y-1.5">
             <label class="text-[11px] font-medium text-[#7f8094]">引用节点</label>
             <Input
@@ -1063,8 +1114,8 @@ watch(
         </div>
       </div>
 
-      <div class="relative">
-        <div v-for="(child, index) in children" :key="child.id" class="relative z-10">
+      <div v-if="hasChildren && isExpanded" class="relative">
+        <div v-for="(child, index) in children" :key="child.id" class="relative z-20">
           <SchemaCompactRuntimeRow
             :node="child"
             :parent-node-id="props.node.id"
@@ -1075,6 +1126,8 @@ watch(
             :tree-expanded-ids="treeExpandedIds"
             :detail-open-ids="detailOpenIds"
             :layout="layout"
+            :inline-visibility="inlineVisibility"
+            :detail-visibility="detailVisibility"
             :mode="mode"
             :issues="issues"
             :can-edit="canEdit"

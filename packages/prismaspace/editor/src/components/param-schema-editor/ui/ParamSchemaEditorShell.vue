@@ -23,7 +23,13 @@ import {
 import SchemaTreePanel from "./SchemaTreePanel.vue";
 import SchemaDetailPanel from "./SchemaDetailPanel.vue";
 import SchemaRuntimePanel from "./SchemaRuntimePanel.vue";
-import { canEditFieldInMode, canMutateStructureInMode, type ParamSchemaRuntimeMode } from "./mode";
+import {
+  canEditFieldInMode,
+  canMutateStructureInMode,
+  resolveProfessionalDetailVisibility,
+  type ParamSchemaFieldVisibilityOverrides,
+  type ParamSchemaRuntimeMode,
+} from "./mode";
 import type { VariableTreeNode } from "./tree-types";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@prismaspace/ui-shadcn/components/ui/dialog";
 import { MonacoEditor } from "../../monaco-editor";
@@ -60,6 +66,7 @@ const props = withDefaults(
     roleOptions?: string[];
     runtimeMode?: ParamSchemaRuntimeMode;
     valueRefTree?: VariableTreeNode[];
+    fieldVisibility?: ParamSchemaFieldVisibilityOverrides;
   }>(),
   {
     editorKind: "regular",
@@ -100,6 +107,9 @@ const combinedWarnings = computed(() => validation.value.warnings);
 const allIssues = computed(() => [...combinedErrors.value, ...combinedWarnings.value]);
 const isProfessionalMode = computed(() => props.editorKind === "professional");
 const runtimeMode = computed<ParamSchemaRuntimeMode>(() => props.runtimeMode);
+const professionalDetailVisibility = computed(() =>
+  resolveProfessionalDetailVisibility(runtimeMode.value, props.fieldVisibility),
+);
 const isCodeView = ref(true);
 const isDetailOpen = ref(false);
 const isPreviewOpen = ref(false);
@@ -545,6 +555,7 @@ watch(
           :node="selectedNode"
           :can-edit="canAccessNode"
           :mode="runtimeMode"
+          :detail-visibility="professionalDetailVisibility"
           :role-options="roleOptions"
           :value-ref-tree="valueRefTree"
           class="min-h-0"
@@ -593,6 +604,7 @@ watch(
         :issues="allIssues"
         :can-edit="canAccessNode"
         :mode="runtimeMode"
+        :field-visibility="fieldVisibility"
         @select="onSelect"
         @set-field="onSetField"
         @change-type="onChangeType"
@@ -635,6 +647,7 @@ watch(
           :node="selectedNode"
           :can-edit="canAccessNode"
           :mode="runtimeMode"
+          :detail-visibility="professionalDetailVisibility"
           :role-options="roleOptions"
           :value-ref-tree="valueRefTree"
           @set-field="onSetField"
