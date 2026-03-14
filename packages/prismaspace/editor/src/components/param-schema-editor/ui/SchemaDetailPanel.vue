@@ -564,8 +564,9 @@ watch(
                 :model-value="valueLiteralText"
                 language="json"
                 height="180px"
-                :read-only="!canEditValue"
-                @update:modelValue="onSetValueLiteral($event)"
+                :readonly="!canEditValue"
+                @update:modelValue="valueLiteralText = $event"
+                @blur="onSetValueLiteral(valueLiteralText)"
               />
             </div>
 
@@ -662,8 +663,9 @@ watch(
                 :model-value="defaultDisplay"
                 language="json"
                 height="200px"
-                :read-only="!canEditDefault"
-                @update:modelValue="onSetDefault($event)"
+                :readonly="!canEditDefault"
+                @update:modelValue="defaultText = $event"
+                @blur="onSetDefault(defaultText)"
               />
               <Alert v-if="defaultError" variant="destructive">
                 <AlertTitle>Invalid default</AlertTitle>
@@ -677,8 +679,9 @@ watch(
                 :model-value="enumDisplay"
                 language="json"
                 height="180px"
-                :read-only="!canEditEnum"
-                @update:modelValue="onSetEnum($event)"
+                :readonly="!canEditEnum"
+                @update:modelValue="enumText = $event"
+                @blur="onSetEnum(enumText)"
               />
               <Alert v-if="enumError" variant="destructive">
                 <AlertTitle>Invalid enum</AlertTitle>
@@ -697,8 +700,9 @@ watch(
                 :model-value="metaDisplay"
                 language="json"
                 height="180px"
-                :read-only="!canEditMeta"
-                @update:modelValue="onSetMeta($event)"
+                :readonly="!canEditMeta"
+                @update:modelValue="metaText = $event"
+                @blur="onSetMeta(metaText)"
               />
               <Alert v-if="metaError" variant="destructive">
                 <AlertTitle>Invalid meta</AlertTitle>
