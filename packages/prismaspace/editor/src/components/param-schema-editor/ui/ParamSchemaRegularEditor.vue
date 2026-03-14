@@ -133,7 +133,14 @@ const contentMinWidth = computed(() => {
           : 116
         : 0;
   const requiredMin = layout.value.inlineRequired ? 34 : 0;
-  const actionsMin = layout.value.actionButtons > 1 ? 46 : layout.value.actionButtons === 1 ? 28 : 0;
+  const actionsMin =
+    layout.value.actionButtons >= 3
+      ? 78
+      : layout.value.actionButtons === 2
+        ? 54
+        : layout.value.actionButtons === 1
+          ? 28
+          : 0;
   return treeIndentWidth + nameInputMin + typeMin + valueMin + requiredMin + actionsMin + 22;
 });
 const modeLabel = computed(() => {
@@ -302,8 +309,8 @@ function resolveCompactLayout(
       ? mode === "read"
         ? 0
         : mode === "bind" || mode === "refine" || mode === "default"
-          ? 1
-          : 2
+          ? 2
+          : 3
       : 0;
 
   const columns = ["minmax(0,1fr)"];
@@ -331,7 +338,19 @@ function resolveCompactLayout(
   }
 
   if (actionButtons > 0) {
-    columns.push(density === "xs" || density === "sm" ? "56px" : "64px");
+    columns.push(
+      actionButtons >= 3
+        ? density === "xs" || density === "sm"
+          ? "80px"
+          : "88px"
+        : actionButtons === 2
+          ? density === "xs" || density === "sm"
+            ? "56px"
+            : "64px"
+          : density === "xs" || density === "sm"
+            ? "32px"
+            : "36px",
+    );
   }
 
   if (mode === "read") {
@@ -792,18 +811,18 @@ function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
       <div class="min-w-full" :style="{ minWidth: `${contentMinWidth}px` }">
         <div
           v-if="showHeader"
-          class="sticky top-0 z-10 grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb]/95 px-2 py-1 text-[11px] font-semibold text-[#8b8ca0] backdrop-blur"
+          class="sticky top-0 z-10 grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb]/95 px-1 py-1 text-[11px] font-semibold text-[#8b8ca0] backdrop-blur"
           :style="{ gridTemplateColumns: layout.gridTemplate }"
         >
           <div
             v-for="item in headerLabels"
             :key="item.key"
             :class="[
-              'px-1.5',
+              item.key === 'name' ? '' : 'px-0.5',
               item.key === 'required' ? 'text-center' : '',
               item.key === 'actions' ? 'text-right' : '',
             ]"
-            :style="item.key === 'name' ? { paddingLeft: headerNamePadding } : undefined"
+            :style="item.key === 'name' ? { paddingLeft: headerNamePadding, paddingRight: '4px' } : undefined"
           >
             {{ item.label }}
           </div>

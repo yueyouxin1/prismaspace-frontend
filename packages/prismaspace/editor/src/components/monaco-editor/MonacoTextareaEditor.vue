@@ -43,7 +43,7 @@ const emit = defineEmits<{
 const editorRef = ref<MonacoEditorExpose>();
 const resolvedHorizontalPadding = computed(() => (props.bare ? 8 : EDITOR_TEXTAREA_PADDING_X_PX));
 const resolvedVerticalPadding = computed(() =>
-  props.bare ? 8 : EDITOR_TEXTAREA_PADDING_TOP_PX + EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
+  props.bare ? 4 : EDITOR_TEXTAREA_PADDING_TOP_PX + EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
 );
 const resolvedLineHeight = computed(() =>
   props.bare ? Math.max(16, Math.round(props.fontSize * 1.35)) : resolveEditorTextareaLineHeight(props.fontSize),
@@ -99,8 +99,8 @@ const resolvedOptions = computed<monaco.editor.IStandaloneEditorConstructionOpti
   tabCompletion: "off",
   wordBasedSuggestions: "off",
   padding: {
-    top: props.bare ? 4 : EDITOR_TEXTAREA_PADDING_TOP_PX,
-    bottom: props.bare ? 4 : EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
+    top: props.bare ? 2 : EDITOR_TEXTAREA_PADDING_TOP_PX,
+    bottom: props.bare ? 2 : EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
     ...(props.options?.padding ?? {}),
   },
   wordWrap: "on",

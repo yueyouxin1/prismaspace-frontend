@@ -43,7 +43,7 @@ const emit = defineEmits<{
 const editorRef = ref<CodeMirrorEditorExpose>();
 const resolvedHorizontalPadding = computed(() => (props.bare ? 8 : EDITOR_TEXTAREA_PADDING_X_PX));
 const resolvedVerticalPadding = computed(() =>
-  props.bare ? 8 : EDITOR_TEXTAREA_PADDING_TOP_PX + EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
+  props.bare ? 4 : EDITOR_TEXTAREA_PADDING_TOP_PX + EDITOR_TEXTAREA_PADDING_BOTTOM_PX,
 );
 const editorHeight = ref(
   resolveEditorTextareaHeight(0, props.fontSize, props.minRows, props.maxRows, resolvedVerticalPadding.value),
@@ -64,7 +64,7 @@ const textareaThemeExtension = computed<Extension>(() =>
     },
     ".cm-content": {
       minHeight: "100%",
-      padding: `${props.bare ? 4 : EDITOR_TEXTAREA_PADDING_TOP_PX}px ${resolvedHorizontalPadding.value}px ${props.bare ? 4 : EDITOR_TEXTAREA_PADDING_BOTTOM_PX}px`,
+      padding: `${props.bare ? 2 : EDITOR_TEXTAREA_PADDING_TOP_PX}px ${resolvedHorizontalPadding.value}px ${props.bare ? 2 : EDITOR_TEXTAREA_PADDING_BOTTOM_PX}px`,
       caretColor: "currentColor",
     },
     ".cm-line": {
