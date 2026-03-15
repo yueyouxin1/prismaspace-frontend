@@ -43,6 +43,7 @@ import {
 } from "lucide-vue-next";
 import SchemaTypePicker from "./SchemaTypePicker.vue";
 import SchemaInlineValueEditor from "./value-editor/SchemaInlineValueEditor.vue";
+import SchemaLiteralValueInput from "./value-editor/SchemaLiteralValueInput.vue";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT } from "./tree-visuals";
 import { MonacoTextareaEditor } from "../../monaco-editor";
 
@@ -84,8 +85,6 @@ const emit = defineEmits<{
 
 const ROW_HEADER_HEIGHT = 40;
 const UNSET = "__unset__";
-const BOOLEAN_TRUE = "__true__";
-const BOOLEAN_FALSE = "__false__";
 
 const isSelected = computed(() => props.selectedId === props.node.id);
 const isProperty = computed(() => props.node.kind === "property");
@@ -195,8 +194,7 @@ const showInlineValue = computed(() => props.layout.valueField === "value");
 const showInlineDefault = computed(() => props.layout.valueField === "default");
 const showDetailDefault = computed(() => {
   if (!props.detailVisibility.default) return false;
-  if (!showInlineDefault.value) return true;
-  return props.node.type === "object" || props.node.type === "array";
+  return !showInlineDefault.value;
 });
 const showDetailDescription = computed(() => props.detailVisibility.description);
 const showDetailLabel = computed(() => props.detailVisibility.label);
@@ -222,14 +220,6 @@ const showDetailValueRef = computed(() => {
   return currentValueKind.value === "ref";
 });
 
-const canEditInlineDefault = computed(() => {
-  return (
-    canEditDefault.value
-    && (props.node.type === "string" || props.node.type === "number" || props.node.type === "integer" || props.node.type === "boolean")
-  );
-});
-
-const defaultDisplay = computed(() => serializeJson(props.node.default));
 const inlineValueSummary = computed(() => formatRuntimeValueSummary(props.node.value));
 const currentRefCaption = computed(() => getVariableTreeNodeCaption(currentRefNode.value) || inlineValueSummary.value);
 const detailPanelOffset = computed(() => `${treeRailWidth.value + 8}px`);
@@ -544,21 +534,6 @@ function onInlineValueCommit(event?: KeyboardEvent) {
   }
 }
 
-function booleanValueForDefault() {
-  if (props.node.default === true) return BOOLEAN_TRUE;
-  if (props.node.default === false) return BOOLEAN_FALSE;
-  return UNSET;
-}
-
-function onBooleanDefaultChange(value: string) {
-  if (!canEditDefault.value) return;
-  if (value === UNSET) {
-    emitField("default", undefined);
-    return;
-  }
-  emitField("default", value === BOOLEAN_TRUE);
-}
-
 function onRoleChange(value: string) {
   if (!canEditRole.value) return;
   emitField("role", value === UNSET ? undefined : value);
@@ -568,16 +543,6 @@ function onArrayItemTypeChange(nextType: string) {
   if (props.node.type !== "array" || !props.node.item || !canEditType.value) return;
   if (!schemaTypes.includes(nextType as SchemaType)) return;
   emit("change-type", { nodeId: props.node.item.id, nextType: nextType as SchemaType });
-}
-
-function onDetailBooleanDefaultChange(value: string) {
-  if (!canEditDefault.value) return;
-  defaultError.value = null;
-  if (value === UNSET) {
-    emitField("default", undefined);
-    return;
-  }
-  emitField("default", value === BOOLEAN_TRUE);
 }
 
 function syncOverlayRegistration() {
@@ -737,44 +702,15 @@ watch(
         class="relative z-20 px-0.5 py-1"
         @click.stop
       >
-        <Input
-          v-if="props.node.type === 'string' || props.node.type === 'number' || props.node.type === 'integer'"
-          v-model="defaultDraft"
-          :disabled="!canEditInlineDefault"
-          class="h-7 rounded-[9px] border-[#dddce6] bg-white px-2 text-[12px]"
-          placeholder="默认值"
-          @blur="commitDefault"
-          @keydown.enter.prevent="commitDefault"
-        />
-        <Select
-          v-else-if="props.node.type === 'boolean'"
+        <SchemaLiteralValueInput
+          :schema-type="props.node.type"
+          :model-value="defaultDraft"
           :disabled="!canEditDefault"
-          :model-value="booleanValueForDefault()"
-          @update:model-value="onBooleanDefaultChange(String($event))"
-        >
-          <SelectTrigger class="h-7 rounded-[9px] border-[#dddce6] bg-white px-2 text-[12px]">
-            <SelectValue placeholder="默认值" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem :value="UNSET">未设置</SelectItem>
-            <SelectItem :value="BOOLEAN_TRUE">true</SelectItem>
-            <SelectItem :value="BOOLEAN_FALSE">false</SelectItem>
-          </SelectContent>
-        </Select>
-        <button
-          v-else-if="showDetailDefault"
-          type="button"
-          class="flex h-7 w-full items-center rounded-[9px] border border-dashed border-[#dddce6] px-2 text-[12px] text-[#8f91a2]"
-          @click="toggleDetail"
-        >
-          配置默认值
-        </button>
-        <div
-          v-else
-          class="flex h-7 w-full items-center rounded-[9px] border border-dashed border-[#dddce6] px-2 text-[12px] text-[#8f91a2]"
-        >
-          默认值
-        </div>
+          placeholder="默认值"
+          variant="field"
+          @update:modelValue="defaultDraft = $event"
+          @commit="commitDefault(typeof $event === 'string' ? $event : defaultDraft)"
+        />
       </div>
 
       <div
@@ -842,53 +778,15 @@ watch(
         <div class="grid gap-3" :class="layout.density === 'xs' ? 'grid-cols-1' : 'grid-cols-2'">
         <div v-if="showDetailDefault" class="space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">默认值</label>
-          <MonacoTextareaEditor
-            v-if="props.node.type === 'object' || props.node.type === 'array'"
+          <SchemaLiteralValueInput
+            :schema-type="props.node.type"
             :model-value="defaultDraft"
-            language="json"
-            :font-size="12"
-            :min-rows="1"
-            :readonly="!canEditDefault"
+            :disabled="!canEditDefault"
+            placeholder="默认值"
+            variant="field"
             @update:modelValue="defaultDraft = $event"
-            @blur="commitDefault()"
+            @commit="commitDefault(typeof $event === 'string' ? $event : defaultDraft)"
           />
-          <Select
-            v-else-if="props.node.type === 'boolean' && !layout.inlineDefault"
-            :disabled="!canEditDefault"
-            :model-value="booleanValueForDefault()"
-            @update:model-value="onDetailBooleanDefaultChange(String($event))"
-          >
-            <SelectTrigger class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]">
-              <SelectValue placeholder="默认值" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem :value="UNSET">未设置</SelectItem>
-              <SelectItem :value="BOOLEAN_TRUE">true</SelectItem>
-              <SelectItem :value="BOOLEAN_FALSE">false</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input
-            v-else-if="(props.node.type === 'number' || props.node.type === 'integer') && !layout.inlineDefault"
-            v-model="defaultDraft"
-            :disabled="!canEditDefault"
-            type="number"
-            class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
-            placeholder="默认值"
-            @blur="commitDefault"
-            @keydown.enter.prevent="commitDefault"
-          />
-          <Input
-            v-else-if="props.node.type === 'string' && !layout.inlineDefault"
-            v-model="defaultDraft"
-            :disabled="!canEditDefault"
-            class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
-            placeholder="默认值"
-            @blur="commitDefault"
-            @keydown.enter.prevent="commitDefault"
-          />
-          <p v-else class="rounded-[10px] border border-[#eceaf2] bg-white px-3 py-2 text-[12px] text-[#55586a]">
-            {{ defaultDisplay || "未设置默认值" }}
-          </p>
           <p v-if="defaultError" class="text-[11px] text-[#d45460]">{{ defaultError }}</p>
         </div>
 
@@ -898,7 +796,7 @@ watch(
             v-model="descriptionDraft"
             :rows="1"
             :disabled="!canEditDescription"
-            class="min-h-0 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
+            class="min-h-0 resize-none rounded-[10px] border-[#dddce6] bg-white text-[12px]"
             placeholder="帮助描述此参数的用途"
             @blur="commitDescription"
           />
@@ -1002,40 +900,14 @@ watch(
 
         <div v-if="showDetailValueLiteral" class="col-span-full space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">值</label>
-          <MonacoTextareaEditor
-            v-if="props.node.type === 'object' || props.node.type === 'array'"
+          <SchemaLiteralValueInput
+            :schema-type="props.node.type"
             :model-value="valueLiteralDraft"
-            language="json"
-            :font-size="12"
-            :min-rows="1"
-            :readonly="!canEditValue"
-            @update:modelValue="valueLiteralDraft = $event"
-            @blur="commitValueLiteral()"
-          />
-          <Select
-            v-else-if="props.node.type === 'boolean'"
             :disabled="!canEditValue"
-            :model-value="valueLiteralDraft || UNSET"
-            @update:model-value="commitValueLiteral($event === UNSET ? '' : String($event))"
-          >
-            <SelectTrigger class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]">
-              <SelectValue placeholder="值" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem :value="UNSET">未设置</SelectItem>
-              <SelectItem value="true">true</SelectItem>
-              <SelectItem value="false">false</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input
-            v-else
-            v-model="valueLiteralDraft"
-            :disabled="!canEditValue"
-            :type="props.node.type === 'number' || props.node.type === 'integer' ? 'number' : 'text'"
-            class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
             placeholder="输入值"
-            @blur="commitValueLiteral"
-            @keydown.enter.prevent="commitValueLiteral"
+            variant="field"
+            @update:modelValue="valueLiteralDraft = $event"
+            @commit="commitValueLiteral(typeof $event === 'string' ? $event : valueLiteralDraft)"
           />
         </div>
 

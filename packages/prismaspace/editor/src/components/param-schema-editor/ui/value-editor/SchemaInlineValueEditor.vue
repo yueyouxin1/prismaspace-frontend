@@ -3,16 +3,14 @@ import type { SchemaNode, SchemaType, ValueRefContent } from "../../core";
 import type { ParamSchemaRuntimeMode } from "../mode";
 import type { VariableTreeNode } from "../tree-types";
 import type { RuntimeValueKind } from "../runtime-editor-utils";
-import { Input } from "@prismaspace/ui-shadcn/components/ui/input";
 import { Textarea } from "@prismaspace/ui-shadcn/components/ui/textarea";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
 import { Field, FieldContent, FieldError } from "@prismaspace/ui-shadcn/components/ui/field";
 import { Popover, PopoverContent, PopoverTrigger } from "@prismaspace/ui-shadcn/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@prismaspace/ui-shadcn/components/ui/select";
 import { Hexagon, Link2, X } from "lucide-vue-next";
 import { ref } from "vue";
-import { MonacoTextareaEditor } from "../../../monaco-editor";
 import SchemaValueRefTreePanel from "../SchemaValueRefTreePanel.vue";
+import SchemaLiteralValueInput from "./SchemaLiteralValueInput.vue";
 import SchemaValueTypePicker from "./SchemaValueTypePicker.vue";
 
 defineOptions({ name: "SchemaInlineValueEditor" });
@@ -54,7 +52,6 @@ const emit = defineEmits<{
 }>();
 
 const refPickerOpen = ref(false);
-const UNSET = "__unset__";
 
 function openReferencePicker() {
   if (!props.canEditValue || !props.valueRefTree?.length) return;
@@ -72,7 +69,7 @@ function onPickReference(ref: ValueRefContent) {
     <FieldContent class="gap-1">
       <div
         :data-invalid="errors.length ? true : undefined"
-        class="border-input focus-within:border-ring focus-within:ring-ring/50 dark:bg-input/30 data-[invalid=true]:border-[#d45460] flex min-h-7 items-stretch overflow-hidden rounded-[10px] border bg-white shadow-xs transition-[color,box-shadow] focus-within:ring-[3px]"
+        class="border-input focus-within:border-ring focus-within:ring-ring/50 dark:bg-input/30 data-[invalid=true]:border-[#d45460] flex min-h-7 items-center overflow-hidden rounded-[10px] border bg-white shadow-xs transition-[color,box-shadow] focus-within:ring-[3px]"
       >
         <SchemaValueTypePicker
           :node="node"
@@ -117,70 +114,16 @@ function onPickReference(ref: ValueRefContent) {
               <X class="size-3" />
             </button>
           </div>
-
-          <Select
-            v-else-if="node.type === 'boolean'"
-            :disabled="!canEditValue"
-            :model-value="literalDraft || UNSET"
-            @update:model-value="emit('commit-literal', $event === UNSET ? '' : String($event))"
-          >
-            <SelectTrigger class="h-7 rounded-none border-0 bg-transparent px-2 text-[12px] shadow-none focus-visible:ring-0">
-              <SelectValue placeholder="输入或引用..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem :value="UNSET">未设置</SelectItem>
-              <SelectItem value="true">true</SelectItem>
-              <SelectItem value="false">false</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <MonacoTextareaEditor
-            v-else-if="node.type === 'object' || node.type === 'array'"
+          <SchemaLiteralValueInput
+            v-else
+            :schema-type="node.type"
             :model-value="literalDraft"
-            language="json"
-            :font-size="12"
-            :min-rows="1"
-            :readonly="!canEditValue"
-            bare
+            :disabled="!canEditValue"
+            placeholder="输入或引用..."
+            variant="embedded"
             @update:modelValue="emit('update:literalDraft', $event)"
-            @blur="emit('commit-literal')"
+            @commit="emit('commit-literal', typeof $event === 'string' ? $event : literalDraft)"
           />
-
-          <div v-else-if="node.type === 'number' || node.type === 'integer'" class="relative h-7">
-            <Input
-              :model-value="literalDraft"
-              :disabled="!canEditValue"
-              type="number"
-              class="h-7 border-0 bg-transparent px-2 text-[12px] shadow-none focus-visible:ring-0"
-              placeholder=""
-              @update:model-value="emit('update:literalDraft', String($event))"
-              @blur="emit('commit-literal')"
-            />
-            <span
-              v-if="!literalDraft"
-              class="pointer-events-none absolute inset-x-2 top-1/2 -translate-y-1/2 truncate text-[12px] text-muted-foreground"
-            >
-              输入或引用...
-            </span>
-          </div>
-
-          <div v-else class="relative h-7">
-            <Textarea
-              :model-value="literalDraft"
-              :rows="1"
-              :disabled="!canEditValue"
-              class="h-7 min-h-7 resize-none overflow-hidden border-0 bg-transparent px-2 py-1 text-[12px] leading-5 whitespace-nowrap shadow-none focus-visible:ring-0"
-              placeholder=""
-              @update:model-value="emit('update:literalDraft', String($event))"
-              @blur="emit('commit-literal')"
-            />
-            <span
-              v-if="!literalDraft"
-              class="pointer-events-none absolute inset-x-2 top-1/2 -translate-y-1/2 truncate text-[12px] text-muted-foreground"
-            >
-              输入或引用...
-            </span>
-          </div>
         </div>
 
         <Popover v-model:open="refPickerOpen">
