@@ -4,3 +4,4 @@ export { default as SchemaTypePicker } from "./SchemaTypePicker.vue";
 export * from "./mode";
 export * from "./useParamSchemaEditor";
 export * from "./tree-types";
+export * from "./value-ref-picker";

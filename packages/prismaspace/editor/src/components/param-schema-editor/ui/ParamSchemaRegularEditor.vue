@@ -35,6 +35,7 @@ import type {
   CompactRuntimeControlColumnKey,
   CompactRuntimeLayout,
 } from "./compact-runtime-layout";
+import type { ValueRefPickerViewModel } from "./value-ref-picker";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT, type SchemaTreeOverlayRowRegistration } from "./tree-visuals";
 import {
   canEditFieldInMode,
@@ -42,7 +43,8 @@ import {
   resolveRegularDetailVisibility,
   resolveRegularInlineVisibility,
 } from "./mode";
-import { findVariableTreeNodeByRef, getNodeChildren } from "./runtime-editor-utils";
+import { getNodeChildren } from "./runtime-editor-utils";
+import { resolveValueRefValidation } from "./value-ref-picker";
 import SchemaCompactRuntimeRow from "./SchemaCompactRuntimeRow.vue";
 import { ScrollArea, ScrollBar } from "@prismaspace/ui-shadcn/components/ui/scroll-area";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
@@ -66,6 +68,10 @@ import {
   Undo2,
   Upload,
 } from "lucide-vue-next";
+
+defineSlots<{
+  "value-ref-picker"?: (props: { picker: ValueRefPickerViewModel; close: () => void }) => unknown;
+}>();
 
 const props = withDefaults(
   defineProps<{
@@ -696,20 +702,20 @@ function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
 
   const walk = (node: SchemaNode, path: string) => {
     if (node.value?.type === "ref") {
-      const refNode = findVariableTreeNodeByRef(props.valueRefTree, node.value.content);
-      if (!refNode) {
+      const refValidation = resolveValueRefValidation(node.type, node.value.content, props.valueRefTree);
+      if (refValidation.status === "missing") {
         issues.push({
           level: "error",
           code: "value-ref-missing",
-          message: "Referenced variable no longer exists.",
+          message: refValidation.message ?? "引用变量不存在。",
           nodeId: node.id,
           path,
         });
-      } else if (refNode.schemaType && refNode.schemaType !== node.type) {
+      } else if (refValidation.status === "type-mismatch") {
         issues.push({
           level: "error",
           code: "value-ref-type-mismatch",
-          message: `Referenced variable type ${refNode.schemaType} does not match schema type ${node.type}.`,
+          message: refValidation.message ?? "引用变量类型与当前 schema 类型不兼容。",
           nodeId: node.id,
           path,
         });

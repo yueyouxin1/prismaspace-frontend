@@ -13,25 +13,24 @@ import {
   canMutateStructureInMode,
 } from "./mode";
 import {
-  findVariableTreeNodeByRef,
-  formatRuntimeValueSummary,
   getDefaultLiteral,
   getNodeChildren,
   getRuntimeValueKind,
   getSchemaTypeDisplay,
-  getVariableTreeNodeCaption,
   parseValueByType,
   schemaTypeLabelMap,
   schemaTypeShortLabelMap,
   schemaTypes,
   serializeJson,
 } from "./runtime-editor-utils";
+import { resolveValueRefValidation, useValueRefPickerController, type ValueRefPickerViewModel } from "./value-ref-picker";
 import { Input } from "@prismaspace/ui-shadcn/components/ui/input";
 import { Textarea } from "@prismaspace/ui-shadcn/components/ui/textarea";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
 import { Checkbox } from "@prismaspace/ui-shadcn/components/ui/checkbox";
 import { Badge } from "@prismaspace/ui-shadcn/components/ui/badge";
 import { Field, FieldError } from "@prismaspace/ui-shadcn/components/ui/field";
+import { Popover, PopoverContent, PopoverTrigger } from "@prismaspace/ui-shadcn/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@prismaspace/ui-shadcn/components/ui/select";
 import { Toggle } from "@prismaspace/ui-shadcn/components/ui/toggle";
 import {
@@ -45,12 +44,13 @@ import {
 import SchemaTypePicker from "./SchemaTypePicker.vue";
 import SchemaInlineValueEditor from "./value-editor/SchemaInlineValueEditor.vue";
 import SchemaLiteralValueInput from "./value-editor/SchemaLiteralValueInput.vue";
+import SchemaValueRefTreePanel from "./SchemaValueRefTreePanel.vue";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT } from "./tree-visuals";
 import { MonacoTextareaEditor } from "../../monaco-editor";
 
 defineOptions({ name: "SchemaCompactRuntimeRow" });
 defineSlots<{
-  "value-ref-picker"?: (props: Record<string, unknown>) => unknown;
+  "value-ref-picker"?: (props: { picker: ValueRefPickerViewModel; close: () => void }) => unknown;
 }>();
 
 const props = defineProps<{
@@ -155,23 +155,23 @@ const nodeTitle = computed(() => {
 });
 const typeDisplay = computed(() => getSchemaTypeDisplay(props.node));
 const currentValueKind = computed(() => getRuntimeValueKind(props.node.value));
-const currentRefNode = computed(() =>
-  props.node.value?.type === "ref" ? findVariableTreeNodeByRef(props.valueRefTree, props.node.value.content) : null,
+const currentValueRefValidation = computed(() =>
+  resolveValueRefValidation(
+    props.node.type,
+    props.node.value?.type === "ref" ? props.node.value.content : null,
+    props.valueRefTree,
+  ),
 );
 const inlineValueMode = computed<SchemaType | "expr">(() =>
   currentValueKind.value === "expr" ? "expr" : props.node.type,
 );
-const showInlineValueTypeSelect = computed(() => props.mode === "bind" || props.mode === "refine");
-const showInlineValueRefTrigger = computed(() => props.mode === "bind" || props.mode === "refine");
 const hasReferenceSelection = computed(
   () => props.node.value?.type === "ref" && Boolean(props.node.value.content.blockID || props.node.value.content.path),
 );
 const inlineRefTypeMismatch = computed(() => {
   if (props.node.value?.type !== "ref") return null;
   if (!hasReferenceSelection.value) return null;
-  if (!currentRefNode.value) return "引用变量不存在。";
-  if (!currentRefNode.value.schemaType || currentRefNode.value.schemaType === props.node.type) return null;
-  return `引用变量类型 ${currentRefNode.value.schemaType} 与当前类型 ${props.node.type} 不匹配。`;
+  return currentValueRefValidation.value.status === "type-mismatch" ? currentValueRefValidation.value.message : null;
 });
 const inlineMissingValueMessage = computed(() => {
   if (props.mode !== "bind" && props.mode !== "refine") return null;
@@ -220,9 +220,13 @@ const showDetailValueRef = computed(() => {
   if (props.mode !== "refine" && props.mode !== "bind") return false;
   return currentValueKind.value === "ref";
 });
-
-const inlineValueSummary = computed(() => formatRuntimeValueSummary(props.node.value));
-const currentRefCaption = computed(() => getVariableTreeNodeCaption(currentRefNode.value) || inlineValueSummary.value);
+const valueRefPicker = useValueRefPickerController({
+  getTree: () => props.valueRefTree,
+  getModelValue: () => (props.node.value?.type === "ref" ? props.node.value.content : null),
+  getExpectedType: () => props.node.type,
+  rejectIncompatible: true,
+  onSelect: (ref) => onPickReference(ref),
+});
 const detailPanelOffset = computed(() => `${treeRailWidth.value + 8}px`);
 const hasExpandableDetail = computed(() => {
   return (
@@ -502,21 +506,31 @@ function commitValueRefField(field: keyof ValueRefContent, raw: string) {
     path: valueRefPath.value,
   };
   if (valueRefSource.value.trim()) nextRef.source = valueRefSource.value.trim();
-  emitField("value", nextRef.blockID || nextRef.path ? { type: "ref", content: nextRef } : undefined);
+
+  if (!nextRef.blockID && !nextRef.path) {
+    valueError.value = null;
+    emitField("value", undefined);
+    return;
+  }
+
+  const nextRefValidation = resolveValueRefValidation(props.node.type, nextRef, props.valueRefTree);
+  if (nextRefValidation.status === "type-mismatch") {
+    valueError.value = nextRefValidation.message;
+    return;
+  }
+
+  valueError.value = null;
+  emitField("value", { type: "ref", content: nextRef });
 }
 
 function onPickReference(ref: ValueRefContent) {
   refPickerOpen.value = false;
   valueError.value = null;
-  const refNode = findVariableTreeNodeByRef(props.valueRefTree, ref);
-  if (refNode?.schemaType) {
-    syncNodeType(refNode.schemaType);
-  }
   emitField("value", { type: "ref", content: ref });
 }
 
 function onOpenReferencePicker() {
-  if (!canEditValue.value || !props.valueRefTree?.length) return;
+  if (!canEditValue.value || !valueRefPicker.value.items.length) return;
   refPickerOpen.value = true;
 }
 
@@ -685,20 +699,17 @@ watch(
           :expr-draft="valueExprDraft"
           :can-edit-type="canEditType"
           :can-edit-value="canEditValue"
-          :current-ref="props.node.value?.type === 'ref' ? props.node.value.content : null"
-          :current-ref-caption="currentRefCaption"
-          :value-ref-tree="valueRefTree"
+          :value-ref-picker="valueRefPicker"
           :errors="inlineValueErrors"
           @change-type="onInlineValueModeChange($event)"
           @update:literalDraft="valueLiteralDraft = $event"
           @update:exprDraft="valueExprDraft = $event"
           @commit-literal="commitValueLiteral(typeof $event === 'string' ? $event : valueLiteralDraft)"
           @commit-expr="commitValueExpr(typeof $event === 'string' ? $event : valueExprDraft)"
-          @select-reference="onPickReference"
           @clear-reference="clearReferenceSelection"
         >
-          <template v-if="$slots['value-ref-picker']" #value-ref-picker="slotProps">
-            <slot name="value-ref-picker" v-bind="slotProps" />
+          <template v-if="$slots['value-ref-picker']" #value-ref-picker="{ picker, close }">
+            <slot name="value-ref-picker" :picker="picker" :close="close" />
           </template>
         </SchemaInlineValueEditor>
       </div>
@@ -976,17 +987,40 @@ watch(
             />
           </div>
           <div class="flex items-end">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              class="rounded-[10px]"
-              :disabled="!canEditValue || !valueRefTree?.length"
-              @click="refPickerOpen = true"
-            >
-              <Link2 class="mr-1 size-3.5" />
-              选择变量
-            </Button>
+            <Popover v-model:open="refPickerOpen">
+              <PopoverTrigger as-child>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  class="rounded-[10px]"
+                  :disabled="!canEditValue || !valueRefPicker.items.length"
+                  @click="onOpenReferencePicker"
+                >
+                  <Link2 class="mr-1 size-3.5" />
+                  选择变量
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="bottom"
+                :side-offset="6"
+                class="flex h-[360px] w-[min(520px,calc(100vw-24px))] flex-col rounded-[18px] border-[#e9e7f1] p-3"
+              >
+                <slot
+                  v-if="$slots['value-ref-picker']"
+                  name="value-ref-picker"
+                  :picker="valueRefPicker"
+                  :close="() => { refPickerOpen = false; }"
+                />
+                <SchemaValueRefTreePanel
+                  v-else
+                  :picker="valueRefPicker"
+                  class="min-h-0 flex-1"
+                  @request-close="refPickerOpen = false"
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </template>
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { SchemaNode, SchemaType, ValueRefContent } from "../../core";
+import type { SchemaNode, SchemaType } from "../../core";
 import type { ParamSchemaRuntimeMode } from "../mode";
-import type { VariableTreeNode } from "../tree-types";
 import type { RuntimeValueKind } from "../runtime-editor-utils";
+import type { ValueRefPickerViewModel } from "../value-ref-picker";
 import { Textarea } from "@prismaspace/ui-shadcn/components/ui/textarea";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
 import { Field, FieldContent, FieldError } from "@prismaspace/ui-shadcn/components/ui/field";
@@ -15,7 +15,7 @@ import SchemaValueTypePicker from "./SchemaValueTypePicker.vue";
 
 defineOptions({ name: "SchemaInlineValueEditor" });
 defineSlots<{
-  "value-ref-picker"?: (props: Record<string, unknown>) => unknown;
+  "value-ref-picker"?: (props: { picker: ValueRefPickerViewModel; close: () => void }) => unknown;
 }>();
 
 const props = withDefaults(
@@ -28,15 +28,11 @@ const props = withDefaults(
     exprDraft: string;
     canEditType: boolean;
     canEditValue: boolean;
-    currentRef: ValueRefContent | null;
-    currentRefCaption?: string;
-    valueRefTree?: VariableTreeNode[];
+    valueRefPicker?: ValueRefPickerViewModel | null;
     errors?: string[];
   }>(),
   {
-    currentRef: null,
-    currentRefCaption: "",
-    valueRefTree: () => [],
+    valueRefPicker: null,
     errors: () => [],
   },
 );
@@ -47,20 +43,14 @@ const emit = defineEmits<{
   (event: "update:exprDraft", value: string): void;
   (event: "commit-literal", value?: string): void;
   (event: "commit-expr", value?: string): void;
-  (event: "select-reference", ref: ValueRefContent): void;
   (event: "clear-reference"): void;
 }>();
 
 const refPickerOpen = ref(false);
 
 function openReferencePicker() {
-  if (!props.canEditValue || !props.valueRefTree?.length) return;
+  if (!props.canEditValue || !props.valueRefPicker?.items.length) return;
   refPickerOpen.value = true;
-}
-
-function onPickReference(ref: ValueRefContent) {
-  refPickerOpen.value = false;
-  emit("select-reference", ref);
 }
 </script>
 
@@ -98,12 +88,12 @@ function onPickReference(ref: ValueRefContent) {
           </div>
 
           <div
-            v-else-if="valueKind === 'ref' && currentRef"
+            v-else-if="valueKind === 'ref' && valueRefPicker?.selected"
             class="flex h-7 min-w-0 items-center gap-1.5 px-2 text-[12px] text-[#4f45a3]"
           >
             <Link2 class="size-3.5 shrink-0" />
-            <span class="min-w-0 flex-1 truncate" :title="currentRefCaption">
-              {{ currentRefCaption }}
+            <span class="min-w-0 flex-1 truncate" :title="valueRefPicker.selectedSummary">
+              {{ valueRefPicker.selectedSummary }}
             </span>
             <button
               type="button"
@@ -133,7 +123,7 @@ function onPickReference(ref: ValueRefContent) {
               size="icon-sm"
               variant="ghost"
               class="h-auto w-7 shrink-0 self-stretch rounded-none border-l border-[#eceaf2] px-0 text-[#6c60bd]"
-              :disabled="!canEditValue || !valueRefTree?.length"
+              :disabled="!canEditValue || !valueRefPicker?.items.length"
               @click="openReferencePicker"
             >
               <Hexagon class="size-3.5" />
@@ -145,17 +135,18 @@ function onPickReference(ref: ValueRefContent) {
             :side-offset="6"
             class="flex h-[360px] w-[min(520px,calc(100vw-24px))] flex-col rounded-[18px] border-[#e9e7f1] p-3"
           >
+            <slot
+              v-if="$slots['value-ref-picker'] && valueRefPicker"
+              name="value-ref-picker"
+              :picker="valueRefPicker"
+              :close="() => { refPickerOpen = false; }"
+            />
             <SchemaValueRefTreePanel
-              :tree="valueRefTree || []"
-              :model-value="valueKind === 'ref' ? currentRef : null"
+              v-else-if="valueRefPicker"
+              :picker="valueRefPicker"
               class="min-h-0 flex-1"
-              @select="onPickReference"
               @request-close="refPickerOpen = false"
-            >
-              <template v-if="$slots['value-ref-picker']" #tree-panel="slotProps">
-                <slot name="value-ref-picker" v-bind="slotProps" />
-              </template>
-            </SchemaValueRefTreePanel>
+            />
           </PopoverContent>
         </Popover>
       </div>
