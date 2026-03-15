@@ -30,7 +30,11 @@ import type {
   ParamSchemaRuntimeMode,
 } from "./mode";
 import type { VariableTreeNode } from "./tree-types";
-import type { CompactRuntimeLayout } from "./compact-runtime-layout";
+import type {
+  CompactRuntimeControlColumn,
+  CompactRuntimeControlColumnKey,
+  CompactRuntimeLayout,
+} from "./compact-runtime-layout";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT, type SchemaTreeOverlayRowRegistration } from "./tree-visuals";
 import {
   canEditFieldInMode,
@@ -113,10 +117,16 @@ const detailVisibility = computed<ParamSchemaRegularDetailVisibility>(() =>
   resolveRegularDetailVisibility(runtimeMode.value, props.fieldVisibility),
 );
 const layout = computed<CompactRuntimeLayout>(() =>
-  resolveCompactLayout(runtimeMode.value, layoutWidth.value, inlineVisibility.value),
+  resolveCompactLayout(runtimeMode.value, layoutWidth.value, inlineVisibility.value, detailVisibility.value),
 );
 const showTreeAffordance = computed(() => hasAnyNestedChildren(props.state.tree));
 const expandedSet = computed(() => new Set(treeExpandedIds.value));
+type HeaderLabel = {
+  key: string;
+  label: string;
+  align?: CompactRuntimeControlColumn["align"];
+};
+
 const contentMinWidth = computed(() => {
   const depth = collectVisibleMaxDepth(props.state.tree, expandedSet.value);
   const treeIndentWidth = showTreeAffordance.value ? 20 + depth * 15 : 0;
@@ -132,16 +142,8 @@ const contentMinWidth = computed(() => {
           ? 96
           : 116
         : 0;
-  const requiredMin = layout.value.inlineRequired ? 34 : 0;
-  const actionsMin =
-    layout.value.actionButtons >= 3
-      ? 78
-      : layout.value.actionButtons === 2
-        ? 54
-        : layout.value.actionButtons === 1
-          ? 28
-          : 0;
-  return treeIndentWidth + nameInputMin + typeMin + valueMin + requiredMin + actionsMin + 22;
+  const controlMin = layout.value.controlColumns.reduce((sum, column) => sum + column.minWidth, 0);
+  return treeIndentWidth + nameInputMin + typeMin + valueMin + controlMin + 22;
 });
 const modeLabel = computed(() => {
   if (runtimeMode.value === "define") return "Define";
@@ -150,16 +152,21 @@ const modeLabel = computed(() => {
   return "Read";
 });
 
-const headerLabels = computed(() => {
-  const labels = [{ key: "name", label: "变量名" }];
+const headerLabels = computed<HeaderLabel[]>(() => {
+  const labels: HeaderLabel[] = [{ key: "name", label: "变量名" }];
   if (layout.value.inlineType) labels.push({ key: "type", label: "变量类型" });
   if (layout.value.valueField === "value") labels.push({ key: "value", label: "变量值" });
   if (layout.value.valueField === "default") labels.push({ key: "default", label: "默认值" });
-  if (layout.value.inlineRequired) labels.push({ key: "required", label: "必填" });
-  if (layout.value.actionButtons > 0) labels.push({ key: "actions", label: "" });
+  labels.push(
+    ...layout.value.controlColumns.map(({ key, label, align }) => ({
+      key,
+      label,
+      align,
+    })),
+  );
   return labels;
 });
-const headerNamePadding = computed(() => (showTreeAffordance.value ? `${8 + TREE_BASE_RAIL + 9}px` : "8px"));
+const headerNamePadding = computed(() => (showTreeAffordance.value ? `${TREE_BASE_RAIL + 9}px` : "0.125rem"));
 
 const showHeader = computed(() => runtimeMode.value !== "read");
 const canAddRoot = computed(() => {
@@ -296,23 +303,15 @@ function resolveCompactLayout(
   mode: ParamSchemaRuntimeMode,
   width: number,
   inlineVisibility: ParamSchemaRegularInlineVisibility,
+  detailVisibility: ParamSchemaRegularDetailVisibility,
 ): CompactRuntimeLayout {
   const density = width < 360 ? "xs" : width < 520 ? "sm" : width < 760 ? "md" : "lg";
   const railWidth = density === "xs" ? 22 : density === "sm" ? 28 : density === "md" ? 32 : 36;
   const inlineType = mode !== "read" && inlineVisibility.type;
-  const inlineRequired = mode !== "read" && inlineVisibility.required;
   const valueField = inlineVisibility.valueField;
   const inlineDefault = valueField === "default";
-  const actionButtons =
-    inlineVisibility.actions
-      ? mode === "read"
-        ? 0
-        : mode === "bind" || mode === "refine"
-          ? 2
-          : 3
-      : 0;
-
   const columns = ["minmax(0,1fr)"];
+  const controlColumns: CompactRuntimeControlColumn[] = [];
 
   if (inlineType) {
     columns.push(density === "xs" ? "96px" : density === "sm" ? "104px" : "108px");
@@ -328,28 +327,34 @@ function resolveCompactLayout(
         ? "minmax(124px,0.92fr)"
         : density === "xs"
           ? "minmax(108px,1fr)"
-          : "minmax(148px,1.1fr)",
+        : "minmax(148px,1.1fr)",
     );
   }
 
-  if (inlineRequired) {
-    columns.push(density === "xs" || density === "sm" ? "38px" : "40px");
+  if (mode !== "read" && inlineVisibility.required) {
+    const requiredColumn = createControlColumn("required", density, "必填");
+    controlColumns.push(requiredColumn);
+    columns.push(requiredColumn.width);
   }
 
-  if (actionButtons > 0) {
-    columns.push(
-      actionButtons >= 3
-        ? density === "xs" || density === "sm"
-          ? "80px"
-          : "88px"
-        : actionButtons === 2
-          ? density === "xs" || density === "sm"
-            ? "56px"
-            : "64px"
-          : density === "xs" || density === "sm"
-            ? "32px"
-            : "36px",
-    );
+  if (mode !== "read" && inlineVisibility.actions) {
+    if (canMutateStructureInMode(mode)) {
+      const addChildColumn = createControlColumn("add-child", density);
+      controlColumns.push(addChildColumn);
+      columns.push(addChildColumn.width);
+    }
+
+    if (hasVisibleDetailColumns(detailVisibility)) {
+      const detailColumn = createControlColumn("toggle-detail", density);
+      controlColumns.push(detailColumn);
+      columns.push(detailColumn.width);
+    }
+
+    if (canMutateStructureInMode(mode)) {
+      const deleteColumn = createControlColumn("delete-node", density);
+      controlColumns.push(deleteColumn);
+      columns.push(deleteColumn.width);
+    }
   }
 
   if (mode === "read") {
@@ -358,11 +363,10 @@ function resolveCompactLayout(
       railWidth,
       gridTemplate: columns.join(" "),
       inlineType: false,
-      inlineRequired: false,
       inlineDefault,
       valueField,
       readBadgeOnly: true,
-      actionButtons,
+      controlColumns,
     };
   }
 
@@ -371,11 +375,31 @@ function resolveCompactLayout(
     railWidth,
     gridTemplate: columns.join(" "),
     inlineType,
-    inlineRequired,
     inlineDefault,
     valueField,
     readBadgeOnly: false,
-    actionButtons,
+    controlColumns,
+  };
+}
+
+function hasVisibleDetailColumns(detailVisibility: ParamSchemaRegularDetailVisibility) {
+  return Object.values(detailVisibility).some(Boolean);
+}
+
+function createControlColumn(
+  key: CompactRuntimeControlColumnKey,
+  density: CompactRuntimeLayout["density"],
+  label: CompactRuntimeControlColumn["label"] = ""
+): CompactRuntimeControlColumn {
+  const compactWidth = density === "xs" || density === "sm";
+
+  const minWidth = compactWidth ? 28 : 32;
+  return {
+    key,
+    label: label,
+    width: `${minWidth}px`,
+    minWidth,
+    align: "center",
   };
 }
 
@@ -810,18 +834,18 @@ function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
       <div class="min-w-full" :style="{ minWidth: `${contentMinWidth}px` }">
         <div
           v-if="showHeader"
-          class="sticky top-0 z-10 grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb]/95 px-1 py-1 text-[11px] font-semibold text-[#8b8ca0] backdrop-blur"
+          class="sticky top-0 z-10 grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb]/95 px-0.5 py-1 text-[11px] font-semibold text-[#8b8ca0] backdrop-blur"
           :style="{ gridTemplateColumns: layout.gridTemplate }"
         >
           <div
             v-for="item in headerLabels"
             :key="item.key"
             :class="[
-              item.key === 'name' ? '' : 'px-0.5',
-              item.key === 'required' ? 'text-center' : '',
-              item.key === 'actions' ? 'text-right' : '',
+              item.key === 'name' ? 'pr-0.5' : 'px-0.5',
+              item.align === 'center' ? 'text-center' : '',
+              item.align === 'right' ? 'text-right' : '',
             ]"
-            :style="item.key === 'name' ? { paddingLeft: headerNamePadding, paddingRight: '4px' } : undefined"
+            :style="item.key === 'name' ? { paddingLeft: headerNamePadding } : undefined"
           >
             {{ item.label }}
           </div>

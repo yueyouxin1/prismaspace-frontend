@@ -1,5 +1,4 @@
 export { default as ParamSchemaRegularEditor } from "./ParamSchemaRegularEditor.vue";
-export { default as SchemaTreePanel } from "./SchemaTreePanel.vue";
 export { default as SchemaValueRefTreePanel } from "./SchemaValueRefTreePanel.vue";
 export { default as SchemaTypePicker } from "./SchemaTypePicker.vue";
 export * from "./mode";

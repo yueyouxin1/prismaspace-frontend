@@ -33,6 +33,7 @@ import { Checkbox } from "@prismaspace/ui-shadcn/components/ui/checkbox";
 import { Badge } from "@prismaspace/ui-shadcn/components/ui/badge";
 import { Field, FieldError } from "@prismaspace/ui-shadcn/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@prismaspace/ui-shadcn/components/ui/select";
+import { Toggle } from "@prismaspace/ui-shadcn/components/ui/toggle";
 import {
   ChevronDown,
   ChevronRight,
@@ -328,6 +329,11 @@ function toggleDetail() {
   emit("toggle-detail", props.node.id);
 }
 
+function onDetailToggleChange(nextValue: boolean) {
+  if (nextValue === isDetailOpen.value) return;
+  toggleDetail();
+}
+
 function emitField(field: keyof SchemaNode, value: unknown) {
   emit("set-field", { nodeId: props.node.id, field, value });
 }
@@ -551,7 +557,7 @@ function syncOverlayRegistration() {
     id: props.node.id,
     parentId: props.parentNodeId ?? null,
     level: props.level,
-    branchCenterX: props.showTreeAffordance ? 4 + currentBranchX.value : 0,
+    branchCenterX: props.showTreeAffordance ? 3 + currentBranchX.value : 0,
     el: rowShellRef.value,
   });
 }
@@ -593,7 +599,7 @@ watch(
       :style="{ gridTemplateColumns: layout.gridTemplate }"
       @click="onSelectRow"
     >
-      <div class="relative z-20 px-1 py-1">
+      <div class="relative z-20 px-0.5 py-1">
         <Field :data-invalid="nameFieldIssues.length ? true : undefined" class="gap-1">
           <div class="relative min-h-8 min-w-0" :style="{ paddingLeft: `${treeRailWidth}px` }">
             <div v-if="showTreeAffordance" class="absolute inset-y-0 left-0" :style="{ width: `${treeRailWidth}px` }">
@@ -713,60 +719,75 @@ watch(
         />
       </div>
 
-      <div
-        v-if="layout.inlineRequired"
-        class="relative z-20 flex items-center justify-center px-0.5 py-1"
-        @click.stop
-      >
-        <Checkbox
-          v-if="isProperty"
-          :model-value="Boolean(props.node.required)"
-          :disabled="!canEditRequired"
-          class="border-[#cfcde0] data-[state=checked]:border-[#7366d5] data-[state=checked]:bg-[#7366d5]"
-          @update:model-value="onRequiredChange"
-        />
-        <span v-else class="text-[11px] text-[#a0a2b1]">-</span>
-      </div>
+      <template v-for="column in layout.controlColumns" :key="column.key">
+        <div
+          v-if="column.key === 'required'"
+          class="relative z-20 flex items-center justify-center px-0.5 py-1"
+          @click.stop
+        >
+          <Checkbox
+            v-if="isProperty"
+            :model-value="Boolean(props.node.required)"
+            :disabled="!canEditRequired"
+            class="border-[#cfcde0] data-[state=checked]:border-[#7366d5] data-[state=checked]:bg-[#7366d5]"
+            @update:model-value="onRequiredChange"
+          />
+          <span v-else class="text-[11px] text-[#a0a2b1]">-</span>
+        </div>
 
-      <div
-        v-if="layout.actionButtons > 0"
-        class="relative z-20 flex items-center justify-end gap-0.5 px-0.5 py-1"
-        @click.stop
-      >
-        <Button
-          v-if="canAddChild"
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          class="size-6 rounded-[7px] text-[#6153ad]"
-          :title="props.node.type === 'array' ? '添加数组项' : '添加子属性'"
-          @click="onAddChild"
+        <div
+          v-else-if="column.key === 'add-child'"
+          class="relative z-20 flex items-center justify-center px-0.5 py-1"
+          @click.stop
         >
-          <Plus class="size-3.5" />
-        </Button>
-        <Button
-          v-if="hasExpandableDetail"
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          class="size-6 rounded-[7px] text-[#7c7d90]"
-          title="展开更多"
-          @click="toggleDetail"
+          <Button
+            v-if="canAddChild"
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            class="size-6 rounded-[7px] text-[#6153ad]"
+            :title="props.node.type === 'array' ? '添加数组项' : '添加子属性'"
+            @click="onAddChild"
+          >
+            <Plus class="size-3.5" />
+          </Button>
+        </div>
+
+        <div
+          v-else-if="column.key === 'toggle-detail'"
+          class="relative z-20 flex items-center justify-center px-0.5 py-1"
+          @click.stop
         >
-          <ChevronsUpDown class="size-3.5" />
-        </Button>
-        <Button
-          v-if="canDelete"
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          class="size-6 rounded-[7px] text-[#6f6f82] hover:bg-[#fff3f4] hover:text-[#d45460]"
-          title="删除节点"
-          @click="onDeleteNode"
+          <Toggle
+            v-if="hasExpandableDetail"
+            :model-value="isDetailOpen"
+            size="sm"
+            class="h-6 min-w-6 rounded-[7px] px-0 text-[#7c7d90] hover:bg-[#f6f4ff] hover:text-[#675bc0] data-[state=on]:border-[#c9c5ff] data-[state=on]:bg-[#f2efff] data-[state=on]:text-[#5d50c6]"
+            :title="isDetailOpen ? '收起更多' : '展开更多'"
+            @update:model-value="onDetailToggleChange"
+          >
+            <ChevronsUpDown class="size-3.5" />
+          </Toggle>
+        </div>
+
+        <div
+          v-else-if="column.key === 'delete-node'"
+          class="relative z-20 flex items-center justify-center px-0.5 py-1"
+          @click.stop
         >
-          <Minus class="size-3.5" />
-        </Button>
-      </div>
+          <Button
+            v-if="canDelete"
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            class="size-6 rounded-[7px] text-[#6f6f82] hover:bg-[#fff3f4] hover:text-[#d45460]"
+            title="删除节点"
+            @click="onDeleteNode"
+          >
+            <Minus class="size-3.5" />
+          </Button>
+        </div>
+      </template>
     </div>
 
       <div v-if="showSubtreeBody" class="relative">
