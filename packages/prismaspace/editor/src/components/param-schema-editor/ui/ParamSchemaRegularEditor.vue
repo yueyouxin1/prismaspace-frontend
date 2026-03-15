@@ -711,6 +711,14 @@ function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
           nodeId: node.id,
           path,
         });
+      } else if (refValidation.status === "not-selectable") {
+        issues.push({
+          level: "error",
+          code: "value-ref-not-selectable",
+          message: refValidation.message ?? "引用变量当前不可选中。",
+          nodeId: node.id,
+          path,
+        });
       } else if (refValidation.status === "type-mismatch") {
         issues.push({
           level: "error",

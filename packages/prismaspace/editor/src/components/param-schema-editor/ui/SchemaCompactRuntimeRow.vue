@@ -168,10 +168,11 @@ const inlineValueMode = computed<SchemaType | "expr">(() =>
 const hasReferenceSelection = computed(
   () => props.node.value?.type === "ref" && Boolean(props.node.value.content.blockID || props.node.value.content.path),
 );
-const inlineRefTypeMismatch = computed(() => {
+const inlineRefValidationMessage = computed(() => {
   if (props.node.value?.type !== "ref") return null;
   if (!hasReferenceSelection.value) return null;
-  return currentValueRefValidation.value.status === "type-mismatch" ? currentValueRefValidation.value.message : null;
+  if (currentValueRefValidation.value.status === "ok" || currentValueRefValidation.value.status === "empty") return null;
+  return currentValueRefValidation.value.message;
 });
 const inlineMissingValueMessage = computed(() => {
   if (props.mode !== "bind" && props.mode !== "refine") return null;
@@ -261,7 +262,7 @@ const enumError = ref<string | null>(null);
 const metaError = ref<string | null>(null);
 const refPickerOpen = ref(false);
 const inlineValueValidationMessage = computed(
-  () => valueError.value ?? inlineRefTypeMismatch.value ?? inlineMissingValueMessage.value,
+  () => valueError.value ?? inlineRefValidationMessage.value ?? inlineMissingValueMessage.value,
 );
 const inlineValueErrors = computed(() => [
   ...valueFieldIssues.value.map((issue) => issue.message),
@@ -514,7 +515,7 @@ function commitValueRefField(field: keyof ValueRefContent, raw: string) {
   }
 
   const nextRefValidation = resolveValueRefValidation(props.node.type, nextRef, props.valueRefTree);
-  if (nextRefValidation.status === "type-mismatch") {
+  if (nextRefValidation.status === "type-mismatch" || nextRefValidation.status === "not-selectable") {
     valueError.value = nextRefValidation.message;
     return;
   }

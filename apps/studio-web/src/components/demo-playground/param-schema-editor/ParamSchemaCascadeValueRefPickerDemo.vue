@@ -56,7 +56,7 @@ const schemaTypeLabelMap: Record<SchemaType, string> = {
 const activeCategoryKey = ref("");
 const activeBlockKey = ref("");
 
-const categories = computed(() => props.picker.filteredItems.filter((item) => item.children.length > 0));
+const categories = computed(() => props.picker.filteredItems.filter((item) => item.children.length > 0 || item.ref));
 const activeCategory = computed(() => {
   return categories.value.find((item) => item.key === activeCategoryKey.value) ?? categories.value[0] ?? null;
 });
@@ -65,6 +65,8 @@ const activeBlock = computed(() => {
   return blocks.value.find((item) => item.key === activeBlockKey.value) ?? blocks.value[0] ?? null;
 });
 const activeBlockTreeItems = computed(() => activeBlock.value?.children ?? []);
+const activeCategoryActionLabel = computed(() => (activeCategory.value?.children.length ? "引用当前分组" : "引用当前节点"));
+const activeDetailItem = computed(() => activeBlock.value ?? activeCategory.value);
 const treeSelectedItem = computed(() => {
   if (!activeBlock.value || !props.picker.selectedKey) return null;
   return findPickerItemByKey(activeBlockTreeItems.value, props.picker.selectedKey);
@@ -105,10 +107,22 @@ function activateBlock(category: ValueRefPickerItem, block: ValueRefPickerItem) 
   activeBlockKey.value = block.key;
 }
 
+function selectionMessage(item: ValueRefPickerItem | null) {
+  if (!item?.ref) return null;
+  if (!item.selectable) return item.selectableMessage;
+  if (!item.compatibility.compatible) return item.compatibility.message;
+  return null;
+}
+
 function selectItem(item: ValueRefPickerItem) {
   if (props.picker.selectItem(item)) {
     props.close();
   }
+}
+
+function selectActiveCategory() {
+  if (!activeCategory.value || !props.picker.canSelect(activeCategory.value)) return;
+  selectItem(activeCategory.value);
 }
 
 function selectActiveBlock() {
@@ -188,38 +202,68 @@ function findPickerItemByKey(items: ValueRefPickerItem[], key: string): ValueRef
           <DropdownMenuContent align="start" class="w-64 rounded-[14px] border-[#e6e2f3] p-1.5">
             <DropdownMenuLabel class="text-[11px] text-[#8c87a1]">变量来源</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuSub v-for="category in categories" :key="category.key">
-              <DropdownMenuSubTrigger class="rounded-[10px] px-2.5 py-2 text-[13px]">
+            <template v-for="category in categories" :key="category.key">
+              <DropdownMenuSub v-if="category.children.length">
+                <DropdownMenuSubTrigger class="rounded-[10px] px-2.5 py-2 text-[13px]">
+                  <component :is="categoryIcon(category.key)" class="mr-2 size-4 text-[#746aa7]" />
+                  <span class="flex-1 truncate">{{ category.label }}</span>
+                  <Badge variant="outline" class="rounded-full border-[#e6e3f0] bg-[#f8f7fc] px-1.5 text-[10px] text-[#7e7a92]">
+                    {{ category.children.length }}
+                  </Badge>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent class="w-60 rounded-[14px] border-[#e6e2f3] p-1.5">
+                  <DropdownMenuLabel class="text-[11px] text-[#8c87a1]">{{ category.label }}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    v-for="block in category.children"
+                    :key="block.key"
+                    class="rounded-[10px] px-2.5 py-2 text-[13px]"
+                    @select.prevent="activateBlock(category, block)"
+                  >
+                    <component :is="blockIcon(block.key)" class="mr-2 size-4 text-[#746aa7]" />
+                    <span class="flex-1 truncate">{{ block.label }}</span>
+                    <Badge
+                      v-if="block.schemaType"
+                      variant="outline"
+                      class="mr-1 rounded-full border-[#e6e3f0] bg-[#f8f7fc] px-1.5 text-[10px] text-[#7e7a92]"
+                    >
+                      {{ schemaTypeLabelMap[block.schemaType] }}
+                    </Badge>
+                    <Check v-if="activeBlock?.key === block.key" class="size-3.5 text-[#5b50c6]" />
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem
+                v-else
+                class="rounded-[10px] px-2.5 py-2 text-[13px]"
+                @select.prevent="activateCategory(category)"
+              >
                 <component :is="categoryIcon(category.key)" class="mr-2 size-4 text-[#746aa7]" />
                 <span class="flex-1 truncate">{{ category.label }}</span>
-                <Badge variant="outline" class="rounded-full border-[#e6e3f0] bg-[#f8f7fc] px-1.5 text-[10px] text-[#7e7a92]">
-                  {{ category.children.length }}
-                </Badge>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent class="w-60 rounded-[14px] border-[#e6e2f3] p-1.5">
-                <DropdownMenuLabel class="text-[11px] text-[#8c87a1]">{{ category.label }}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  v-for="block in category.children"
-                  :key="block.key"
-                  class="rounded-[10px] px-2.5 py-2 text-[13px]"
-                  @select.prevent="activateBlock(category, block)"
+                <Badge
+                  v-if="category.schemaType"
+                  variant="outline"
+                  class="mr-1 rounded-full border-[#e6e3f0] bg-[#f8f7fc] px-1.5 text-[10px] text-[#7e7a92]"
                 >
-                  <component :is="blockIcon(block.key)" class="mr-2 size-4 text-[#746aa7]" />
-                  <span class="flex-1 truncate">{{ block.label }}</span>
-                  <Badge
-                    v-if="block.schemaType"
-                    variant="outline"
-                    class="mr-1 rounded-full border-[#e6e3f0] bg-[#f8f7fc] px-1.5 text-[10px] text-[#7e7a92]"
-                  >
-                    {{ schemaTypeLabelMap[block.schemaType] }}
-                  </Badge>
-                  <Check v-if="activeBlock?.key === block.key" class="size-3.5 text-[#5b50c6]" />
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+                  {{ schemaTypeLabelMap[category.schemaType] }}
+                </Badge>
+                <Check v-if="activeCategory?.key === category.key" class="size-3.5 text-[#5b50c6]" />
+              </DropdownMenuItem>
+            </template>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button
+          v-if="activeCategory?.ref"
+          type="button"
+          size="sm"
+          variant="outline"
+          class="rounded-[10px]"
+          :disabled="!picker.canSelect(activeCategory)"
+          @click="selectActiveCategory"
+        >
+          {{ activeCategoryActionLabel }}
+        </Button>
 
         <Badge
           v-if="picker.selected"
@@ -241,7 +285,10 @@ function findPickerItemByKey(items: ValueRefPickerItem[], key: string): ValueRef
           <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[#9892ad]">Blocks</p>
         </div>
         <ScrollArea class="h-[280px] min-h-0">
-          <div class="space-y-1.5 p-2">
+          <div v-if="!blocks.length" class="px-4 py-10 text-center text-[13px] text-[#8f91a2]">
+            当前节点没有子 Block，可直接引用当前节点。
+          </div>
+          <div v-else class="space-y-1.5 p-2">
             <button
               v-for="block in blocks"
               :key="block.key"
@@ -267,21 +314,24 @@ function findPickerItemByKey(items: ValueRefPickerItem[], key: string): ValueRef
       </div>
 
       <div class="flex min-h-0 flex-col rounded-[16px] border border-[#ece8f6] bg-white">
-        <div v-if="activeBlock" class="border-b border-[#f0edf7] px-3 py-3">
+        <div v-if="activeDetailItem" class="border-b border-[#f0edf7] px-3 py-3">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <div class="flex items-center gap-2">
-                <component :is="blockIcon(activeBlock.key)" class="size-4 shrink-0 text-[#6157a2]" />
-                <p class="truncate text-[13px] font-semibold text-[#3f345f]">{{ activeBlock.label }}</p>
+                <component
+                  :is="activeBlock ? blockIcon(activeDetailItem.key) : categoryIcon(activeDetailItem.key)"
+                  class="size-4 shrink-0 text-[#6157a2]"
+                />
+                <p class="truncate text-[13px] font-semibold text-[#3f345f]">{{ activeDetailItem.label }}</p>
                 <Badge
-                  v-if="activeBlock.schemaType"
+                  v-if="activeDetailItem.schemaType"
                   variant="outline"
                   class="rounded-full border-[#e6e3f0] bg-[#f8f7fc] px-1.5 text-[10px] text-[#7e7a92]"
                 >
-                  {{ schemaTypeLabelMap[activeBlock.schemaType] }}
+                  {{ schemaTypeLabelMap[activeDetailItem.schemaType] }}
                 </Badge>
               </div>
-              <p class="mt-1 truncate text-[11px] text-[#8f8aa6]">{{ activeBlock.caption }}</p>
+              <p class="mt-1 truncate text-[11px] text-[#8f8aa6]">{{ activeDetailItem.caption }}</p>
             </div>
 
             <Button
@@ -289,24 +339,24 @@ function findPickerItemByKey(items: ValueRefPickerItem[], key: string): ValueRef
               size="sm"
               variant="outline"
               class="rounded-[10px]"
-              :disabled="!picker.canSelect(activeBlock)"
-              @click="selectActiveBlock"
+              :disabled="!picker.canSelect(activeDetailItem)"
+              @click="activeBlock ? selectActiveBlock() : selectItem(activeDetailItem)"
             >
-              引用整块
+              {{ activeBlock ? "引用整块" : "引用当前节点" }}
             </Button>
           </div>
 
           <p
-            v-if="activeBlock.ref && !activeBlock.compatibility.compatible && activeBlock.compatibility.message"
+            v-if="selectionMessage(activeDetailItem)"
             class="mt-2 text-[11px] text-[#c44d5b]"
           >
-            {{ activeBlock.compatibility.message }}
+            {{ selectionMessage(activeDetailItem) }}
           </p>
         </div>
 
         <ScrollArea class="min-h-0 flex-1">
           <div v-if="!activeBlock" class="px-4 py-10 text-center text-[13px] text-[#8f91a2]">
-            当前筛选结果下没有可用的 Block。
+            当前节点没有子层级，可直接引用当前节点。
           </div>
 
           <TreeRoot
@@ -373,7 +423,13 @@ function findPickerItemByKey(items: ValueRefPickerItem[], key: string): ValueRef
                             {{ flatItem.value.caption }}
                           </span>
                           <span
-                            v-if="flatItem.value.ref && !flatItem.value.compatibility.compatible && flatItem.value.compatibility.message"
+                            v-if="flatItem.value.ref && !flatItem.value.selectable && flatItem.value.selectableMessage"
+                            class="mt-1 block text-[11px] text-[#c44d5b]"
+                          >
+                            {{ flatItem.value.selectableMessage }}
+                          </span>
+                          <span
+                            v-else-if="flatItem.value.ref && !flatItem.value.compatibility.compatible && flatItem.value.compatibility.message"
                             class="mt-1 block text-[11px] text-[#c44d5b]"
                           >
                             {{ flatItem.value.compatibility.message }}

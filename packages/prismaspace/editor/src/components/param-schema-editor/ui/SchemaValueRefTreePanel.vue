@@ -39,6 +39,7 @@ const emit = defineEmits<{
 const selectedItem = computed(() => props.picker.selectedItem ?? undefined);
 const selectedBadge = computed(() => {
   if (props.picker.selectedValidation.status === "missing") return "引用失效";
+  if (props.picker.selectedValidation.status === "not-selectable") return "不可引用";
   if (props.picker.selectedValidation.status === "type-mismatch") return "类型不兼容";
   return "当前引用";
 });
@@ -199,6 +200,13 @@ function onItemToggle(event: TreeInteractionEvent) {
                           {{ flatItem.value.source }}
                         </Badge>
                         <Badge
+                          v-if="flatItem.value.ref && !flatItem.value.selectable"
+                          variant="outline"
+                          class="rounded-full border-[#ffd6db] bg-[#fff7f8] px-1.5 text-[10px] text-[#c44d5b]"
+                        >
+                          不可引用
+                        </Badge>
+                        <Badge
                           v-if="flatItem.value.ref && !flatItem.value.compatibility.compatible"
                           variant="outline"
                           class="rounded-full border-[#ffd6db] bg-[#fff7f8] px-1.5 text-[10px] text-[#c44d5b]"
@@ -216,7 +224,13 @@ function onItemToggle(event: TreeInteractionEvent) {
                         }}
                       </span>
                       <span
-                        v-if="flatItem.value.ref && !flatItem.value.compatibility.compatible && flatItem.value.compatibility.message"
+                        v-if="flatItem.value.ref && !flatItem.value.selectable && flatItem.value.selectableMessage"
+                        class="mt-1 block text-[11px] text-[#c44d5b]"
+                      >
+                        {{ flatItem.value.selectableMessage }}
+                      </span>
+                      <span
+                        v-else-if="flatItem.value.ref && !flatItem.value.compatibility.compatible && flatItem.value.compatibility.message"
                         class="mt-1 block text-[11px] text-[#c44d5b]"
                       >
                         {{ flatItem.value.compatibility.message }}

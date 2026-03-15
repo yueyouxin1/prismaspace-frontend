@@ -28,6 +28,7 @@ const valueRefTree: VariableTreeNode[] = [
     id: "user-vars",
     key: "user-vars",
     label: "用户变量",
+    selectable: false,
     children: [
       {
         id: "start",
@@ -83,6 +84,7 @@ const valueRefTree: VariableTreeNode[] = [
     id: "app-vars",
     key: "app-vars",
     label: "应用变量",
+    selectable: false,
     children: [
       {
         id: "app-config",
@@ -112,6 +114,7 @@ const valueRefTree: VariableTreeNode[] = [
     id: "system-vars",
     key: "system-vars",
     label: "系统变量",
+    selectable: false,
     children: [
       {
         id: "llm",

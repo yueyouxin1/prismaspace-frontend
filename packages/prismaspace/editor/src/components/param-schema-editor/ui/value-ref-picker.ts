@@ -1,9 +1,14 @@
 import { computed, ref, watch, type ComputedRef } from "vue";
 import type { SchemaType, ValueRefContent } from "../core";
 import type { VariableTreeNode } from "./tree-types";
-import { buildValueRefKey, findVariableTreeNodeByRef, formatValueRefSummary } from "./runtime-editor-utils";
+import {
+  buildValueRefKey,
+  findVariableTreeNodeRefMatchByRef,
+  formatValueRefSummary,
+  resolveVariableTreeNodeRef,
+} from "./runtime-editor-utils";
 
-export type ValueRefValidationStatus = "empty" | "ok" | "missing" | "type-mismatch";
+export type ValueRefValidationStatus = "empty" | "ok" | "missing" | "not-selectable" | "type-mismatch";
 
 export interface ValueRefCandidateCompatibility {
   compatible: boolean;
@@ -29,6 +34,8 @@ export interface ValueRefPickerItem {
   source?: string;
   schemaType?: SchemaType;
   ref: ValueRefContent | null;
+  selectable: boolean;
+  selectableMessage: string | null;
   children: ValueRefPickerItem[];
   searchableText: string;
   compatibility: ValueRefCandidateCompatibility;
@@ -59,8 +66,8 @@ export interface ValueRefPickerViewModel {
   setExpandedKeys: (keys: string[]) => void;
   isExpanded: (key: string) => boolean;
   isSelected: (item: Pick<ValueRefPickerItem, "ref">) => boolean;
-  canSelect: (item: Pick<ValueRefPickerItem, "ref" | "compatibility">) => boolean;
-  selectItem: (item: Pick<ValueRefPickerItem, "ref" | "compatibility">) => boolean;
+  canSelect: (item: Pick<ValueRefPickerItem, "ref" | "selectable" | "compatibility">) => boolean;
+  selectItem: (item: Pick<ValueRefPickerItem, "ref" | "selectable" | "compatibility">) => boolean;
   selectReference: (ref: ValueRefContent) => boolean;
 }
 
@@ -112,8 +119,8 @@ export function resolveValueRefValidation(
     };
   }
 
-  const refNode = findVariableTreeNodeByRef(tree, normalizedRef);
-  if (!refNode) {
+  const refMatch = findVariableTreeNodeRefMatchByRef(tree, normalizedRef);
+  if (!refMatch) {
     return {
       status: "missing",
       compatible: false,
@@ -126,14 +133,27 @@ export function resolveValueRefValidation(
     };
   }
 
-  const compatibility = getValueRefCompatibility(expectedType, refNode.schemaType);
+  if (!refMatch.resolved.selectable) {
+    return {
+      status: "not-selectable",
+      compatible: false,
+      ref: normalizedRef,
+      refKey,
+      refNode: refMatch.node,
+      expectedType,
+      actualType: refMatch.node.schemaType ?? null,
+      message: refMatch.resolved.selectableMessage ?? "当前节点不可引用。",
+    };
+  }
+
+  const compatibility = getValueRefCompatibility(expectedType, refMatch.node.schemaType);
   if (!compatibility.compatible) {
     return {
       status: "type-mismatch",
       compatible: false,
       ref: normalizedRef,
       refKey,
-      refNode,
+      refNode: refMatch.node,
       expectedType,
       actualType: compatibility.actualType,
       message: compatibility.message,
@@ -145,7 +165,7 @@ export function resolveValueRefValidation(
     compatible: true,
     ref: normalizedRef,
     refKey,
-    refNode,
+    refNode: refMatch.node,
     expectedType,
     actualType: compatibility.actualType,
     message: null,
@@ -235,13 +255,14 @@ export function useValueRefPickerController(
     return Boolean(item.ref && selectedKey.value && buildValueRefKey(item.ref) === selectedKey.value);
   }
 
-  function canSelect(item: Pick<ValueRefPickerItem, "ref" | "compatibility">) {
+  function canSelect(item: Pick<ValueRefPickerItem, "ref" | "selectable" | "compatibility">) {
     if (!item.ref) return false;
+    if (!item.selectable) return false;
     if (!rejectIncompatible) return true;
     return item.compatibility.compatible;
   }
 
-  function selectItem(item: Pick<ValueRefPickerItem, "ref" | "compatibility">) {
+  function selectItem(item: Pick<ValueRefPickerItem, "ref" | "selectable" | "compatibility">) {
     if (!item.ref || !canSelect(item)) return false;
     options.onSelect?.(item.ref, item.ref ? (findValueRefPickerItemByRef(items.value, item.ref) ?? null) : null);
     return true;
@@ -252,6 +273,9 @@ export function useValueRefPickerController(
     if (item) return selectItem(item);
 
     const validation = resolveValueRefValidation(options.getExpectedType(), ref, options.getTree());
+    if (validation.status === "not-selectable") {
+      return false;
+    }
     if (rejectIncompatible && validation.status === "type-mismatch") {
       return false;
     }
@@ -292,23 +316,10 @@ function normalizeValueRefPickerTree(
   inheritedBlockId = "",
 ): ValueRefPickerItem[] {
   return nodes.map((node, index) => {
-    const rawLabel = node.label ?? node.name ?? node.title ?? node.path ?? node.id ?? `node-${index + 1}`;
-    const label = String(rawLabel).trim() || `node-${index + 1}`;
-    const nextLabels = [...labels, label];
-    const blockID = String(node.blockID ?? inheritedBlockId ?? node.id ?? "").trim();
-    const path = String(node.path ?? "").trim();
-    const source = String(node.source ?? "").trim() || undefined;
-    const fallbackPath = nextLabels.join(".");
-    const ref =
-      blockID || path
-        ? {
-            blockID: blockID || inheritedBlockId || label,
-            path: path || fallbackPath,
-            source,
-          }
-        : null;
+    const resolved = resolveVariableTreeNodeRef(node, labels, inheritedBlockId, index);
+    const { label, nextLabels, blockID, path, source, ref } = resolved;
     const caption = ref ? `${ref.blockID} · ${ref.path}` : nextLabels.join(" / ");
-    const children = normalizeValueRefPickerTree(node.children ?? [], expectedType, nextLabels, blockID || inheritedBlockId);
+    const children = normalizeValueRefPickerTree(node.children ?? [], expectedType, nextLabels, resolved.nextInheritedBlockId);
 
     return {
       key: String(node.key ?? node.id ?? `${labels.join(".")}:${label}:${index}`),
@@ -317,6 +328,8 @@ function normalizeValueRefPickerTree(
       source,
       schemaType: node.schemaType,
       ref,
+      selectable: resolved.selectable,
+      selectableMessage: resolved.selectableMessage,
       children,
       searchableText: [label, caption, source ?? "", nextLabels.join(" "), blockID, path].join(" ").toLowerCase(),
       compatibility: getValueRefCompatibility(expectedType, node.schemaType),

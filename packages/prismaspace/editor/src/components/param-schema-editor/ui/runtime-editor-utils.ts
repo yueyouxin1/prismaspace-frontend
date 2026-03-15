@@ -125,6 +125,110 @@ export function cloneVariableTree(tree: VariableTreeNode[] | undefined | null): 
   }));
 }
 
+export interface ResolvedVariableTreeNodeRef {
+  label: string;
+  nextLabels: string[];
+  blockID: string;
+  path: string;
+  source?: string;
+  ref: ValueRefContent | null;
+  nextInheritedBlockId: string;
+  explicitBlockID: boolean;
+  explicitPath: boolean;
+  selectable: boolean;
+  selectableMessage: string | null;
+}
+
+export interface VariableTreeNodeRefMatch {
+  node: VariableTreeNode;
+  resolved: ResolvedVariableTreeNodeRef;
+}
+
+function hasExplicitVariableRefValue(value: string | undefined): boolean {
+  return Boolean(value?.trim());
+}
+
+export function getVariableTreeNodeSelectableState(
+  node: VariableTreeNode,
+  resolvedRef: Pick<ResolvedVariableTreeNodeRef, "ref" | "explicitBlockID" | "explicitPath" | "source">,
+): { selectable: boolean; message: string | null } {
+  if (!resolvedRef.ref) {
+    return {
+      selectable: false,
+      message: "当前节点没有可用的引用标识。",
+    };
+  }
+
+  if (typeof node.selectable === "boolean") {
+    return {
+      selectable: node.selectable,
+      message: node.selectable ? null : "当前节点被标记为不可引用。",
+    };
+  }
+
+  const hasExplicitRef =
+    resolvedRef.explicitBlockID
+    || resolvedRef.explicitPath
+    || Boolean(resolvedRef.source?.trim());
+
+  if (hasExplicitRef || !(node.children?.length)) {
+    return {
+      selectable: true,
+      message: null,
+    };
+  }
+
+  return {
+    selectable: false,
+    message: "当前节点默认作为分组容器，不可直接引用。",
+  };
+}
+
+export function resolveVariableTreeNodeRef(
+  node: VariableTreeNode,
+  labels: string[] = [],
+  inheritedBlockId = "",
+  index = 0,
+): ResolvedVariableTreeNodeRef {
+  const rawLabel = node.label ?? node.name ?? node.title ?? node.path ?? node.id ?? `node-${index + 1}`;
+  const label = String(rawLabel).trim() || `node-${index + 1}`;
+  const nextLabels = [...labels, label];
+  const explicitBlockID = hasExplicitVariableRefValue(node.blockID);
+  const explicitPath = hasExplicitVariableRefValue(node.path);
+  const blockID = String((explicitBlockID ? node.blockID : inheritedBlockId || node.id) ?? "").trim();
+  const path = String(node.path ?? "").trim();
+  const source = String(node.source ?? "").trim() || undefined;
+  const fallbackPath = nextLabels.join(".");
+  const ref =
+    blockID || path
+      ? {
+          blockID: blockID || inheritedBlockId || label,
+          path: path || fallbackPath,
+          source,
+        }
+      : null;
+  const selectableState = getVariableTreeNodeSelectableState(node, {
+    ref,
+    explicitBlockID,
+    explicitPath,
+    source,
+  });
+
+  return {
+    label,
+    nextLabels,
+    blockID,
+    path,
+    source,
+    ref,
+    nextInheritedBlockId: blockID || inheritedBlockId,
+    explicitBlockID,
+    explicitPath,
+    selectable: selectableState.selectable,
+    selectableMessage: selectableState.message,
+  };
+}
+
 export function buildValueRefKey(ref: ValueRefContent | null | undefined): string {
   if (!ref) return "";
   return `${ref.blockID ?? ""}::${ref.path ?? ""}::${ref.source ?? ""}`;
@@ -134,23 +238,27 @@ export function findVariableTreeNodeByRef(
   tree: VariableTreeNode[] | undefined | null,
   ref: ValueRefContent | null | undefined,
 ): VariableTreeNode | null {
+  return findVariableTreeNodeRefMatchByRef(tree, ref)?.node ?? null;
+}
+
+export function findVariableTreeNodeRefMatchByRef(
+  tree: VariableTreeNode[] | undefined | null,
+  ref: ValueRefContent | null | undefined,
+): VariableTreeNodeRefMatch | null {
   const targetKey = buildValueRefKey(ref);
   if (!targetKey) return null;
 
-  const walk = (nodes: VariableTreeNode[]): VariableTreeNode | null => {
-    for (const node of nodes) {
-      const nodeRef =
-        node.blockID || node.path
-          ? {
-              blockID: node.blockID ?? "",
-              path: node.path ?? "",
-              source: node.source,
-            }
-          : null;
-      if (buildValueRefKey(nodeRef) === targetKey) {
-        return node;
+  const walk = (
+    nodes: VariableTreeNode[],
+    labels: string[] = [],
+    inheritedBlockId = "",
+  ): VariableTreeNodeRefMatch | null => {
+    for (const [index, node] of nodes.entries()) {
+      const resolved = resolveVariableTreeNodeRef(node, labels, inheritedBlockId, index);
+      if (buildValueRefKey(resolved.ref) === targetKey) {
+        return { node, resolved };
       }
-      const child = walk(node.children ?? []);
+      const child = walk(node.children ?? [], resolved.nextLabels, resolved.nextInheritedBlockId);
       if (child) return child;
     }
     return null;

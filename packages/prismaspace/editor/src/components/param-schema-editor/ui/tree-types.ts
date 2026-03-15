@@ -10,5 +10,6 @@ export interface VariableTreeNode {
   blockID?: string;
   source?: string;
   schemaType?: SchemaType;
+  selectable?: boolean;
   children?: VariableTreeNode[];
 }
