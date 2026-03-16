@@ -28,6 +28,20 @@ const selectedKey = computed(() => {
 })
 
 const placeholder = computed(() => String(props.fieldProps?.placeholder ?? "请选择"))
+const triggerProps = computed(() => {
+  if (!props.fieldProps) {
+    return {}
+  }
+
+  const {
+    triggerClass: _triggerClass,
+    contentClass: _contentClass,
+    placeholder: _placeholder,
+    ...rest
+  } = props.fieldProps
+
+  return rest
+})
 
 function onUpdateModelValue(optionIndex: unknown): void {
   if (optionIndex === null || optionIndex === undefined || optionIndex === "") {
@@ -46,7 +60,7 @@ function onUpdateModelValue(optionIndex: unknown): void {
     :disabled="disabled || Boolean(fieldProps?.disabled)"
     @update:model-value="onUpdateModelValue"
   >
-    <SelectTrigger :class="fieldProps?.triggerClass as string">
+    <SelectTrigger v-bind="triggerProps" :class="fieldProps?.triggerClass as string">
       <SelectValue :placeholder="placeholder" />
     </SelectTrigger>
     <SelectContent :class="fieldProps?.contentClass as string">

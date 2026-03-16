@@ -22,8 +22,13 @@ export const ExprStringSchema = z
   .trim()
   .regex(/^\{\{[\s\S]*\}\}$/, "表达式字符串必须使用 {{ ... }} 包裹");
 
+const ExprFunctionSchema = z.custom<(...args: any[]) => unknown>(
+  (value) => typeof value === "function",
+  "表达式函数必须为 function",
+);
+
 export const ExprSchema = <T extends z.ZodTypeAny>(valueSchema: T) =>
-  z.union([valueSchema, ExprStringSchema]);
+  z.union([valueSchema, ExprStringSchema, ExprFunctionSchema]);
 
 /** state: visible/disabled，带默认值 */
 export const StateWhenSchema = z

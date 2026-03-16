@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { computed, watchEffect } from "vue"
-import { Label } from "@prismaspace/ui-shadcn/components/ui/label"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@prismaspace/ui-shadcn/components/ui/field"
 import type {
   ActionRendererDefinition,
   ExpressionRuntimeScope,
   FieldOption,
   FieldRendererDefinition,
+  FormValidationErrors,
   FormGeneratorActionEvent,
   FormContext,
   FormModel,
@@ -31,8 +39,12 @@ const props = withDefaults(defineProps<{
   context?: FormContext
   fieldRegistry: Map<string, FieldRendererDefinition>
   actionRegistry: Map<string, ActionRendererDefinition>
+  validationErrors?: FormValidationErrors
+  onFieldChange?: (item: FormFieldItem) => void | Promise<void>
+  beforeAction?: (item: FormActionItem) => boolean | Promise<boolean>
 }>(), {
   context: () => ({}),
+  validationErrors: () => ({}),
 })
 
 const emit = defineEmits<{
@@ -169,6 +181,16 @@ const fieldRequired = computed(() => {
   return evaluateExpr(item.required, false) === true
 })
 
+const fieldErrors = computed<string[]>(() => {
+  const item = fieldItem.value
+  if (!item) {
+    return []
+  }
+  return props.validationErrors?.[item.id] ?? []
+})
+
+const fieldInvalid = computed(() => fieldErrors.value.length > 0)
+
 const fieldChildren = computed(() => {
   const item = fieldItem.value
   if (!item?.children?.length) {
@@ -181,6 +203,91 @@ const fieldOwnsChildrenSlot = computed(() => {
   return Boolean(fieldRenderer.value?.rendersChildrenInDefaultSlot && fieldChildren.value.length)
 })
 
+const fieldOrientation = computed<"vertical" | "horizontal">(() => {
+  const control = fieldItem.value?.control.trim().toLowerCase()
+  return control === "checkbox" || control === "switch" ? "horizontal" : "vertical"
+})
+
+const fieldLabelText = computed(() => {
+  const item = fieldItem.value
+  if (!item) {
+    return ""
+  }
+
+  if (typeof item.label === "string" && item.label.trim()) {
+    return item.label.trim()
+  }
+
+  const fallbackLabel = item.props && typeof item.props === "object"
+    ? (item.props as Record<string, unknown>).label
+    : undefined
+
+  return typeof fallbackLabel === "string" ? fallbackLabel.trim() : ""
+})
+
+const baseFieldControlId = computed(() => {
+  const item = fieldItem.value
+  if (!item) {
+    return undefined
+  }
+  return `fg-${item.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`
+})
+
+const fieldDescriptionId = computed(() => (
+  fieldItem.value?.desc ? `${baseFieldControlId.value}-description` : undefined
+))
+
+const fieldErrorId = computed(() => (
+  fieldInvalid.value ? `${baseFieldControlId.value}-error` : undefined
+))
+
+const commonFieldProps = computed<Record<string, unknown>>(() => {
+  const item = fieldItem.value
+  if (!item || !baseFieldControlId.value) {
+    return {}
+  }
+
+  const describedBy = [fieldDescriptionId.value, fieldErrorId.value]
+    .filter(Boolean)
+    .join(" ")
+
+  return {
+    id: baseFieldControlId.value,
+    name: item.modelPath,
+    "aria-invalid": fieldInvalid.value ? "true" : undefined,
+    "aria-describedby": describedBy || undefined,
+  }
+})
+
+function mergeFieldProps(
+  baseProps: Record<string, unknown>,
+  extras: Record<string, unknown>,
+): Record<string, unknown> {
+  const existingProps = baseProps.fieldProps && typeof baseProps.fieldProps === "object"
+    ? baseProps.fieldProps as Record<string, unknown>
+    : undefined
+
+  if (!existingProps) {
+    return baseProps
+  }
+
+  const describedBy = [extras["aria-describedby"], existingProps["aria-describedby"]]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .join(" ")
+
+  return {
+    ...baseProps,
+    fieldProps: {
+      ...extras,
+      ...existingProps,
+      id: existingProps.id ?? extras.id,
+      name: existingProps.name ?? extras.name,
+      "aria-invalid": existingProps["aria-invalid"] ?? extras["aria-invalid"],
+      "aria-describedby": describedBy || undefined,
+    },
+  }
+}
+
 function getFieldResolveContext() {
   const item = fieldItem.value
   if (!item) {
@@ -191,6 +298,8 @@ function getFieldResolveContext() {
     model: props.model,
     context: props.context,
     value: getFieldValue(),
+    errors: fieldErrors.value,
+    invalid: fieldInvalid.value,
     setValue: setFieldValue,
     options: fieldOptions.value,
     evaluateExpr,
@@ -219,11 +328,11 @@ const fieldComponentProps = computed(() => {
     ? renderer.transformInput(getFieldValue(), context)
     : getFieldValue()
 
-  return {
+  return mergeFieldProps({
     ...mappedProps,
     disabled: isDisabled.value,
     [fieldModelProp.value]: valueForComponent,
-  }
+  }, commonFieldProps.value)
 })
 
 function onFieldModelUpdate(nextValue: unknown): void {
@@ -237,6 +346,7 @@ function onFieldModelUpdate(nextValue: unknown): void {
       ? renderer.transformOutput(nextValue, context)
       : nextValue
     setFieldValue(outputValue)
+    void props.onFieldChange?.(context.item)
   } catch (error) {
     emit("error", error as Error)
   }
@@ -337,13 +447,18 @@ function resolveActionPayload(item: FormActionItem): unknown {
   return undefined
 }
 
-function onActionTrigger(): void {
+async function onActionTrigger(): Promise<void> {
   const item = actionItem.value
   if (!item) {
     return
   }
 
   try {
+    const canContinue = props.beforeAction ? await props.beforeAction(item) : true
+    if (!canContinue) {
+      return
+    }
+
     const payload = resolveActionPayload(item)
     if (item.on?.kind === "emit") {
       emit("emit-event", {
@@ -380,40 +495,92 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
 <template>
   <div v-if="isVisible" :class="['space-y-2', containerClass]" :style="containerStyle">
     <template v-if="fieldItem">
-      <Label v-if="fieldItem.label" class="text-sm font-medium">
-        {{ fieldItem.label }}
-        <span v-if="fieldRequired" class="text-destructive">*</span>
-      </Label>
-
-      <component
-        :is="fieldRenderer?.component"
-        v-bind="fieldComponentProps"
-        v-on="fieldListeners"
+      <Field
+        :orientation="fieldOrientation"
+        :data-invalid="fieldInvalid ? 'true' : undefined"
+        :data-disabled="isDisabled ? 'true' : undefined"
       >
-        <template v-if="fieldOwnsChildrenSlot">
-          <div class="space-y-3">
-            <FormItemRenderer
-              v-for="child in fieldChildren"
-              :key="child.id"
-              :item="child"
-              :model="model"
-              :context="context"
-              :field-registry="fieldRegistry"
-              :action-registry="actionRegistry"
-              @action="emit('action', $event)"
-              @emit-event="emit('emit-event', $event)"
-              @model-change="emit('model-change')"
-              @error="emit('error', $event)"
-            />
-          </div>
+        <template v-if="fieldOrientation === 'horizontal'">
+          <component
+            :is="fieldRenderer?.component"
+            v-bind="fieldComponentProps"
+            v-on="fieldListeners"
+          >
+            <template v-if="fieldOwnsChildrenSlot">
+              <div class="space-y-3">
+                <FormItemRenderer
+                  v-for="child in fieldChildren"
+                  :key="child.id"
+                  :item="child"
+                  :model="model"
+                  :context="context"
+                  :field-registry="fieldRegistry"
+                  :action-registry="actionRegistry"
+                  :validation-errors="validationErrors"
+                  :on-field-change="onFieldChange"
+                  :before-action="beforeAction"
+                  @action="emit('action', $event)"
+                  @emit-event="emit('emit-event', $event)"
+                  @model-change="emit('model-change')"
+                  @error="emit('error', $event)"
+                />
+              </div>
+            </template>
+          </component>
+
+          <FieldContent v-if="fieldLabelText || fieldItem.desc || fieldErrors.length">
+            <FieldLabel v-if="fieldLabelText" :for="baseFieldControlId">
+              {{ fieldLabelText }}
+              <span v-if="fieldRequired" class="text-destructive">*</span>
+            </FieldLabel>
+            <FieldDescription v-if="fieldItem.desc" :id="fieldDescriptionId">
+              {{ fieldItem.desc }}
+            </FieldDescription>
+            <FieldError v-if="fieldErrors.length" :id="fieldErrorId" :errors="fieldErrors" />
+          </FieldContent>
         </template>
-      </component>
 
-      <p v-if="fieldItem.desc" class="text-xs text-muted-foreground">
-        {{ fieldItem.desc }}
-      </p>
+        <template v-else>
+          <FieldLabel v-if="fieldLabelText" :for="baseFieldControlId">
+            {{ fieldLabelText }}
+            <span v-if="fieldRequired" class="text-destructive">*</span>
+          </FieldLabel>
 
-      <div v-if="fieldChildren.length && !fieldOwnsChildrenSlot" class="space-y-3 border-l pl-4">
+          <component
+            :is="fieldRenderer?.component"
+            v-bind="fieldComponentProps"
+            v-on="fieldListeners"
+          >
+            <template v-if="fieldOwnsChildrenSlot">
+              <div class="space-y-3">
+                <FormItemRenderer
+                  v-for="child in fieldChildren"
+                  :key="child.id"
+                  :item="child"
+                  :model="model"
+                  :context="context"
+                  :field-registry="fieldRegistry"
+                  :action-registry="actionRegistry"
+                  :validation-errors="validationErrors"
+                  :on-field-change="onFieldChange"
+                  :before-action="beforeAction"
+                  @action="emit('action', $event)"
+                  @emit-event="emit('emit-event', $event)"
+                  @model-change="emit('model-change')"
+                  @error="emit('error', $event)"
+                />
+              </div>
+            </template>
+          </component>
+
+          <FieldDescription v-if="fieldItem.desc" :id="fieldDescriptionId">
+            {{ fieldItem.desc }}
+          </FieldDescription>
+          <FieldError v-if="fieldErrors.length" :id="fieldErrorId" :errors="fieldErrors" />
+        </template>
+      </Field>
+
+      <FieldGroup v-if="fieldChildren.length && !fieldOwnsChildrenSlot" class="border-l pl-4">
         <FormItemRenderer
           v-for="child in fieldChildren"
           :key="child.id"
@@ -422,12 +589,15 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
           :context="context"
           :field-registry="fieldRegistry"
           :action-registry="actionRegistry"
+          :validation-errors="validationErrors"
+          :on-field-change="onFieldChange"
+          :before-action="beforeAction"
           @action="emit('action', $event)"
           @emit-event="emit('emit-event', $event)"
           @model-change="emit('model-change')"
           @error="emit('error', $event)"
         />
-      </div>
+      </FieldGroup>
     </template>
 
     <template v-else-if="actionItem">

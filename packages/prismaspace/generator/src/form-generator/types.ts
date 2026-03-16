@@ -31,6 +31,8 @@ export type FieldResolveContext = {
   model: FormModel
   context: FormContext
   value: unknown
+  errors: string[]
+  invalid: boolean
   setValue: (next: unknown) => void
   options: FieldOption[]
   evaluateExpr: <T>(
@@ -85,9 +87,20 @@ export type FormGeneratorActionEvent = {
   payload: unknown
 }
 
+export type FormValidationErrors = Record<string, string[]>
+
+export type FormValidationResult = {
+  valid: boolean
+  errors: FormValidationErrors
+}
+
 export type FormGeneratorExposed = {
   registerField: (fieldType: string, renderer: FieldRendererDefinition) => void
   unregisterField: (fieldType: string) => void
   registerAction: (actionType: string, renderer: ActionRendererDefinition) => void
   unregisterAction: (actionType: string) => void
+  validate: () => Promise<FormValidationResult>
+  validateField: (fieldId: string) => Promise<string[]>
+  clearValidation: () => void
+  getValidationErrors: () => FormValidationErrors
 }

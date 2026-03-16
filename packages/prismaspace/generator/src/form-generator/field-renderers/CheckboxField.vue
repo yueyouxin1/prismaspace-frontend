@@ -12,7 +12,6 @@ const emit = defineEmits<{
   (event: "update:modelValue", value: unknown): void
 }>()
 
-const label = computed(() => props.fieldProps?.label)
 const checkedValue = computed(() => Boolean(props.modelValue))
 
 function onUpdateModelValue(next: boolean | "indeterminate"): void {
@@ -21,14 +20,10 @@ function onUpdateModelValue(next: boolean | "indeterminate"): void {
 </script>
 
 <template>
-  <label class="flex items-center gap-2 text-sm">
-    <Checkbox
-      v-bind="fieldProps"
-      :model-value="checkedValue"
-      :disabled="disabled || Boolean(fieldProps?.disabled)"
-      @update:model-value="onUpdateModelValue"
-    />
-    <span v-if="label">{{ String(label) }}</span>
-  </label>
+  <Checkbox
+    v-bind="fieldProps"
+    :model-value="checkedValue"
+    :disabled="disabled || Boolean(fieldProps?.disabled)"
+    @update:model-value="onUpdateModelValue"
+  />
 </template>
-

@@ -23,6 +23,7 @@ const value = computed(() => {
 <template>
   <div class="space-y-2">
     <input
+      v-bind="fieldProps"
       :min="min"
       :max="max"
       :step="step"
@@ -37,4 +38,3 @@ const value = computed(() => {
     </div>
   </div>
 </template>
-

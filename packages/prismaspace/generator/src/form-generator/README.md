@@ -4,6 +4,8 @@
 
 - 深层 `modelPath` 双向绑定（对象/数组路径）
 - `context + formModel` 表达式联动（`visible/disabled/options/defaultValue`）
+- 基于 shadcn `Field` 的可访问字段结构、错误态和辅助文案
+- `required + rules` 字段校验、`validate()` 暴露方法，以及 `submit` 动作默认提交前校验
 - shadcn-vue 字段适配层 + 可扩展注册机制
 - action 声明化触发（emit/callback/navigate/api）
 
@@ -44,6 +46,21 @@ ref.value?.registerField("counter", {
   transformInput: (value) => Number(value ?? 0),
   transformOutput: (value) => Number(value ?? 0),
 })
+```
+
+## 校验
+
+`required` 和 `rules` 会参与字段校验。默认情况下：
+
+- 字段被编辑后会进入校验态
+- `emit:submit` 动作触发前会自动执行整表校验
+- 可以通过组件暴露的 `validate()` / `validateField()` 主动触发校验
+
+```ts
+const result = await ref.value?.validate()
+if (!result?.valid) {
+  console.log(result.errors)
+}
 ```
 
 ## 内置字段类型

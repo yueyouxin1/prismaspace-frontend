@@ -80,20 +80,28 @@ export const builtInFieldRenderers: FieldRendererRecord = {
   checkbox: {
     component: CheckboxField,
     modelProp: "modelValue",
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
+    getProps: (ctx) => {
+      const resolvedProps = ctx.resolveDynamic(ctx.item.props ?? {})
+      const { label: _label, ...fieldProps } = resolvedProps
+      return {
+        fieldProps,
+        options: ctx.options,
+      }
+    },
     transformInput: (value) => Boolean(value),
     transformOutput: (value) => Boolean(value),
   },
   switch: {
     component: SwitchField,
     modelProp: "modelValue",
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
+    getProps: (ctx) => {
+      const resolvedProps = ctx.resolveDynamic(ctx.item.props ?? {})
+      const { label: _label, ...fieldProps } = resolvedProps
+      return {
+        fieldProps,
+        options: ctx.options,
+      }
+    },
     transformInput: (value) => Boolean(value),
     transformOutput: (value) => Boolean(value),
   },
