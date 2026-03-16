@@ -11,6 +11,7 @@ import { Hexagon, Link2, X } from "lucide-vue-next";
 import { ref } from "vue";
 import SchemaValueRefTreePanel from "../SchemaValueRefTreePanel.vue";
 import SchemaLiteralValueInput from "./SchemaLiteralValueInput.vue";
+import SchemaValueLockPlaceholder from "./SchemaValueLockPlaceholder.vue";
 import SchemaValueTypePicker from "./SchemaValueTypePicker.vue";
 
 defineOptions({ name: "SchemaInlineValueEditor" });
@@ -28,10 +29,12 @@ const props = withDefaults(
     exprDraft: string;
     canEditType: boolean;
     canEditValue: boolean;
+    lockedMessage?: string | null;
     valueRefPicker?: ValueRefPickerViewModel | null;
     errors?: string[];
   }>(),
   {
+    lockedMessage: null,
     valueRefPicker: null,
     errors: () => [],
   },
@@ -64,12 +67,19 @@ function openReferencePicker() {
         <SchemaValueTypePicker
           :node="node"
           :value-mode="valueMode"
-          :disabled="!canEditValue || !canEditType"
+          :disabled="!canEditType"
+          :disable-expr="Boolean(lockedMessage) || !canEditValue"
           @change="emit('change-type', $event)"
         />
 
         <div class="min-w-0 flex-1 border-l border-[#eceaf2]">
-          <div v-if="valueMode === 'expr'" class="relative h-7">
+          <SchemaValueLockPlaceholder
+            v-if="lockedMessage"
+            :message="lockedMessage"
+            variant="embedded"
+          />
+
+          <div v-else-if="valueMode === 'expr'" class="relative h-7">
             <Textarea
               :model-value="exprDraft"
               :rows="1"
@@ -116,7 +126,7 @@ function openReferencePicker() {
           />
         </div>
 
-        <Popover v-model:open="refPickerOpen">
+        <Popover v-if="!lockedMessage" v-model:open="refPickerOpen">
           <PopoverTrigger as-child>
             <Button
               type="button"

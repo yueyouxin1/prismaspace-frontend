@@ -18,9 +18,11 @@ const props = withDefaults(
     node: SchemaNode;
     valueMode: SchemaType | "expr";
     disabled?: boolean;
+    disableExpr?: boolean;
   }>(),
   {
     disabled: false,
+    disableExpr: false,
   },
 );
 
@@ -62,7 +64,7 @@ function onSelectExpr() {
     </DropdownMenuTrigger>
 
     <DropdownMenuContent align="start" class="min-w-[196px] rounded-[14px] border-[#e7e5ef] p-1.5">
-      <DropdownMenuItem class="rounded-[10px] px-3 py-2 text-[13px]" @select="onSelectExpr">
+      <DropdownMenuItem :disabled="disableExpr" class="rounded-[10px] px-3 py-2 text-[13px]" @select="onSelectExpr">
         Expression
       </DropdownMenuItem>
 

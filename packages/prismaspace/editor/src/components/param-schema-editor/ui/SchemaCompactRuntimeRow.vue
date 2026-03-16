@@ -13,6 +13,7 @@ import {
   canMutateStructureInMode,
 } from "./mode";
 import {
+  getRuntimeValueEditLockMessage,
   getDefaultLiteral,
   getNodeChildren,
   getRuntimeValueKind,
@@ -44,6 +45,7 @@ import {
 import SchemaTypePicker from "./SchemaTypePicker.vue";
 import SchemaInlineValueEditor from "./value-editor/SchemaInlineValueEditor.vue";
 import SchemaLiteralValueInput from "./value-editor/SchemaLiteralValueInput.vue";
+import SchemaValueLockPlaceholder from "./value-editor/SchemaValueLockPlaceholder.vue";
 import SchemaValueRefTreePanel from "./SchemaValueRefTreePanel.vue";
 import { schemaTreeOverlayKey, TREE_BASE_RAIL, TREE_INDENT } from "./tree-visuals";
 import { MonacoTextareaEditor } from "../../monaco-editor";
@@ -71,6 +73,7 @@ const props = defineProps<{
   canEdit?: (node: SchemaNode) => boolean;
   roleOptions?: string[];
   valueRefTree?: VariableTreeNode[];
+  withinArrayValueContext?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -104,7 +107,12 @@ const children = computed(() => {
 const hasChildren = computed(() => children.value.length > 0);
 const isExpanded = computed(() => props.treeExpandedIds.includes(props.node.id));
 const isDetailOpen = computed(() => props.detailOpenIds.includes(props.node.id));
-const isAccessible = computed(() => (props.canEdit ? props.canEdit(props.node) : true));
+const isAccessible = computed(() => {
+  const accessible = props.canEdit ? props.canEdit(props.node) : true;
+  if (!accessible) return false;
+  if (props.withinArrayValueContext && props.mode === "bind") return false;
+  return true;
+});
 const nodeIssues = computed(() => props.issues.filter((issue) => issue.nodeId === props.node.id));
 const nameFieldIssues = computed(() =>
   nodeIssues.value.filter((issue) =>
@@ -113,7 +121,10 @@ const nameFieldIssues = computed(() =>
 );
 const valueFieldIssues = computed(() =>
   nodeIssues.value.filter((issue) =>
-    issue.code === "value-type-mismatch" || issue.code === "value-ref-missing" || issue.code === "value-ref-type-mismatch",
+    issue.code === "value-type-mismatch"
+    || issue.code === "value-ref-missing"
+    || issue.code === "value-ref-not-selectable"
+    || issue.code === "value-ref-type-mismatch",
   ),
 );
 
@@ -129,11 +140,21 @@ const canEditRole = computed(() => isAccessible.value && canEditFieldInMode(prop
 const canEditLabel = computed(() => isAccessible.value && canEditFieldInMode(props.mode, "label"));
 const canEditEnum = computed(() => isAccessible.value && canEditFieldInMode(props.mode, "enum"));
 const canEditMeta = computed(() => isAccessible.value && canEditFieldInMode(props.mode, "meta"));
-const canEditValue = computed(() => isAccessible.value && canEditFieldInMode(props.mode, "value"));
+const runtimeValueLockMessage = computed(() =>
+  getRuntimeValueEditLockMessage(props.node, props.mode, {
+    withinArrayValueContext: props.withinArrayValueContext,
+  }),
+);
+const canEditValue = computed(
+  () => isAccessible.value && canEditFieldInMode(props.mode, "value") && !runtimeValueLockMessage.value,
+);
 const canMutateStructure = computed(() => isAccessible.value && canMutateStructureInMode(props.mode));
 
 const canAddChild = computed(() => {
   if (!canMutateStructure.value) return false;
+  if ((props.mode === "refine" || props.mode === "bind") && (props.node.type === "array" || props.withinArrayValueContext)) {
+    return false;
+  }
   if (props.node.type === "object") return true;
   if (props.node.type === "array") {
     if (!props.node.item) return true;
@@ -175,6 +196,7 @@ const inlineRefValidationMessage = computed(() => {
   return currentValueRefValidation.value.message;
 });
 const inlineMissingValueMessage = computed(() => {
+  if (runtimeValueLockMessage.value) return null;
   if (props.mode !== "bind" && props.mode !== "refine") return null;
   const value = props.node.value;
   if (!value) return "变量值不可为空。";
@@ -701,6 +723,7 @@ watch(
           :expr-draft="valueExprDraft"
           :can-edit-type="canEditType"
           :can-edit-value="canEditValue"
+          :locked-message="runtimeValueLockMessage"
           :value-ref-picker="valueRefPicker"
           :errors="inlineValueErrors"
           @change-type="onInlineValueModeChange($event)"
@@ -934,7 +957,13 @@ watch(
 
         <div v-if="showDetailValueLiteral" class="col-span-full space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">值</label>
+          <SchemaValueLockPlaceholder
+            v-if="runtimeValueLockMessage"
+            :message="runtimeValueLockMessage"
+            variant="field"
+          />
           <SchemaLiteralValueInput
+            v-else
             :schema-type="props.node.type"
             :model-value="valueLiteralDraft"
             :disabled="!canEditValue"
@@ -947,7 +976,13 @@ watch(
 
         <div v-if="showDetailValueExpr" class="col-span-full space-y-1.5">
           <label class="text-[11px] font-medium text-[#7f8094]">表达式</label>
+          <SchemaValueLockPlaceholder
+            v-if="runtimeValueLockMessage"
+            :message="runtimeValueLockMessage"
+            variant="field"
+          />
           <Textarea
+            v-else
             v-model="valueExprDraft"
             :rows="1"
             :disabled="!canEditValue"
@@ -958,72 +993,79 @@ watch(
         </div>
 
         <template v-if="showDetailValueRef">
-          <div class="space-y-1.5">
-            <label class="text-[11px] font-medium text-[#7f8094]">引用节点</label>
-            <Input
-              v-model="valueRefBlockId"
-              :disabled="!canEditValue"
-              class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
-              placeholder="blockID"
-              @blur="commitValueRefField('blockID', valueRefBlockId)"
-            />
-          </div>
-          <div class="space-y-1.5">
-            <label class="text-[11px] font-medium text-[#7f8094]">引用路径</label>
-            <Input
-              v-model="valueRefPath"
-              :disabled="!canEditValue"
-              class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
-              placeholder="path.to.value"
-              @blur="commitValueRefField('path', valueRefPath)"
-            />
-          </div>
-          <div class="space-y-1.5">
-            <label class="text-[11px] font-medium text-[#7f8094]">来源标识</label>
-            <Input
-              v-model="valueRefSource"
-              :disabled="!canEditValue"
-              class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
-              placeholder="source"
-              @blur="commitValueRefField('source', valueRefSource)"
-            />
-          </div>
-          <div class="flex items-end">
-            <Popover v-model:open="refPickerOpen">
-              <PopoverTrigger as-child>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  class="rounded-[10px]"
-                  :disabled="!canEditValue || !valueRefPicker.items.length"
-                  @click="onOpenReferencePicker"
+          <template v-if="runtimeValueLockMessage">
+            <div class="col-span-full">
+              <SchemaValueLockPlaceholder :message="runtimeValueLockMessage" variant="field" />
+            </div>
+          </template>
+          <template v-else>
+            <div class="space-y-1.5">
+              <label class="text-[11px] font-medium text-[#7f8094]">引用节点</label>
+              <Input
+                v-model="valueRefBlockId"
+                :disabled="!canEditValue"
+                class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
+                placeholder="blockID"
+                @blur="commitValueRefField('blockID', valueRefBlockId)"
+              />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-[11px] font-medium text-[#7f8094]">引用路径</label>
+              <Input
+                v-model="valueRefPath"
+                :disabled="!canEditValue"
+                class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
+                placeholder="path.to.value"
+                @blur="commitValueRefField('path', valueRefPath)"
+              />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-[11px] font-medium text-[#7f8094]">来源标识</label>
+              <Input
+                v-model="valueRefSource"
+                :disabled="!canEditValue"
+                class="h-8 rounded-[10px] border-[#dddce6] bg-white text-[12px]"
+                placeholder="source"
+                @blur="commitValueRefField('source', valueRefSource)"
+              />
+            </div>
+            <div class="flex items-end">
+              <Popover v-model:open="refPickerOpen">
+                <PopoverTrigger as-child>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    class="rounded-[10px]"
+                    :disabled="!canEditValue || !valueRefPicker.items.length"
+                    @click="onOpenReferencePicker"
+                  >
+                    <Link2 class="mr-1 size-3.5" />
+                    选择变量
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  side="bottom"
+                  :side-offset="6"
+                  class="flex h-[360px] w-[min(520px,calc(100vw-24px))] flex-col rounded-[18px] border-[#e9e7f1] p-3"
                 >
-                  <Link2 class="mr-1 size-3.5" />
-                  选择变量
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                side="bottom"
-                :side-offset="6"
-                class="flex h-[360px] w-[min(520px,calc(100vw-24px))] flex-col rounded-[18px] border-[#e9e7f1] p-3"
-              >
-                <slot
-                  v-if="$slots['value-ref-picker']"
-                  name="value-ref-picker"
-                  :picker="valueRefPicker"
-                  :close="() => { refPickerOpen = false; }"
-                />
-                <SchemaValueRefTreePanel
-                  v-else
-                  :picker="valueRefPicker"
-                  class="min-h-0 flex-1"
-                  @request-close="refPickerOpen = false"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
+                  <slot
+                    v-if="$slots['value-ref-picker']"
+                    name="value-ref-picker"
+                    :picker="valueRefPicker"
+                    :close="() => { refPickerOpen = false; }"
+                  />
+                  <SchemaValueRefTreePanel
+                    v-else
+                    :picker="valueRefPicker"
+                    class="min-h-0 flex-1"
+                    @request-close="refPickerOpen = false"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </template>
         </template>
 
         <div v-if="valueError" class="col-span-full rounded-[12px] border border-[#ffd6db] bg-[#fff6f7] px-3 py-2 text-[11px] text-[#d45460]">
@@ -1052,6 +1094,7 @@ watch(
             :can-edit="canEdit"
             :role-options="roleOptions"
             :value-ref-tree="valueRefTree"
+            :within-array-value-context="withinArrayValueContext || props.node.type === 'array'"
             @select="emit('select', $event)"
             @toggle-tree="emit('toggle-tree', $event)"
             @toggle-detail="emit('toggle-detail', $event)"

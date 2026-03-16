@@ -1,4 +1,5 @@
 import type { SchemaNode, SchemaType, SchemaValueDefinition, ValueRefContent } from "../core";
+import type { ParamSchemaRuntimeMode } from "./mode";
 import type { VariableTreeNode } from "./tree-types";
 
 export const schemaTypes: SchemaType[] = ["string", "number", "integer", "boolean", "object", "array"];
@@ -116,6 +117,21 @@ export function formatRuntimeValueSummary(value: SchemaValueDefinition | undefin
   if (value.type === "ref") return formatValueRefSummary(value.content);
   if (value.type === "expr") return value.content ?? "";
   return serializeJson(value.content);
+}
+
+export function getRuntimeValueEditLockMessage(
+  node: Pick<SchemaNode, "type" | "children">,
+  mode: ParamSchemaRuntimeMode,
+  options: { withinArrayValueContext?: boolean } = {},
+): string | null {
+  if (mode !== "refine" && mode !== "bind") return null;
+  if (options.withinArrayValueContext) {
+    return "数组元素由父级数组整体赋值，不支持单独输入。";
+  }
+  if (node.type === "object" && (node.children?.length ?? 0) > 0) {
+    return "已添加子节点，不再支持输入。";
+  }
+  return null;
 }
 
 export function cloneVariableTree(tree: VariableTreeNode[] | undefined | null): VariableTreeNode[] {

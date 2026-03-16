@@ -43,7 +43,7 @@ import {
   resolveRegularDetailVisibility,
   resolveRegularInlineVisibility,
 } from "./mode";
-import { getNodeChildren } from "./runtime-editor-utils";
+import { getNodeChildren, getRuntimeValueEditLockMessage } from "./runtime-editor-utils";
 import { resolveValueRefValidation } from "./value-ref-picker";
 import SchemaCompactRuntimeRow from "./SchemaCompactRuntimeRow.vue";
 import { ScrollArea, ScrollBar } from "@prismaspace/ui-shadcn/components/ui/scroll-area";
@@ -700,8 +700,19 @@ function buildArrayTypeNode(root: SchemaNode, node: SchemaNode, itemType: Schema
 function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
   const issues: SchemaIssue[] = [];
 
-  const walk = (node: SchemaNode, path: string) => {
-    if (node.value?.type === "ref") {
+  const walkRuntimeValueNode = (node: SchemaNode, path: string, withinArrayValueContext: boolean) => {
+    const valueLockMessage = getRuntimeValueEditLockMessage(node, runtimeMode.value, {
+      withinArrayValueContext,
+    });
+    if (valueLockMessage && node.value !== undefined) {
+      issues.push({
+        level: "error",
+        code: "value-locked-by-structure",
+        message: valueLockMessage,
+        nodeId: node.id,
+        path,
+      });
+    } else if (node.value?.type === "ref") {
       const refValidation = resolveValueRefValidation(node.type, node.value.content, props.valueRefTree);
       if (refValidation.status === "missing") {
         issues.push({
@@ -731,14 +742,20 @@ function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
     }
 
     if (node.children?.length) {
-      node.children.forEach((child, index) => walk(child, `${path}.properties[${index}]`));
+      const nextArrayContext =
+        withinArrayValueContext || ((runtimeMode.value === "refine" || runtimeMode.value === "bind") && node.type === "array");
+      node.children.forEach((child, index) =>
+        walkRuntimeValueNode(child, `${path}.properties[${index}]`, nextArrayContext),
+      );
     }
     if (node.item) {
-      walk(node.item, `${path}.items`);
+      const nextArrayContext =
+        withinArrayValueContext || ((runtimeMode.value === "refine" || runtimeMode.value === "bind") && node.type === "array");
+      walkRuntimeValueNode(node.item, `${path}.items`, nextArrayContext);
     }
   };
 
-  walk(root, "root");
+  walkRuntimeValueNode(root, "root", false);
   return issues;
 }
 </script>
