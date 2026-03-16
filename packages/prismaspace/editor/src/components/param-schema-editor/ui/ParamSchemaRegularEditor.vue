@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
-import type { SchemaEditorAction, SchemaEditorState, SchemaIssue, SchemaNode, SchemaType } from "../core";
+import type { ParameterSchema, SchemaEditorAction, SchemaEditorState, SchemaIssue, SchemaNode, SchemaType } from "../core";
 import {
   applyOp,
   cloneNode,
@@ -68,6 +68,10 @@ import {
   Undo2,
   Upload,
 } from "lucide-vue-next";
+import { useParamSchemaEditor } from "./useParamSchemaEditor";
+
+type ParamSchemaImportMode = "parameter" | "json-schema" | "json";
+type ParamSchemaExportKind = ParamSchemaImportMode;
 
 defineSlots<{
   "value-ref-picker"?: (props: { picker: ValueRefPickerViewModel; close: () => void }) => unknown;
@@ -75,19 +79,28 @@ defineSlots<{
 
 const props = withDefaults(
   defineProps<{
-    state: SchemaEditorState;
-    dispatch: (action: SchemaEditorAction) => void;
+    modelValue?: ParameterSchema[];
+    state?: SchemaEditorState;
+    dispatch?: (action: SchemaEditorAction) => void;
     canEdit?: (node: SchemaNode) => boolean;
     roleOptions?: string[];
     runtimeMode?: ParamSchemaRuntimeMode;
     valueRefTree?: VariableTreeNode[];
     fieldVisibility?: ParamSchemaFieldVisibilityOverrides;
+    showHeader?: boolean;
+    headerTitle?: string;
   }>(),
   {
     runtimeMode: "define",
     valueRefTree: () => [],
+    showHeader: true,
+    headerTitle: undefined,
   },
 );
+
+const emit = defineEmits<{
+  (event: "update:modelValue", value: ParameterSchema[]): void;
+}>();
 
 const containerRef = ref<HTMLElement | null>(null);
 const treeLayerRef = ref<HTMLElement | null>(null);
@@ -118,13 +131,31 @@ const HEADER_BLOCKING_ISSUE_CODES = new Set([
 ]);
 
 const nameIdManager = new IdManager({ idKey: "uid", onDuplicate: "reassign" });
+const hasExternalRuntime = computed(() => Boolean(props.state && props.dispatch));
+const normalizedModelValue = computed<ParameterSchema[]>(() => props.modelValue ?? []);
+const initialModelSnapshot = JSON.stringify(normalizedModelValue.value);
+const internalEditor = useParamSchemaEditor({
+  initialState: {
+    tree: importParameterSchema(normalizedModelValue.value),
+  },
+});
+const appliedModelSnapshot = ref(initialModelSnapshot);
+const emittedModelSnapshot = ref(initialModelSnapshot);
 
 const runtimeMode = computed<ParamSchemaRuntimeMode>(() => props.runtimeMode);
-const rootChildren = computed(() => props.state.tree.children ?? []);
-const canUndo = computed(() => props.state.undoStack.length > 0);
-const canRedo = computed(() => props.state.redoStack.length > 0);
-const validation = computed(() => validateTree(props.state.tree));
-const runtimeValueIssues = computed(() => collectRuntimeValueIssues(props.state.tree));
+const editorState = computed<SchemaEditorState>(() => props.state ?? internalEditor.state.value);
+const editorDispatch = (action: SchemaEditorAction) => {
+  if (props.dispatch) {
+    props.dispatch(action);
+    return;
+  }
+  internalEditor.dispatch(action);
+};
+const rootChildren = computed(() => editorState.value.tree.children ?? []);
+const canUndo = computed(() => editorState.value.undoStack.length > 0);
+const canRedo = computed(() => editorState.value.redoStack.length > 0);
+const validation = computed(() => validateTree(editorState.value.tree));
+const runtimeValueIssues = computed(() => collectRuntimeValueIssues(editorState.value.tree));
 const allIssues = computed(() => [...validation.value.issues, ...runtimeValueIssues.value, ...localIssues.value]);
 const headerIssueSummaries = computed(() => {
   const blockingIssues = allIssues.value.filter((issue) =>
@@ -156,7 +187,7 @@ const detailVisibility = computed<ParamSchemaRegularDetailVisibility>(() =>
 const layout = computed<CompactRuntimeLayout>(() =>
   resolveCompactLayout(runtimeMode.value, layoutWidth.value, inlineVisibility.value, detailVisibility.value),
 );
-const showTreeAffordance = computed(() => hasAnyNestedChildren(props.state.tree));
+const showTreeAffordance = computed(() => hasAnyNestedChildren(editorState.value.tree));
 const expandedSet = computed(() => new Set(treeExpandedIds.value));
 type HeaderLabel = {
   key: string;
@@ -165,7 +196,7 @@ type HeaderLabel = {
 };
 
 const contentMinWidth = computed(() => {
-  const depth = collectVisibleMaxDepth(props.state.tree, expandedSet.value);
+  const depth = collectVisibleMaxDepth(editorState.value.tree, expandedSet.value);
   const treeIndentWidth = showTreeAffordance.value ? 20 + depth * 15 : 0;
   const nameInputMin = layout.value.density === "xs" ? 76 : 92;
   const typeMin = layout.value.inlineType ? (layout.value.density === "xs" ? 84 : 96) : 0;
@@ -188,6 +219,11 @@ const modeLabel = computed(() => {
   if (runtimeMode.value === "bind") return "Bind";
   return "Read";
 });
+const resolvedHeaderTitle = computed(() => {
+  const customTitle = props.headerTitle?.trim();
+  if (customTitle) return customTitle;
+  return modeLabel.value.toUpperCase();
+});
 
 const headerLabels = computed<HeaderLabel[]>(() => {
   const labels: HeaderLabel[] = [{ key: "name", label: "变量名" }];
@@ -205,16 +241,16 @@ const headerLabels = computed<HeaderLabel[]>(() => {
 });
 const headerNamePadding = computed(() => (showTreeAffordance.value ? `${TREE_BASE_RAIL + 9}px` : "0.125rem"));
 
-const showHeader = computed(() => runtimeMode.value !== "read");
+const showHeader = computed(() => props.showHeader && runtimeMode.value !== "read");
 const canAddRoot = computed(() => {
   if (!canMutateStructureInMode(runtimeMode.value)) return false;
-  return props.canEdit ? props.canEdit(props.state.tree) : true;
+  return props.canEdit ? props.canEdit(editorState.value.tree) : true;
 });
 
 const exportPayloads = computed(() => ({
-  parameter: JSON.stringify(exportParameterSchema(props.state.tree), null, 2),
-  "json-schema": JSON.stringify(exportJsonSchema(props.state.tree), null, 2),
-  json: JSON.stringify(exportJsonValue(props.state.tree), null, 2),
+  parameter: JSON.stringify(exportParameterSchema(editorState.value.tree), null, 2),
+  "json-schema": JSON.stringify(exportJsonSchema(editorState.value.tree), null, 2),
+  json: JSON.stringify(exportJsonValue(editorState.value.tree), null, 2),
 }));
 
 provide(schemaTreeOverlayKey, {
@@ -230,7 +266,7 @@ provide(schemaTreeOverlayKey, {
 });
 
 watch(
-  () => props.state.tree,
+  () => editorState.value.tree,
   (root) => {
     const validKeys = collectExpandableIds(root);
     treeExpandedIds.value = treeExpandedIds.value.filter((id) => validKeys.has(id));
@@ -245,10 +281,10 @@ watch(
 );
 
 watch(
-  () => props.state.selection.nodeId,
+  () => editorState.value.selection.nodeId,
   (selectedId) => {
     if (!selectedId) return;
-    const path = findPathToNode(props.state.tree, selectedId);
+    const path = findPathToNode(editorState.value.tree, selectedId);
     if (!path.length) return;
     const next = new Set(treeExpandedIds.value);
     path.slice(0, -1).forEach((nodeId) => next.add(nodeId));
@@ -258,22 +294,52 @@ watch(
 );
 
 watch(
-  [() => props.state.tree, () => props.state.selection.nodeId],
+  [() => editorState.value.tree, () => editorState.value.selection.nodeId],
   ([root, selectedNodeId]) => {
     if (selectedNodeId) return;
     const first = root.children?.[0] ?? null;
-    if (first) props.dispatch({ type: "select", nodeId: first.id });
+    if (first) editorDispatch({ type: "select", nodeId: first.id });
   },
   { immediate: true },
 );
 
 watch(
-  [() => props.state.tree, treeExpandedIds, detailOpenIds, layoutWidth],
+  [() => editorState.value.tree, treeExpandedIds, detailOpenIds, layoutWidth],
   async () => {
     await nextTick();
     scheduleOverlayMeasure();
   },
   { deep: true, immediate: true },
+);
+
+watch(
+  normalizedModelValue,
+  (nextModelValue) => {
+    if (hasExternalRuntime.value) return;
+    const nextSnapshot = JSON.stringify(nextModelValue);
+    if (nextSnapshot === emittedModelSnapshot.value || nextSnapshot === appliedModelSnapshot.value) {
+      return;
+    }
+    appliedModelSnapshot.value = nextSnapshot;
+    editorDispatch({
+      type: "reset",
+      tree: importParameterSchema(nextModelValue),
+    });
+  },
+  { deep: true },
+);
+
+watch(
+  () => editorState.value.tree,
+  (tree) => {
+    if (hasExternalRuntime.value) return;
+    const nextValue = exportParameterSchema(tree);
+    const nextSnapshot = JSON.stringify(nextValue);
+    emittedModelSnapshot.value = nextSnapshot;
+    appliedModelSnapshot.value = nextSnapshot;
+    emit("update:modelValue", nextValue);
+  },
+  { deep: true },
 );
 
 onMounted(() => {
@@ -449,8 +515,8 @@ function canMutateStructure(node: SchemaNode) {
 }
 
 function onSelect(nodeId: string) {
-  if (props.state.selection.nodeId === nodeId) return;
-  props.dispatch({ type: "select", nodeId });
+  if (editorState.value.selection.nodeId === nodeId) return;
+  editorDispatch({ type: "select", nodeId });
 }
 
 function onToggleTree(nodeId: string) {
@@ -468,14 +534,14 @@ function onToggleDetail(nodeId: string) {
 }
 
 function onSetField(payload: { nodeId: string; field: keyof SchemaNode; value: unknown }) {
-  const node = findNodeById(props.state.tree, payload.nodeId);
+  const node = findNodeById(editorState.value.tree, payload.nodeId);
   if (!node) return;
   if (!canAccessNode(node) || !canEditFieldInMode(runtimeMode.value, payload.field as never)) return;
 
   if (payload.field === "name" && typeof payload.value === "string") {
     const trimmed = payload.value.trim();
     if (node.kind !== "property") return;
-    const parentInfo = findParentInfo(props.state.tree, payload.nodeId);
+    const parentInfo = findParentInfo(editorState.value.tree, payload.nodeId);
     if (parentInfo.parent?.children) {
       const hasDuplicate = parentInfo.parent.children.some(
         (child) => child.id !== payload.nodeId && child.name === trimmed,
@@ -497,37 +563,37 @@ function onSetField(payload: { nodeId: string; field: keyof SchemaNode; value: u
     payload = { ...payload, value: trimmed };
   }
 
-  const op = createSetFieldOp(props.state.tree, payload.nodeId, payload.field, payload.value);
+  const op = createSetFieldOp(editorState.value.tree, payload.nodeId, payload.field, payload.value);
   if (!op) return;
-  props.dispatch({ type: "apply", op });
+  editorDispatch({ type: "apply", op });
 }
 
 function onChangeType(payload: { nodeId: string; nextType: SchemaType; itemType?: SchemaType }) {
-  const node = findNodeById(props.state.tree, payload.nodeId);
+  const node = findNodeById(editorState.value.tree, payload.nodeId);
   if (!node) return;
   if (!canAccessNode(node) || !canEditFieldInMode(runtimeMode.value, "type")) return;
 
   if (payload.nextType === "array" && payload.itemType) {
     if (node.type === "array" && node.item?.type === payload.itemType) return;
-    const nextNode = buildArrayTypeNode(props.state.tree, node, payload.itemType);
+    const nextNode = buildArrayTypeNode(editorState.value.tree, node, payload.itemType);
     if (!nextNode) return;
-    const replaceOp = createReplaceNodeOp(props.state.tree, payload.nodeId, nextNode);
+    const replaceOp = createReplaceNodeOp(editorState.value.tree, payload.nodeId, nextNode);
     if (!replaceOp) return;
-    props.dispatch({ type: "apply", op: replaceOp });
+    editorDispatch({ type: "apply", op: replaceOp });
     return;
   }
 
   if (node.type === payload.nextType && !payload.itemType) return;
-  const op = createChangeTypeOp(props.state.tree, payload.nodeId, payload.nextType, "stash");
+  const op = createChangeTypeOp(editorState.value.tree, payload.nodeId, payload.nextType, "stash");
   if (!op) return;
-  props.dispatch({ type: "apply", op });
+  editorDispatch({ type: "apply", op });
 }
 
 function onAddProperty(parentId: string) {
-  const node = findNodeById(props.state.tree, parentId);
+  const node = findNodeById(editorState.value.tree, parentId);
   if (!node || node.type !== "object") return;
   if (!canMutateStructure(node)) return;
-  const nameId = allocateNameId(props.state.tree);
+  const nameId = allocateNameId(editorState.value.tree);
   const child = createSchemaNode({
     kind: "property",
     type: "string",
@@ -536,31 +602,31 @@ function onAddProperty(parentId: string) {
     required: false,
     open: true,
   });
-  props.dispatch({ type: "apply", op: createAddPropertyOp(parentId, child) });
+  editorDispatch({ type: "apply", op: createAddPropertyOp(parentId, child) });
 }
 
 function onAddRootProperty() {
   if (!canAddRoot.value) return;
-  onAddProperty(props.state.tree.id);
+  onAddProperty(editorState.value.tree.id);
 }
 
 function onAddItem(parentId: string) {
-  const node = findNodeById(props.state.tree, parentId);
+  const node = findNodeById(editorState.value.tree, parentId);
   if (!node || node.type !== "array") return;
   if (!canMutateStructure(node)) return;
   const itemNode = createSchemaNode({ kind: "item", type: "string" });
-  const op = createSetFieldOp(props.state.tree, parentId, "item", itemNode);
+  const op = createSetFieldOp(editorState.value.tree, parentId, "item", itemNode);
   if (!op) return;
-  props.dispatch({ type: "apply", op });
+  editorDispatch({ type: "apply", op });
 }
 
 function onDeleteNode(nodeId: string) {
-  const node = findNodeById(props.state.tree, nodeId);
+  const node = findNodeById(editorState.value.tree, nodeId);
   if (!node || node.kind === "root" || node.kind === "item") return;
   if (!canMutateStructure(node)) return;
-  const op = createRemoveNodeOp(props.state.tree, node.id);
+  const op = createRemoveNodeOp(editorState.value.tree, node.id);
   if (!op) return;
-  props.dispatch({ type: "apply", op });
+  editorDispatch({ type: "apply", op });
 }
 
 function collectExpandableIds(node: SchemaNode, bag = new Set<string>()) {
@@ -621,7 +687,7 @@ function findPathToNode(root: SchemaNode, targetId: string): string[] {
   return walk(root) ? path : [];
 }
 
-function openImport(mode: "parameter" | "json-schema" | "json") {
+function openImport(mode: ParamSchemaImportMode) {
   importMode.value = mode;
   importText.value = "";
   importError.value = null;
@@ -638,7 +704,7 @@ function applyImport() {
           ? importJsonSchema(parsed)
           : importJsonValue(parsed);
     initUidTree(nextTree);
-    props.dispatch({ type: "reset", tree: nextTree });
+    editorDispatch({ type: "reset", tree: nextTree });
     treeExpandedIds.value = [];
     detailOpenIds.value = [];
     isImportOpen.value = false;
@@ -647,7 +713,7 @@ function applyImport() {
   }
 }
 
-async function copyExport(kind: "parameter" | "json-schema" | "json") {
+async function copyExport(kind: ParamSchemaExportKind) {
   const text = exportPayloads.value[kind];
   try {
     await navigator.clipboard.writeText(text);
@@ -827,6 +893,43 @@ function summarizeHeaderIssueGroup(code: string, issues: SchemaIssue[]): string 
   }
   return count === 1 ? "1 个阻塞性问题" : `${count} 个阻塞性问题`;
 }
+
+function undo() {
+  if (!canUndo.value) return;
+  editorDispatch({ type: "undo" });
+}
+
+function redo() {
+  if (!canRedo.value) return;
+  editorDispatch({ type: "redo" });
+}
+
+function addRootProperty() {
+  if (!canAddRoot.value) return;
+  onAddRootProperty();
+}
+
+function getHeaderState() {
+  return {
+    title: resolvedHeaderTitle.value,
+    modeLabel: modeLabel.value,
+    rootCount: rootChildren.value.length,
+    issueCount: headerIssueCount.value,
+    issueTitle: headerIssueTitle.value,
+    canAddRoot: canAddRoot.value,
+    canUndo: canUndo.value,
+    canRedo: canRedo.value,
+  };
+}
+
+defineExpose({
+  addRootProperty,
+  undo,
+  redo,
+  openImport,
+  copyExport,
+  getHeaderState,
+});
 </script>
 
 <template>
@@ -834,10 +937,10 @@ function summarizeHeaderIssueGroup(code: string, issues: SchemaIssue[]): string 
     ref="containerRef"
     class="flex h-full min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#eceaf2] bg-[#fcfcff]"
   >
-    <div class="flex items-center justify-between border-b border-[#eceaf2] px-3 py-2">
+    <div v-if="showHeader" class="flex items-center justify-between border-b border-[#eceaf2] px-3 py-2">
       <div class="flex min-w-0 items-center gap-2">
-        <span class="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#7a7b8f]">
-          {{ modeLabel }}
+        <span class="text-[12px] font-semibold tracking-[0.14em] text-[#7a7b8f]">
+          {{ resolvedHeaderTitle }}
         </span>
         <Badge variant="secondary" class="rounded-full bg-[#f2f3f8] text-[#66687d]">
           {{ rootChildren.length }} 项
@@ -861,7 +964,7 @@ function summarizeHeaderIssueGroup(code: string, issues: SchemaIssue[]): string 
           variant="ghost"
           class="size-8 rounded-[10px] text-[#6255af]"
           title="新增顶层参数"
-          @click="onAddRootProperty"
+          @click="addRootProperty"
         >
           <Plus class="size-4" />
         </Button>
@@ -872,7 +975,7 @@ function summarizeHeaderIssueGroup(code: string, issues: SchemaIssue[]): string 
           class="size-8 rounded-[10px] text-[#7b7c90]"
           :disabled="!canUndo"
           title="撤销"
-          @click="props.dispatch({ type: 'undo' })"
+          @click="undo"
         >
           <Undo2 class="size-4" />
         </Button>
@@ -883,7 +986,7 @@ function summarizeHeaderIssueGroup(code: string, issues: SchemaIssue[]): string 
           class="size-8 rounded-[10px] text-[#7b7c90]"
           :disabled="!canRedo"
           title="重做"
-          @click="props.dispatch({ type: 'redo' })"
+          @click="redo"
         >
           <Redo2 class="size-4" />
         </Button>
@@ -975,7 +1078,7 @@ function summarizeHeaderIssueGroup(code: string, issues: SchemaIssue[]): string 
             :level="0"
             :is-last="index === rootChildren.length - 1"
             :lineage="[]"
-            :selected-id="props.state.selection.nodeId"
+            :selected-id="editorState.selection.nodeId"
             :tree-expanded-ids="treeExpandedIds"
             :detail-open-ids="detailOpenIds"
             :show-tree-affordance="showTreeAffordance"
