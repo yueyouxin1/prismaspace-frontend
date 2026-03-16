@@ -104,6 +104,18 @@ let resizeObserver: ResizeObserver | null = null;
 let overlayMeasureRaf: number | null = null;
 
 const rowRegistry = new Map<string, SchemaTreeOverlayRowRegistration>();
+const HEADER_BLOCKING_ISSUE_CODES = new Set([
+  "object-missing-properties",
+  "array-missing-items",
+  "property-name-missing",
+  "property-name-duplicate",
+  "property-name-duplicate-global",
+  "property-required-missing",
+  "property-open-missing",
+  "value-ref-missing",
+  "value-ref-not-selectable",
+  "value-ref-type-mismatch",
+]);
 
 const nameIdManager = new IdManager({ idKey: "uid", onDuplicate: "reassign" });
 
@@ -114,7 +126,26 @@ const canRedo = computed(() => props.state.redoStack.length > 0);
 const validation = computed(() => validateTree(props.state.tree));
 const runtimeValueIssues = computed(() => collectRuntimeValueIssues(props.state.tree));
 const allIssues = computed(() => [...validation.value.issues, ...runtimeValueIssues.value, ...localIssues.value]);
-const issueCount = computed(() => allIssues.value.length);
+const headerIssueSummaries = computed(() => {
+  const blockingIssues = allIssues.value.filter((issue) =>
+    issue.level === "error" && HEADER_BLOCKING_ISSUE_CODES.has(issue.code),
+  );
+  const grouped = new Map<string, SchemaIssue[]>();
+
+  for (const issue of blockingIssues) {
+    const current = grouped.get(issue.code) ?? [];
+    current.push(issue);
+    grouped.set(issue.code, current);
+  }
+
+  return Array.from(grouped.entries()).map(([code, issues]) => ({
+    code,
+    count: issues.length,
+    text: summarizeHeaderIssueGroup(code, issues),
+  }));
+});
+const headerIssueCount = computed(() => headerIssueSummaries.value.length);
+const headerIssueTitle = computed(() => headerIssueSummaries.value.map((summary) => summary.text).join("\n"));
 
 const inlineVisibility = computed<ParamSchemaRegularInlineVisibility>(() =>
   resolveRegularInlineVisibility(runtimeMode.value, layoutWidth.value, props.fieldVisibility),
@@ -758,6 +789,44 @@ function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
   walkRuntimeValueNode(root, "root", false);
   return issues;
 }
+
+function summarizeHeaderIssueGroup(code: string, issues: SchemaIssue[]): string {
+  const count = issues.length;
+  if (code === "object-missing-properties") {
+    return count === 1 ? "1 个对象节点缺少子属性定义" : `${count} 个对象节点缺少子属性定义`;
+  }
+  if (code === "array-missing-items") {
+    return count === 1 ? "1 个数组节点缺少元素定义" : `${count} 个数组节点缺少元素定义`;
+  }
+  if (code === "property-name-missing") {
+    return count === 1 ? "1 个字段缺少名称" : `${count} 个字段缺少名称`;
+  }
+  if (code === "property-name-duplicate" || code === "property-name-duplicate-global") {
+    return count === 1 ? "1 个字段名重复" : `${count} 个字段名重复`;
+  }
+  if (code === "property-required-missing") {
+    return count === 1 ? "1 个字段缺少 required 标记" : `${count} 个字段缺少 required 标记`;
+  }
+  if (code === "property-open-missing") {
+    return count === 1 ? "1 个字段缺少 open 标记" : `${count} 个字段缺少 open 标记`;
+  }
+  if (code === "value-ref-missing") {
+    return count === 1 ? "1 个变量引用失效" : `${count} 个变量引用失效`;
+  }
+  if (code === "value-ref-not-selectable") {
+    return count === 1 ? "1 个变量引用当前不可用" : `${count} 个变量引用当前不可用`;
+  }
+  if (code === "value-ref-type-mismatch") {
+    return count === 1 ? "1 个变量引用类型不兼容" : `${count} 个变量引用类型不兼容`;
+  }
+
+  const uniqueMessages = [...new Set(issues.map((issue) => issue.message).filter(Boolean))];
+  if (uniqueMessages.length === 1) {
+    const message = uniqueMessages[0] ?? "1 个阻塞性问题";
+    return count === 1 ? message : `${message}（${count} 处）`;
+  }
+  return count === 1 ? "1 个阻塞性问题" : `${count} 个阻塞性问题`;
+}
 </script>
 
 <template>
@@ -774,13 +843,13 @@ function collectRuntimeValueIssues(root: SchemaNode): SchemaIssue[] {
           {{ rootChildren.length }} 项
         </Badge>
         <button
-          v-if="issueCount"
+          v-if="headerIssueCount"
           type="button"
           class="inline-flex items-center gap-1 rounded-full bg-[#fff4f5] px-2 py-1 text-[11px] font-medium text-[#d45460]"
-          :title="allIssues.map((issue) => issue.message).join('\n')"
+          :title="headerIssueTitle"
         >
           <AlertCircle class="size-3.5" />
-          {{ issueCount }}
+          {{ headerIssueCount }}
         </button>
       </div>
 

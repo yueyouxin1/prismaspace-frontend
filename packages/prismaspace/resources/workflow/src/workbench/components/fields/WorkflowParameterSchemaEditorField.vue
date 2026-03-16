@@ -73,7 +73,6 @@ const currentSourceSnapshot = computed(() => JSON.stringify(
 ))
 const appliedSnapshot = ref(currentSourceSnapshot.value)
 const emittedSnapshot = ref(appliedSnapshot.value)
-const fullscreenOpen = ref(false)
 
 watch(
   initialSchemaList,
@@ -109,17 +108,6 @@ watch(
 </script>
 
 <template>
-  <div class="space-y-2 rounded-xl border border-[#ececf4] bg-white p-2">
-    <div class="flex items-center justify-between gap-3 px-1">
-      <div>
-        <p class="text-sm font-semibold text-[#1f2335]">ParameterSchema Editor</p>
-        <p class="text-[11px] text-[#8b91a4]">已按侧栏窄布局优化，可展开进入大画布编辑。</p>
-      </div>
-      <Button size="icon-sm" variant="ghost" class="rounded-[8px]" @click="fullscreenOpen = true">
-        <Maximize2 class="size-4" />
-      </Button>
-    </div>
-
     <ParamSchemaRegularEditor
       :state="state"
       :dispatch="dispatch"
@@ -127,22 +115,4 @@ watch(
       :value-ref-tree="variableTree"
       class="h-[440px] min-h-[360px]"
     />
-  </div>
-
-  <Dialog v-model:open="fullscreenOpen">
-    <DialogContent class="h-[88vh] max-h-[88vh] overflow-hidden sm:max-w-[1100px]">
-      <DialogHeader>
-        <DialogTitle>ParameterSchema Editor</DialogTitle>
-      </DialogHeader>
-      <div class="min-h-0 flex-1 overflow-hidden rounded-[8px] border border-[#ececf4]">
-        <ParamSchemaRegularEditor
-          :state="state"
-          :dispatch="dispatch"
-          runtime-mode="define"
-          :value-ref-tree="variableTree"
-          class="h-full min-h-0"
-        />
-      </div>
-    </DialogContent>
-  </Dialog>
 </template>
