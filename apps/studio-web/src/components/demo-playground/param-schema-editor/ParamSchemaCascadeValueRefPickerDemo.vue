@@ -14,7 +14,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@prismaspace/ui-shadcn/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@prismaspace/ui-shadcn/components/ui/popover";
 import { ScrollArea } from "@prismaspace/ui-shadcn/components/ui/scroll-area";
@@ -42,6 +41,18 @@ interface CascadeGroup {
   entries: CascadeEntry[];
 }
 
+interface DemoCommandGroupDefinition {
+  key: string;
+  label: string;
+  rootNodeKey: string;
+}
+
+const DEMO_COMMAND_GROUPS: DemoCommandGroupDefinition[] = [
+  { key: "user-command-group", label: "用户变量", rootNodeKey: "user-vars" },
+  { key: "app-command-group", label: "应用变量", rootNodeKey: "app-vars" },
+  { key: "system-command-group", label: "系统变量", rootNodeKey: "system-vars" },
+];
+
 const props = defineProps<{
   picker: ValueRefPickerViewModel;
   close: () => void;
@@ -49,13 +60,30 @@ const props = defineProps<{
 
 const openEntryKey = ref("");
 
+const pickerItemsByKey = computed(() => {
+  const map = new Map<string, ValueRefPickerItem>();
+
+  const visit = (items: ValueRefPickerItem[]) => {
+    for (const item of items) {
+      map.set(item.key, item);
+      visit(item.children);
+    }
+  };
+
+  visit(props.picker.items);
+  return map;
+});
+
 const cascadeGroups = computed<CascadeGroup[]>(() =>
-  props.picker.items
-    .map((category) => ({
-      key: category.key,
-      label: category.label,
-      entries: buildEntries(category),
-    }))
+  DEMO_COMMAND_GROUPS
+    .map((group) => {
+      const rootNode = pickerItemsByKey.value.get(group.rootNodeKey);
+      return {
+        key: group.key,
+        label: group.label,
+        entries: buildEntries(rootNode?.children ?? []),
+      };
+    })
     .filter((group) => group.entries.length),
 );
 
@@ -98,16 +126,8 @@ function selectItem(item: ValueRefPickerItem) {
   }
 }
 
-function buildEntries(category: ValueRefPickerItem): CascadeEntry[] {
-  if (!category.children.length) {
-    return [createEntry(category)];
-  }
-
-  const entries = category.children.map((child) => createEntry(child));
-  if (category.ref && category.selectable) {
-    return [createEntry(category), ...entries];
-  }
-  return entries;
+function buildEntries(items: ValueRefPickerItem[]): CascadeEntry[] {
+  return items.map((item) => createEntry(item));
 }
 
 function createEntry(item: ValueRefPickerItem): CascadeEntry {
@@ -172,25 +192,27 @@ function onEntrySelect(entry: CascadeEntry) {
                 <Popover v-if="entry.children.length" :open="openEntryKey === entry.key"
                   @update:open="openEntry(entry, $event)">
                   <PopoverTrigger as-child>
-                    <div class="min-w-0 flex flex-1 items-center gap-1.5">
-                      <span class="truncate">{{ entry.item.label }}</span>
-                      <Tooltip v-if="entry.issue">
-                        <TooltipTrigger as-child>
-                          <span class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                            <AlertCircle class="size-3.5" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" class="max-w-[240px]">
-                          {{ entry.issue }}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
+                    <div class="flex items-center w-full">
+                      <div class="min-w-0 flex flex-1 items-center gap-1.5">
+                        <span class="truncate">{{ entry.item.label }}</span>
+                        <Tooltip v-if="entry.issue">
+                          <TooltipTrigger as-child>
+                            <span class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+                              <AlertCircle class="size-3.5" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" class="max-w-[240px]">
+                            {{ entry.issue }}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
 
-                    <span v-if="entry.item.schemaType" class="shrink-0 text-[11px] font-medium text-muted-foreground">
-                      {{ entry.item.schemaType }}
-                    </span>
-                    <ChevronRight class="size-3.5 shrink-0 text-muted-foreground" />
-                    <span class="sr-only">{{ entry.searchableText }}</span>
+                      <span v-if="entry.item.schemaType" class="shrink-0 text-[11px] font-medium text-muted-foreground">
+                        {{ entry.item.schemaType }}
+                      </span>
+                      <ChevronRight class="size-3.5 shrink-0 text-muted-foreground" />
+                      <span class="sr-only">{{ entry.searchableText }}</span>
+                    </div>
                   </PopoverTrigger>
 
                   <PopoverContent side="left" align="start" :side-offset="8"
@@ -246,7 +268,6 @@ function onEntrySelect(entry: CascadeEntry) {
               </CommandItem>
             </template>
           </CommandGroup>
-          <CommandSeparator />
         </CommandList>
       </Command>
 

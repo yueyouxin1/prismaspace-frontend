@@ -56,29 +56,20 @@ function onSelectArrayType(itemType: SchemaType) {
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button
-        type="button"
-        variant="outline"
-        :disabled="disabled"
-        :class="[
-          compact
-            ? 'h-7 w-full justify-between rounded-[9px] border-[#dddce6] bg-white px-1.5 text-[12px] font-normal text-[#373a48] shadow-none'
-            : 'h-8 w-full justify-between rounded-[10px] border-[#dddce6] bg-white px-2 text-[12px] font-normal text-[#373a48] shadow-none',
-          props.class,
-        ]"
-      >
+      <Button type="button" variant="outline" :disabled="disabled" :class="[
+        compact
+          ? 'h-7 w-full justify-between rounded-[9px] border-[#dddce6] bg-white px-1.5 text-[12px] font-normal text-[#373a48] shadow-none'
+          : 'h-8 w-full justify-between rounded-[10px] border-[#dddce6] bg-white px-2 text-[12px] font-normal text-[#373a48] shadow-none',
+        props.class,
+      ]">
         <span class="truncate text-left">{{ displayLabel }}</span>
         <ChevronDown class="ml-1 size-3.5 shrink-0 text-[#8d8fa2]" />
       </Button>
     </DropdownMenuTrigger>
 
     <DropdownMenuContent align="start" class="min-w-[196px] rounded-[14px] border-[#e7e5ef] p-1.5">
-      <DropdownMenuItem
-        v-for="type in baseTypes"
-        :key="type"
-        class="rounded-[10px] px-3 py-2 text-[13px]"
-        @select="onSelectBaseType(type)"
-      >
+      <DropdownMenuItem v-for="type in baseTypes" :key="type" class="rounded-[10px] px-3 py-2 text-[13px]"
+        @select="onSelectBaseType(type)">
         {{ schemaTypeLabelMap[type] }}
       </DropdownMenuItem>
 
@@ -87,12 +78,8 @@ function onSelectArrayType(itemType: SchemaType) {
           Array
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent class="min-w-[180px] rounded-[14px] border-[#e7e5ef] p-1.5">
-          <DropdownMenuItem
-            v-for="type in arrayItemTypes"
-            :key="`array-${type}`"
-            class="rounded-[10px] px-3 py-2 text-[13px]"
-            @select="onSelectArrayType(type)"
-          >
+          <DropdownMenuItem v-for="type in arrayItemTypes" :key="`array-${type}`"
+            class="rounded-[10px] px-3 py-2 text-[13px]" @select="onSelectArrayType(type)">
             {{ schemaTypeLabelMap[type] }}
           </DropdownMenuItem>
         </DropdownMenuSubContent>

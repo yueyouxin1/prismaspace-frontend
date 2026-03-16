@@ -54,12 +54,8 @@ function onSelectExpr() {
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button
-        type="button"
-        variant="ghost"
-        :disabled="disabled"
-        class="h-auto min-h-7 min-w-[40px] max-w-[46px] shrink-0 self-stretch justify-between gap-0 rounded-none border-0 bg-[#f5f4fa] px-0.5 text-[11px] font-medium text-[#66687b] shadow-none hover:bg-[#efedf8] focus-visible:ring-0"
-      >
+      <Button type="button" variant="ghost" :disabled="disabled"
+        class="h-auto min-h-7 min-w-[40px] max-w-[46px] shrink-0 self-stretch justify-between gap-0 rounded-none border-0 bg-[#f5f4fa] px-0.5 text-[11px] font-medium text-[#66687b] shadow-none hover:bg-[#efedf8] focus-visible:ring-0">
         <span class="truncate text-left">{{ getDisplayLabel() }}</span>
         <ChevronDown class="size-3 shrink-0 text-[#8d8fa2]" />
       </Button>
@@ -70,12 +66,8 @@ function onSelectExpr() {
         Expression
       </DropdownMenuItem>
 
-      <DropdownMenuItem
-        v-for="type in baseTypes"
-        :key="type"
-        class="rounded-[10px] px-3 py-2 text-[13px]"
-        @select="onSelectBaseType(type)"
-      >
+      <DropdownMenuItem v-for="type in baseTypes" :key="type" class="rounded-[10px] px-3 py-2 text-[13px]"
+        @select="onSelectBaseType(type)">
         {{ schemaTypeLabelMap[type] }}
       </DropdownMenuItem>
 
@@ -84,13 +76,9 @@ function onSelectExpr() {
           Array
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent class="min-w-[180px] rounded-[14px] border-[#e7e5ef] p-1.5">
-          <DropdownMenuItem
-            v-for="type in arrayItemTypes"
-            :key="`array-${type}`"
-            class="rounded-[10px] px-3 py-2 text-[13px]"
-            @select="onSelectArrayType(type)"
-          >
-            Array&lt;{{ schemaTypeLabelMap[type] }}&gt;
+          <DropdownMenuItem v-for="type in arrayItemTypes" :key="`array-${type}`"
+            class="rounded-[10px] px-3 py-2 text-[13px]" @select="onSelectArrayType(type)">
+            {{ schemaTypeLabelMap[type] }}
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
