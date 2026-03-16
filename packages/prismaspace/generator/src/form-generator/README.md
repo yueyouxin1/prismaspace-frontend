@@ -58,5 +58,21 @@ ref.value?.registerField("counter", {
 - `date-range`, `date-range-picker`
 - `tags`
 - `multi-select`, `multiselect`
+- `accordion`, `accordion-container`
+- `accordion-root`, `accordion-item`
+
+## 高级组件
+
+非标准、带额外领域依赖的复杂组件放在 `advanced-components` 目录下，按需注册。
+
+```ts
+import {
+  formGeneratorValueRefTreeKey,
+  paramSchemaEditorFieldRenderer,
+} from "@prismaspace/generator/form-generator/advanced-components"
+
+provide(formGeneratorValueRefTreeKey, valueRefTree)
+ref.value?.registerField("param-schema-editor", paramSchemaEditorFieldRenderer)
+```
 
 > 不在内置映射中的 `control` 会落到 `UnsupportedField`，建议通过 `registerField` 扩展。

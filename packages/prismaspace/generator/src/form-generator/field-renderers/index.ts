@@ -1,3 +1,6 @@
+export { default as AccordionField } from "./AccordionField.vue"
+export { default as AccordionItemField } from "./AccordionItemField.vue"
+export { default as AccordionRootField } from "./AccordionRootField.vue"
 export { default as CheckboxField } from "./CheckboxField.vue"
 export { default as DateRangeField } from "./DateRangeField.vue"
 export { default as DefaultActionButton } from "./DefaultActionButton.vue"

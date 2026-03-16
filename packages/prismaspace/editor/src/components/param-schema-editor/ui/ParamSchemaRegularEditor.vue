@@ -935,7 +935,7 @@ defineExpose({
 <template>
   <div
     ref="containerRef"
-    class="flex h-full min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#eceaf2] bg-[#fcfcff]"
+    class="flex h-full min-h-0 flex-col overflow-hidden"
   >
     <div v-if="showHeader" class="flex items-center justify-between border-b border-[#eceaf2] px-3 py-2">
       <div class="flex min-w-0 items-center gap-2">

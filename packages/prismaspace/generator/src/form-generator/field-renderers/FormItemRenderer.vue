@@ -177,6 +177,10 @@ const fieldChildren = computed(() => {
   return [...item.children].sort((left, right) => (left.ui?.order ?? 0) - (right.ui?.order ?? 0))
 })
 
+const fieldOwnsChildrenSlot = computed(() => {
+  return Boolean(fieldRenderer.value?.rendersChildrenInDefaultSlot && fieldChildren.value.length)
+})
+
 function getFieldResolveContext() {
   const item = fieldItem.value
   if (!item) {
@@ -385,13 +389,31 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
         :is="fieldRenderer?.component"
         v-bind="fieldComponentProps"
         v-on="fieldListeners"
-      />
+      >
+        <template v-if="fieldOwnsChildrenSlot">
+          <div class="space-y-3">
+            <FormItemRenderer
+              v-for="child in fieldChildren"
+              :key="child.id"
+              :item="child"
+              :model="model"
+              :context="context"
+              :field-registry="fieldRegistry"
+              :action-registry="actionRegistry"
+              @action="emit('action', $event)"
+              @emit-event="emit('emit-event', $event)"
+              @model-change="emit('model-change')"
+              @error="emit('error', $event)"
+            />
+          </div>
+        </template>
+      </component>
 
       <p v-if="fieldItem.desc" class="text-xs text-muted-foreground">
         {{ fieldItem.desc }}
       </p>
 
-      <div v-if="fieldChildren.length" class="space-y-3 border-l pl-4">
+      <div v-if="fieldChildren.length && !fieldOwnsChildrenSlot" class="space-y-3 border-l pl-4">
         <FormItemRenderer
           v-for="child in fieldChildren"
           :key="child.id"

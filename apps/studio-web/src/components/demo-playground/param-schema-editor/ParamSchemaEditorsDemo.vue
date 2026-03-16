@@ -3,7 +3,6 @@ import { computed, ref } from "vue";
 import {
   ParamSchemaRegularEditor,
   type ParamSchemaRuntimeMode,
-  type VariableTreeNode,
   useParamSchemaEditor,
 } from "@prismaspace/editor";
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
@@ -15,133 +14,12 @@ import {
   CardTitle,
 } from "@prismaspace/ui-shadcn/components/ui/card";
 import ParamSchemaCascadeValueRefPickerDemo from "./ParamSchemaCascadeValueRefPickerDemo.vue";
+import { demoParamSchemaRoleOptions, demoParamSchemaValueRefTree } from "./demo-data";
 
 const runtimeMode = ref<ParamSchemaRuntimeMode>("define");
 const pickerVariant = ref<"default" | "cascade">("default");
 
 const regularEditor = useParamSchemaEditor();
-
-const roleOptions = ["system", "input", "output"];
-
-const valueRefTree: VariableTreeNode[] = [
-  {
-    id: "user-vars",
-    key: "user-vars",
-    label: "用户变量",
-    selectable: false,
-    children: [
-      {
-        id: "start",
-        key: "start",
-        label: "开始",
-        blockID: "start",
-        schemaType: "object",
-        children: [
-          {
-            id: "start.param1",
-            key: "start.param1",
-            label: "param1",
-            path: "param1",
-            schemaType: "object",
-            children: [
-              {
-                id: "start.param1.param2",
-                key: "start.param1.param2",
-                label: "param2",
-                path: "param1.param2",
-                schemaType: "array",
-                children: [
-                  {
-                    id: "start.param1.param2.param3",
-                    key: "start.param1.param2.param3",
-                    label: "param3",
-                    path: "param1.param2.param3",
-                    schemaType: "string",
-                  },
-                ],
-              },
-            ],
-          },
-          { id: "start.user.id", key: "start.user.id", label: "user.id", path: "user.id", schemaType: "string" },
-          { id: "start.user.name", key: "start.user.name", label: "user.name", path: "user.name", schemaType: "string" },
-          { id: "start.user.locale", key: "start.user.locale", label: "user.locale", path: "user.locale", schemaType: "string" },
-        ],
-      },
-      {
-        id: "user-profile",
-        key: "user-profile",
-        label: "用户画像",
-        blockID: "user-profile",
-        schemaType: "object",
-        children: [
-          { id: "user-profile.plan", key: "user-profile.plan", label: "plan", path: "plan", schemaType: "string" },
-          { id: "user-profile.score", key: "user-profile.score", label: "score", path: "score", schemaType: "number" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "app-vars",
-    key: "app-vars",
-    label: "应用变量",
-    selectable: false,
-    children: [
-      {
-        id: "app-config",
-        key: "app-config",
-        label: "应用配置",
-        blockID: "app-config",
-        schemaType: "object",
-        children: [
-          { id: "app-config.region", key: "app-config.region", label: "region", path: "region", schemaType: "string" },
-          { id: "app-config.flags", key: "app-config.flags", label: "flags", path: "flags", schemaType: "object" },
-        ],
-      },
-      {
-        id: "session-state",
-        key: "session-state",
-        label: "会话状态",
-        blockID: "session-state",
-        schemaType: "object",
-        children: [
-          { id: "session-state.messages", key: "session-state.messages", label: "messages", path: "messages", schemaType: "array" },
-          { id: "session-state.summary", key: "session-state.summary", label: "summary", path: "summary", schemaType: "string" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "system-vars",
-    key: "system-vars",
-    label: "系统变量",
-    selectable: false,
-    children: [
-      {
-        id: "llm",
-        key: "llm",
-        label: "大模型",
-        blockID: "llm",
-        schemaType: "object",
-        children: [
-          { id: "llm.output.text", key: "llm.output.text", label: "output.text", path: "output.text", schemaType: "string" },
-          { id: "llm.output.tokens", key: "llm.output.tokens", label: "output.tokens", path: "output.tokens", schemaType: "integer" },
-          { id: "llm.finishReason", key: "llm.finishReason", label: "finishReason", path: "finishReason", schemaType: "string" },
-        ],
-      },
-      {
-        id: "system-clock",
-        key: "system-clock",
-        label: "系统时钟",
-        blockID: "system-clock",
-        schemaType: "object",
-        children: [
-          { id: "system-clock.now", key: "system-clock.now", label: "now", path: "now", schemaType: "string" },
-          { id: "system-clock.timezone", key: "system-clock.timezone", label: "timezone", path: "timezone", schemaType: "string" },
-        ],
-      },
-    ],
-  },
-];
 
 const runtimeModes: ParamSchemaRuntimeMode[] = ["define", "refine", "bind", "read"];
 const activeEditorComponent = computed(() => ParamSchemaRegularEditor);
@@ -203,8 +81,8 @@ const activeDispatch = computed(() => regularEditor.dispatch);
         :state="activeState"
         :dispatch="activeDispatch"
         :runtime-mode="runtimeMode"
-        :role-options="roleOptions"
-        :value-ref-tree="valueRefTree"
+        :role-options="demoParamSchemaRoleOptions"
+        :value-ref-tree="demoParamSchemaValueRefTree"
         class="h-[640px] min-h-0"
       >
         <template v-if="pickerVariant === 'cascade'" #value-ref-picker="{ picker, close }">

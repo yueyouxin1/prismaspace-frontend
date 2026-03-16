@@ -57,6 +57,7 @@ export type FieldRendererDefinition = {
   component: Component
   modelProp?: string
   modelEvent?: string
+  rendersChildrenInDefaultSlot?: boolean
   getProps?: (ctx: FieldResolveContext) => Record<string, unknown>
   transformInput?: (value: unknown, ctx: FieldResolveContext) => unknown
   transformOutput?: (value: unknown, ctx: FieldResolveContext) => unknown
@@ -90,4 +91,3 @@ export type FormGeneratorExposed = {
   registerAction: (actionType: string, renderer: ActionRendererDefinition) => void
   unregisterAction: (actionType: string) => void
 }
-

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
+import { computed, onMounted, provide, ref } from "vue"
 import {
   Card,
   CardContent,
@@ -9,7 +9,17 @@ import {
 } from "@prismaspace/ui-shadcn/components/ui/card"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import { FormGenerator, type FormGeneratorExposed, type FormItem } from "@prismaspace/generator/form-generator"
+import {
+  formGeneratorValueRefTreeKey,
+  paramSchemaEditorFieldRenderer,
+} from "@prismaspace/generator/form-generator/advanced-components"
 import CounterField from "./CounterField.vue"
+import {
+  createDemoMetadataSchemaSeed,
+  createDemoOutputSchemaSeed,
+  demoParamSchemaRoleOptions,
+  demoParamSchemaValueRefTree,
+} from "../param-schema-editor/demo-data"
 
 type DemoOption = {
   label: string
@@ -46,6 +56,15 @@ const formModel = ref<Record<string, unknown>>({
     score: 10,
     intensity: 40,
   },
+  ui: {
+    outputSchemaAccordionOpen: true,
+    schemaAccordionSections: ["response-schema", "metadata-schema"],
+  },
+  schemas: {
+    output: createDemoOutputSchemaSeed(),
+    response: createDemoOutputSchemaSeed(),
+    metadata: createDemoMetadataSchemaSeed(),
+  },
 })
 
 const logs = ref<string[]>([])
@@ -66,6 +85,8 @@ const context = ref<DemoContext>({
     logs.value.unshift(`[callback] ${JSON.stringify(payload)}`)
   },
 })
+
+provide(formGeneratorValueRefTreeKey, demoParamSchemaValueRefTree)
 
 const schema = computed(() => ([
   {
@@ -187,6 +208,94 @@ const schema = computed(() => ([
     },
   },
   {
+    id: "outputSchemaAccordion",
+    type: "form",
+    control: "accordion-container",
+    modelPath: "ui.outputSchemaAccordionOpen",
+    props: {
+      title: "复杂表单容器：Accordion + Param Schema Editor",
+      description: "父容器只暴露 header portal，子编辑器通过 inject + teleport 接管头部 actions。",
+      defaultOpen: true,
+      itemValue: "output-schema",
+    },
+    children: [
+      {
+        id: "outputSchemaEditor",
+        type: "form",
+        control: "param-schema-editor",
+        modelPath: "schemas.output",
+        props: {
+          runtimeMode: "refine",
+          roleOptions: demoParamSchemaRoleOptions,
+          headerTitle: "OUTPUT SCHEMA",
+          class: "h-[560px] min-h-0",
+        },
+      },
+    ],
+  },
+  {
+    id: "schemaSectionsRoot",
+    type: "form",
+    control: "accordion-root",
+    modelPath: "ui.schemaAccordionSections",
+    props: {
+      type: "multiple",
+      collapsible: true,
+    },
+    children: [
+      {
+        id: "responseSchemaItem",
+        type: "form",
+        control: "accordion-item",
+        modelPath: "ui.schemaAccordionSections",
+        props: {
+          value: "response-schema",
+          title: "响应 Schema（accordion-root + accordion-item）",
+          description: "item 自己提供 header portal，子 Param Schema Editor 自动注入操作区。",
+        },
+        children: [
+          {
+            id: "responseSchemaEditor",
+            type: "form",
+            control: "param-schema-editor",
+            modelPath: "schemas.response",
+            props: {
+              runtimeMode: "bind",
+              roleOptions: demoParamSchemaRoleOptions,
+              headerTitle: "RESPONSE SCHEMA",
+              class: "h-[520px] min-h-0",
+            },
+          },
+        ],
+      },
+      {
+        id: "metadataSchemaItem",
+        type: "form",
+        control: "accordion-item",
+        modelPath: "ui.schemaAccordionSections",
+        props: {
+          value: "metadata-schema",
+          title: "元数据 Schema",
+          description: "第二个 item 复用同一套通用注册组件，不依赖父子硬编码。",
+        },
+        children: [
+          {
+            id: "metadataSchemaEditor",
+            type: "form",
+            control: "param-schema-editor",
+            modelPath: "schemas.metadata",
+            props: {
+              runtimeMode: "bind",
+              roleOptions: demoParamSchemaRoleOptions,
+              headerTitle: "METADATA SCHEMA",
+              class: "h-[480px] min-h-0",
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "submitAction",
     type: "action",
     actionType: "button",
@@ -224,6 +333,7 @@ onMounted(() => {
     transformInput: (value) => Number(value ?? 0),
     transformOutput: (value) => Number(value ?? 0),
   })
+  formGeneratorRef.value?.registerField("param-schema-editor", paramSchemaEditorFieldRenderer)
 })
 
 const prettyModel = computed(() => JSON.stringify(formModel.value, null, 2))
@@ -243,7 +353,7 @@ function toggleAdvanced(): void {
       <CardHeader>
         <CardTitle>Schema-Driven Form Generator Demo</CardTitle>
         <CardDescription>
-          覆盖深层 modelPath、context 表达式联动、条件显示与自定义字段注册。
+          覆盖深层 modelPath、context 表达式联动、条件显示，以及单 item / 多 item 两种 Accordion 组合下的 Param Schema Editor 注册用例。
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">

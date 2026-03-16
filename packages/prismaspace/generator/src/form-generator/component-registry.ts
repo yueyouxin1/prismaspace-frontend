@@ -7,6 +7,9 @@ import type {
   RegisterableFieldRenderers,
 } from "./types"
 import {
+  AccordionField,
+  AccordionItemField,
+  AccordionRootField,
   CheckboxField,
   DateRangeField,
   DefaultActionButton,
@@ -22,6 +25,8 @@ import {
 } from "./field-renderers"
 
 const normalizeKey = (value: string) => value.trim().toLowerCase()
+
+type AccordionModelValue = string | string[] | undefined
 
 const withInputType = (type: string): FieldRendererDefinition => ({
   component: InputField,
@@ -155,6 +160,83 @@ export const builtInFieldRenderers: FieldRendererRecord = {
       fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
       options: ctx.options,
     }),
+  },
+  accordion: {
+    component: AccordionField,
+    rendersChildrenInDefaultSlot: true,
+    getProps: (ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      return {
+        title: String(resolved.title ?? ctx.item.label ?? "Accordion"),
+        description: typeof resolved.description === "string" ? resolved.description : "",
+        itemValue: typeof resolved.itemValue === "string" ? resolved.itemValue : ctx.item.id,
+        defaultOpen: Boolean(resolved.defaultOpen),
+        class: resolved.class,
+        triggerClass: resolved.triggerClass,
+        contentClass: resolved.contentClass,
+      }
+    },
+    transformInput: (value) => Boolean(value),
+    transformOutput: (value) => Boolean(value),
+  },
+  "accordion-container": {
+    component: AccordionField,
+    rendersChildrenInDefaultSlot: true,
+    getProps: (ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      return {
+        title: String(resolved.title ?? ctx.item.label ?? "Accordion"),
+        description: typeof resolved.description === "string" ? resolved.description : "",
+        itemValue: typeof resolved.itemValue === "string" ? resolved.itemValue : ctx.item.id,
+        defaultOpen: Boolean(resolved.defaultOpen),
+        class: resolved.class,
+        triggerClass: resolved.triggerClass,
+        contentClass: resolved.contentClass,
+      }
+    },
+    transformInput: (value) => Boolean(value),
+    transformOutput: (value) => Boolean(value),
+  },
+  "accordion-root": {
+    component: AccordionRootField,
+    rendersChildrenInDefaultSlot: true,
+    getProps: (ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      return {
+        type: resolved.type === "single" ? "single" : "multiple",
+        collapsible: resolved.collapsible !== false,
+        class: resolved.class,
+      }
+    },
+    transformInput: (value, ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      if (resolved.type === "single") {
+        return typeof value === "string" ? value : undefined
+      }
+      return Array.isArray(value) ? value : []
+    },
+    transformOutput: (value, ctx): AccordionModelValue => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      if (resolved.type === "single") {
+        return typeof value === "string" ? value : undefined
+      }
+      return Array.isArray(value) ? value : []
+    },
+  },
+  "accordion-item": {
+    component: AccordionItemField,
+    rendersChildrenInDefaultSlot: true,
+    getProps: (ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      return {
+        title: String(resolved.title ?? ctx.item.label ?? "Accordion Item"),
+        description: typeof resolved.description === "string" ? resolved.description : "",
+        value: typeof resolved.value === "string" ? resolved.value : ctx.item.id,
+        class: resolved.class,
+        triggerClass: resolved.triggerClass,
+        contentClass: resolved.contentClass,
+      }
+    },
   },
   custom: {
     component: UnsupportedField,
