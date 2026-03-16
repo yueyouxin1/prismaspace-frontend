@@ -243,6 +243,33 @@ export const buildGeneratorSchema = (forms: WorkflowFormProperty[]): FormItem[] 
   return walk(forms)
 }
 
+const joinModelPath = (prefix: string, modelPath: string): string => {
+  const normalizedPrefix = prefix.trim()
+  const normalizedModelPath = modelPath.trim()
+  if (!normalizedPrefix) {
+    return normalizedModelPath
+  }
+  if (!normalizedModelPath) {
+    return normalizedPrefix
+  }
+  return `${normalizedPrefix}.${normalizedModelPath}`
+}
+
+export const prefixFormItemsModelPath = (items: FormItem[], prefix: string): FormItem[] => {
+  return items.map((item) => {
+    if (item.type !== 'form') {
+      return item
+    }
+    return {
+      ...item,
+      modelPath: joinModelPath(prefix, item.modelPath),
+      children: item.children?.length
+        ? prefixFormItemsModelPath(item.children, prefix)
+        : undefined,
+    }
+  })
+}
+
 export const buildWorkflowResourceOptionsByType = (
   resources: ResourceRead[],
 ): Record<string, WorkflowResourceOption[]> => {
@@ -287,6 +314,13 @@ export const getNodeDefinitionForNode = (
     return undefined
   }
   return definitions.find(definition => definition.node.registryId === registryId || definition.node_uid === registryId)
+}
+
+export const findWorkflowNodeByRegistryId = (
+  graph: WorkflowGraphRead,
+  registryId: string,
+): WorkflowNodeRead | undefined => {
+  return graph.nodes.find(node => node.data.registryId === registryId)
 }
 
 export const isProtectedWorkflowNode = (node: WorkflowNodeRead): boolean => {

@@ -29,6 +29,7 @@ import {
   cloneJson,
   createWorkflowNodeFromDefinition,
   ensureWorkflowGraph,
+  findWorkflowNodeByRegistryId,
   getNodeDefinitionForNode,
   isProtectedWorkflowNode,
   parseJsonObject,
@@ -121,6 +122,7 @@ const selectedNodeDefinition = computed(() => getNodeDefinitionForNode(nodeDefsQ
 const paletteGroups = computed(() => buildWorkflowPaletteGroups(nodeDefsQuery.data.value ?? []))
 const resourceOptionsByType = computed(() => buildWorkflowResourceOptionsByType(workspaceResourcesQuery.data.value ?? []))
 const modelOptions = computed(() => buildWorkflowModelOptions(modelOptionsQuery.data.value ?? []))
+const workflowInputSchemas = computed(() => findWorkflowNodeByRegistryId(draftGraph.value, 'Start')?.data.outputs ?? [])
 const isDirty = computed(() => JSON.stringify(draftGraph.value) !== baselineGraphSnapshot.value)
 const latestRunSummary = computed(() => runsQuery.data.value?.[0] ?? null)
 const currentZoomLabel = computed(() => {
@@ -781,7 +783,7 @@ const isLoadFailed = computed(() =>
               :can-debug="Boolean(selectedNode)"
               :selected-node-name="selectedNode?.data.name ?? null"
               :input-text="runInputText"
-              :workflow-input-schemas="workflowInstanceQuery.data.value?.inputs_schema ?? []"
+              :workflow-input-schemas="workflowInputSchemas"
               :selected-run-id="selectedRunId"
               :runs="runsQuery.data.value ?? []"
               :selected-run="selectedRunQuery.data.value ?? null"
