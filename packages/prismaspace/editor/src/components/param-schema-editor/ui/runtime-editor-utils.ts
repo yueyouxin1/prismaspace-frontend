@@ -133,6 +133,7 @@ export interface ResolvedVariableTreeNodeRef {
   source?: string;
   ref: ValueRefContent | null;
   nextInheritedBlockId: string;
+  nextInheritedPath: string;
   explicitBlockID: boolean;
   explicitPath: boolean;
   selectable: boolean;
@@ -146,6 +147,58 @@ export interface VariableTreeNodeRefMatch {
 
 function hasExplicitVariableRefValue(value: string | undefined): boolean {
   return Boolean(value?.trim());
+}
+
+function normalizeVariableNodeValue(value: string | number | undefined | null): string {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function getVariableTreeNodeDisplayLabel(node: VariableTreeNode, index: number): string {
+  return (
+    normalizeVariableNodeValue(node.label)
+    || normalizeVariableNodeValue(node.title)
+    || normalizeVariableNodeValue(node.name)
+    || normalizeVariableNodeValue(node.path)
+    || normalizeVariableNodeValue(node.key)
+    || normalizeVariableNodeValue(node.id)
+    || `node-${index + 1}`
+  );
+}
+
+function getVariableTreeNodeReferenceSeed(node: VariableTreeNode): string {
+  return normalizeVariableNodeValue(node.id) || normalizeVariableNodeValue(node.key);
+}
+
+function getRelativePathFromSeed(seed: string, blockID: string): string | null {
+  if (!seed) return null;
+  if (!blockID) return seed;
+  if (seed === blockID) return "";
+  if (seed.startsWith(`${blockID}.`)) {
+    return seed.slice(blockID.length + 1);
+  }
+  return null;
+}
+
+function joinVariablePath(base: string, segment: string): string {
+  if (!base) return segment;
+  if (!segment) return base;
+  return `${base}.${segment}`;
+}
+
+function getFallbackVariableTreeNodePath(
+  node: VariableTreeNode,
+  currentBlockID: string,
+  inheritedPath: string,
+): string {
+  const referenceSeed = getVariableTreeNodeReferenceSeed(node);
+  const pathFromSeed = getRelativePathFromSeed(referenceSeed, currentBlockID);
+  if (pathFromSeed !== null) return pathFromSeed;
+
+  const segment = normalizeVariableNodeValue(node.name);
+  if (segment) return joinVariablePath(inheritedPath, segment);
+
+  return inheritedPath;
 }
 
 export function getVariableTreeNodeSelectableState(
@@ -188,25 +241,30 @@ export function resolveVariableTreeNodeRef(
   node: VariableTreeNode,
   labels: string[] = [],
   inheritedBlockId = "",
+  inheritedPath = "",
   index = 0,
 ): ResolvedVariableTreeNodeRef {
-  const rawLabel = node.label ?? node.name ?? node.title ?? node.path ?? node.id ?? `node-${index + 1}`;
-  const label = String(rawLabel).trim() || `node-${index + 1}`;
+  const label = getVariableTreeNodeDisplayLabel(node, index);
   const nextLabels = [...labels, label];
   const explicitBlockID = hasExplicitVariableRefValue(node.blockID);
   const explicitPath = hasExplicitVariableRefValue(node.path);
-  const blockID = String((explicitBlockID ? node.blockID : inheritedBlockId || node.id) ?? "").trim();
-  const path = String(node.path ?? "").trim();
-  const source = String(node.source ?? "").trim() || undefined;
-  const fallbackPath = nextLabels.join(".");
-  const ref =
-    blockID || path
-      ? {
-          blockID: blockID || inheritedBlockId || label,
-          path: path || fallbackPath,
-          source,
-        }
-      : null;
+  const blockID = explicitBlockID
+    ? normalizeVariableNodeValue(node.blockID)
+    : inheritedBlockId || getVariableTreeNodeReferenceSeed(node);
+  const explicitResolvedPath = normalizeVariableNodeValue(node.path);
+  const path = explicitPath
+    ? explicitResolvedPath
+    : explicitBlockID
+      ? ""
+      : getFallbackVariableTreeNodePath(node, blockID, inheritedPath);
+  const source = normalizeVariableNodeValue(node.source) || undefined;
+  const ref = blockID
+    ? {
+        blockID,
+        path,
+        source,
+      }
+    : null;
   const selectableState = getVariableTreeNodeSelectableState(node, {
     ref,
     explicitBlockID,
@@ -222,6 +280,7 @@ export function resolveVariableTreeNodeRef(
     source,
     ref,
     nextInheritedBlockId: blockID || inheritedBlockId,
+    nextInheritedPath: path,
     explicitBlockID,
     explicitPath,
     selectable: selectableState.selectable,
@@ -252,13 +311,14 @@ export function findVariableTreeNodeRefMatchByRef(
     nodes: VariableTreeNode[],
     labels: string[] = [],
     inheritedBlockId = "",
+    inheritedPath = "",
   ): VariableTreeNodeRefMatch | null => {
     for (const [index, node] of nodes.entries()) {
-      const resolved = resolveVariableTreeNodeRef(node, labels, inheritedBlockId, index);
+      const resolved = resolveVariableTreeNodeRef(node, labels, inheritedBlockId, inheritedPath, index);
       if (buildValueRefKey(resolved.ref) === targetKey) {
         return { node, resolved };
       }
-      const child = walk(node.children ?? [], resolved.nextLabels, resolved.nextInheritedBlockId);
+      const child = walk(node.children ?? [], resolved.nextLabels, resolved.nextInheritedBlockId, resolved.nextInheritedPath);
       if (child) return child;
     }
     return null;
@@ -269,7 +329,14 @@ export function findVariableTreeNodeRefMatchByRef(
 
 export function getVariableTreeNodeLabel(node: VariableTreeNode | null | undefined): string {
   if (!node) return "";
-  return String(node.label ?? node.name ?? node.title ?? node.path ?? node.id ?? "").trim();
+  return (
+    normalizeVariableNodeValue(node.label)
+    || normalizeVariableNodeValue(node.title)
+    || normalizeVariableNodeValue(node.name)
+    || normalizeVariableNodeValue(node.path)
+    || normalizeVariableNodeValue(node.key)
+    || normalizeVariableNodeValue(node.id)
+  );
 }
 
 export function getVariableTreeNodeCaption(node: VariableTreeNode | null | undefined): string {

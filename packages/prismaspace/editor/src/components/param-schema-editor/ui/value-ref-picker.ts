@@ -79,6 +79,15 @@ export interface UseValueRefPickerControllerOptions {
   onSelect?: (ref: ValueRefContent, item: ValueRefPickerItem | null) => void;
 }
 
+export function getValueRefPickerItemIssue(
+  item: Pick<ValueRefPickerItem, "ref" | "selectable" | "selectableMessage" | "compatibility"> | null | undefined,
+): string | null {
+  if (!item?.ref) return null;
+  if (!item.selectable) return item.selectableMessage ?? "当前节点不可引用。";
+  if (!item.compatibility.compatible) return item.compatibility.message ?? "当前节点类型不兼容。";
+  return null;
+}
+
 export function getValueRefCompatibility(
   expectedType: SchemaType,
   actualType: SchemaType | null | undefined,
@@ -314,12 +323,19 @@ function normalizeValueRefPickerTree(
   expectedType: SchemaType,
   labels: string[],
   inheritedBlockId = "",
+  inheritedPath = "",
 ): ValueRefPickerItem[] {
   return nodes.map((node, index) => {
-    const resolved = resolveVariableTreeNodeRef(node, labels, inheritedBlockId, index);
+    const resolved = resolveVariableTreeNodeRef(node, labels, inheritedBlockId, inheritedPath, index);
     const { label, nextLabels, blockID, path, source, ref } = resolved;
-    const caption = ref ? `${ref.blockID} · ${ref.path}` : nextLabels.join(" / ");
-    const children = normalizeValueRefPickerTree(node.children ?? [], expectedType, nextLabels, resolved.nextInheritedBlockId);
+    const caption = ref ? formatValueRefSummary(ref) : nextLabels.join(" / ");
+    const children = normalizeValueRefPickerTree(
+      node.children ?? [],
+      expectedType,
+      nextLabels,
+      resolved.nextInheritedBlockId,
+      resolved.nextInheritedPath,
+    );
 
     return {
       key: String(node.key ?? node.id ?? `${labels.join(".")}:${label}:${index}`),

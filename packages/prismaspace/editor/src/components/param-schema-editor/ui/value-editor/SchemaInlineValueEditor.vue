@@ -133,7 +133,7 @@ function openReferencePicker() {
             align="end"
             side="bottom"
             :side-offset="6"
-            class="flex h-[360px] w-[min(520px,calc(100vw-24px))] flex-col rounded-[18px] border-[#e9e7f1] p-3"
+            class="flex max-h-[260px] w-full rounded-lg border-[#e9e7f1] p-0 overflow-auto"
           >
             <slot
               v-if="$slots['value-ref-picker'] && valueRefPicker"
