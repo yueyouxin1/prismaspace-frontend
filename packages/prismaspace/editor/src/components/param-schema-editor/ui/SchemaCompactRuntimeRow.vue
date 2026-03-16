@@ -453,7 +453,8 @@ function syncNodeType(nextType: SchemaType, itemType?: SchemaType) {
 
 function onInlineValueModeChange(payload: { nextType: SchemaType | "expr"; itemType?: SchemaType }) {
   if (payload.nextType === "expr") {
-    if (!canEditValue.value) return;
+    if (!canEditType.value || !canEditValue.value) return;
+    syncNodeType("string");
     valueError.value = null;
     emitField("value", { type: "expr", content: valueExprDraft.value ?? "" });
     return;
