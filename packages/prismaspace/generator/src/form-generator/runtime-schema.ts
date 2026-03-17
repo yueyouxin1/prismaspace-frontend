@@ -100,7 +100,7 @@ export const ActionSpecSchema = z.union([
 /** 先声明 FormItemSchema 以支持递归 children */
 export type FormItem = z.infer<typeof FormItemSchema>;
 export const FormItemSchema: z.ZodTypeAny = z.lazy(() =>
-  z.union([FormFieldItemSchema, FormActionItemSchema])
+  z.union([FormFieldItemSchema, FormLayoutItemSchema, FormActionItemSchema])
 );
 
 /** FormFieldItem */
@@ -117,6 +117,14 @@ export const FormFieldItemSchema = BaseItemSchema.extend({
   required: v.required ?? false,
 }));
 
+/** FormLayoutItem */
+export const FormLayoutItemSchema = BaseItemSchema.extend({
+  type: z.literal("layout"),
+  control: z.string().trim().min(1, "control 不能为空"),
+  props: nullOptional(z.record(z.string(), z.any())),
+  children: nullOptional(z.array(FormItemSchema)),
+});
+
 /** FormActionItem */
 export const FormActionItemSchema = BaseItemSchema.extend({
   type: z.literal("action"),
@@ -128,9 +136,11 @@ export const FormActionItemSchema = BaseItemSchema.extend({
 
 /** 再把 lazy union 的两个分支补齐引用 */
 const FormFieldItemSchemaRef = FormFieldItemSchema;
+const FormLayoutItemSchemaRef = FormLayoutItemSchema;
 const FormActionItemSchemaRef = FormActionItemSchema;
 // 让 TS 不抱怨未使用（某些配置下会）
 void FormFieldItemSchemaRef;
+void FormLayoutItemSchemaRef;
 void FormActionItemSchemaRef;
 
 /** 顶层：允许传入数组配置 */

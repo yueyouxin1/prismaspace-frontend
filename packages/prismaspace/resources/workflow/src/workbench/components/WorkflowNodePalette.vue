@@ -87,7 +87,7 @@ const handleDragStart = (event: DragEvent, definition: WorkflowNodeDefRead): voi
               </div>
 
               <div class="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>{{ definition.forms.length }} forms · 可拖入画布</span>
+                <span>可拖入画布</span>
                 <Button size="sm" @click="emit('add-node', definition)">添加</Button>
               </div>
             </CardContent>

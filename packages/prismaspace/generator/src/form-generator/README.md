@@ -36,6 +36,12 @@ const schema: FormItem[] = [
 </template>
 ```
 
+## Item 语义
+
+- `type: "form"`: 真正参与 `modelPath` 双向绑定、校验和提交的数据字段
+- `type: "layout"`: 纯结构/容器项，不要求 `modelPath`，适合 `accordion-root`、`accordion-item`、`accordion-container` 这类无持久化布局组件
+- `type: "action"`: 声明式动作项
+
 ## 自定义字段注册
 
 ```ts

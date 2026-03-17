@@ -3,6 +3,7 @@ import type {
   Expr,
   FormActionItem,
   FormFieldItem,
+  FormLayoutItem,
   FormItem,
 } from "./types/form-schema"
 
@@ -27,7 +28,7 @@ export type ExpressionRuntimeScope = {
 }
 
 export type FieldResolveContext = {
-  item: FormFieldItem
+  item: FormFieldItem | FormLayoutItem
   model: FormModel
   context: FormContext
   value: unknown

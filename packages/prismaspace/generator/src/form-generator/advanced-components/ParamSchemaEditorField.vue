@@ -166,9 +166,6 @@ function copyParameterSchema() {
   <Teleport v-if="canTeleportHeaderActions && headerTeleportTarget" :to="headerTeleportTarget">
     <div class="flex items-center gap-1.5" @click.stop>
       <Badge variant="secondary">
-        {{ headerState.modeLabel }}
-      </Badge>
-      <Badge variant="secondary">
         {{ headerState.rootCount }} 项
       </Badge>
       <Badge v-if="headerState.issueCount" variant="destructive" :title="headerState.issueTitle">
@@ -229,7 +226,7 @@ function copyParameterSchema() {
     :field-visibility="fieldVisibility"
     :show-header="resolvedShowHeader"
     :header-title="headerTitle"
-    :class="cn('min-h-[520px]', props.class)"
+    :class="cn(props.class)"
     @update:model-value="emitModelValue"
   />
 </template>

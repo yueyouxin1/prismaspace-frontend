@@ -22,6 +22,7 @@ import type {
   Expr,
   FormActionItem,
   FormFieldItem,
+  FormLayoutItem,
   FormItem,
 } from "../types/form-schema"
 import {
@@ -83,6 +84,13 @@ function getFieldItem(): FormFieldItem | undefined {
   return props.item
 }
 
+function getRenderableItem(): FormFieldItem | FormLayoutItem | undefined {
+  if (props.item.type === "action") {
+    return undefined
+  }
+  return props.item
+}
+
 function getActionItem(): FormActionItem | undefined {
   if (props.item.type !== "action") {
     return undefined
@@ -130,6 +138,7 @@ function normalizeOptions(rawOptions: unknown): FieldOption[] {
   })
 }
 
+const renderItem = computed(() => getRenderableItem())
 const fieldItem = computed(() => getFieldItem())
 const actionItem = computed(() => getActionItem())
 
@@ -156,7 +165,7 @@ const containerStyle = computed<Record<string, string | number>>(() => {
 })
 
 const fieldRenderer = computed(() => {
-  const item = fieldItem.value
+  const item = renderItem.value
   if (!item) {
     return undefined
   }
@@ -164,7 +173,7 @@ const fieldRenderer = computed(() => {
 })
 
 const fieldOptions = computed(() => {
-  const item = fieldItem.value
+  const item = renderItem.value
   if (!item) {
     return []
   }
@@ -191,8 +200,8 @@ const fieldErrors = computed<string[]>(() => {
 
 const fieldInvalid = computed(() => fieldErrors.value.length > 0)
 
-const fieldChildren = computed(() => {
-  const item = fieldItem.value
+const renderChildren = computed(() => {
+  const item = renderItem.value
   if (!item?.children?.length) {
     return []
   }
@@ -200,7 +209,7 @@ const fieldChildren = computed(() => {
 })
 
 const fieldOwnsChildrenSlot = computed(() => {
-  return Boolean(fieldRenderer.value?.rendersChildrenInDefaultSlot && fieldChildren.value.length)
+  return Boolean(fieldRenderer.value?.rendersChildrenInDefaultSlot && renderChildren.value.length)
 })
 
 const fieldOrientation = computed<"vertical" | "horizontal">(() => {
@@ -289,7 +298,7 @@ function mergeFieldProps(
 }
 
 function getFieldResolveContext() {
-  const item = fieldItem.value
+  const item = renderItem.value
   if (!item) {
     return undefined
   }
@@ -311,7 +320,7 @@ const fieldModelProp = computed(() => fieldRenderer.value?.modelProp ?? "modelVa
 const fieldModelEvent = computed(() => fieldRenderer.value?.modelEvent ?? "update:modelValue")
 
 const fieldComponentProps = computed(() => {
-  const item = fieldItem.value
+  const item = renderItem.value
   const renderer = fieldRenderer.value
   const context = getFieldResolveContext()
 
@@ -328,6 +337,13 @@ const fieldComponentProps = computed(() => {
     ? renderer.transformInput(getFieldValue(), context)
     : getFieldValue()
 
+  if (item.type === "layout") {
+    return {
+      ...mappedProps,
+      disabled: isDisabled.value,
+    }
+  }
+
   return mergeFieldProps({
     ...mappedProps,
     disabled: isDisabled.value,
@@ -339,6 +355,7 @@ function onFieldModelUpdate(nextValue: unknown): void {
   try {
     const renderer = fieldRenderer.value
     const context = getFieldResolveContext()
+    const item = fieldItem.value
     if (!renderer || !context) {
       return
     }
@@ -346,15 +363,23 @@ function onFieldModelUpdate(nextValue: unknown): void {
       ? renderer.transformOutput(nextValue, context)
       : nextValue
     setFieldValue(outputValue)
-    void props.onFieldChange?.(context.item)
+    if (item) {
+      void props.onFieldChange?.(item)
+    }
   } catch (error) {
     emit("error", error as Error)
   }
 }
 
-const fieldListeners = computed<Record<string, (value: unknown) => void>>(() => ({
-  [fieldModelEvent.value]: onFieldModelUpdate,
-}))
+const fieldListeners = computed<Record<string, (value: unknown) => void>>(() => {
+  if (!fieldItem.value) {
+    return {}
+  }
+
+  return {
+    [fieldModelEvent.value]: onFieldModelUpdate,
+  }
+})
 
 watchEffect(() => {
   const item = fieldItem.value
@@ -494,8 +519,9 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
 
 <template>
   <div v-if="isVisible" :class="['space-y-2', containerClass]" :style="containerStyle">
-    <template v-if="fieldItem">
+    <template v-if="renderItem">
       <Field
+        v-if="fieldItem"
         :orientation="fieldOrientation"
         :data-invalid="fieldInvalid ? 'true' : undefined"
         :data-disabled="isDisabled ? 'true' : undefined"
@@ -509,7 +535,7 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
             <template v-if="fieldOwnsChildrenSlot">
               <div class="space-y-3">
                 <FormItemRenderer
-                  v-for="child in fieldChildren"
+                  v-for="child in renderChildren"
                   :key="child.id"
                   :item="child"
                   :model="model"
@@ -554,7 +580,7 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
             <template v-if="fieldOwnsChildrenSlot">
               <div class="space-y-3">
                 <FormItemRenderer
-                  v-for="child in fieldChildren"
+                  v-for="child in renderChildren"
                   :key="child.id"
                   :item="child"
                   :model="model"
@@ -580,9 +606,41 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
         </template>
       </Field>
 
-      <FieldGroup v-if="fieldChildren.length && !fieldOwnsChildrenSlot" class="border-l pl-4">
+      <template v-else>
+        <component
+          :is="fieldRenderer?.component"
+          v-bind="fieldComponentProps"
+          v-on="fieldListeners"
+        >
+          <template v-if="fieldOwnsChildrenSlot">
+            <div class="space-y-3">
+              <FormItemRenderer
+                v-for="child in renderChildren"
+                :key="child.id"
+                :item="child"
+                :model="model"
+                :context="context"
+                :field-registry="fieldRegistry"
+                :action-registry="actionRegistry"
+                :validation-errors="validationErrors"
+                :on-field-change="onFieldChange"
+                :before-action="beforeAction"
+                @action="emit('action', $event)"
+                @emit-event="emit('emit-event', $event)"
+                @model-change="emit('model-change')"
+                @error="emit('error', $event)"
+              />
+            </div>
+          </template>
+        </component>
+      </template>
+
+      <FieldGroup
+        v-if="renderChildren.length && !fieldOwnsChildrenSlot"
+        :class="fieldItem ? 'border-l pl-4' : 'gap-3'"
+      >
         <FormItemRenderer
-          v-for="child in fieldChildren"
+          v-for="child in renderChildren"
           :key="child.id"
           :item="child"
           :model="model"

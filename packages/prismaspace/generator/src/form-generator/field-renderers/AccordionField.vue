@@ -40,17 +40,23 @@ const emit = defineEmits<{
 }>();
 
 const headerActionsTarget = ref<HTMLElement | null>(null);
+const internalOpen = ref(Boolean(props.defaultOpen));
 
 provide(formGeneratorHeaderActionsPortalKey, {
   target: headerActionsTarget,
 });
 
+const isControlled = computed(() => typeof props.modelValue === "boolean");
 const accordionValue = computed(() => {
-  return (props.modelValue ?? props.defaultOpen) ? props.itemValue : undefined;
+  const isOpen = isControlled.value ? Boolean(props.modelValue) : internalOpen.value;
+  return isOpen ? props.itemValue : undefined;
 });
 
 function onAccordionValueChange(value: string | string[] | undefined) {
   const nextValue = Array.isArray(value) ? value.includes(props.itemValue) : value === props.itemValue;
+  if (!isControlled.value) {
+    internalOpen.value = nextValue;
+  }
   emit("update:modelValue", nextValue);
 }
 </script>
@@ -59,7 +65,7 @@ function onAccordionValueChange(value: string | string[] | undefined) {
   <Accordion type="single" collapsible :class="cn(props.class)" :model-value="accordionValue"
     @update:model-value="onAccordionValueChange">
     <AccordionItem :value="itemValue" :disabled="disabled">
-      <AccordionTrigger :class="cn(props.triggerClass)">
+      <AccordionTrigger :class="cn('items-center px-2 hover:no-underline', props.triggerClass)">
         <div class="min-w-0 flex-1 text-left">
           <div class="truncate text-sm font-semibold text-foreground">
             {{ title }}

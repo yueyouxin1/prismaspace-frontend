@@ -56,10 +56,6 @@ const formModel = ref<Record<string, unknown>>({
     score: 10,
     intensity: 40,
   },
-  ui: {
-    outputSchemaAccordionOpen: true,
-    schemaAccordionSections: ["response-schema", "metadata-schema"],
-  },
   schemas: {
     output: createDemoOutputSchemaSeed(),
     response: createDemoOutputSchemaSeed(),
@@ -209,9 +205,8 @@ const schema = computed(() => ([
   },
   {
     id: "outputSchemaAccordion",
-    type: "form",
+    type: "layout",
     control: "accordion-container",
-    modelPath: "ui.outputSchemaAccordionOpen",
     props: {
       title: "复杂表单容器：Accordion + Param Schema Editor",
       description: "父容器只暴露 header portal，子编辑器通过 inject + teleport 接管头部 actions。",
@@ -235,19 +230,18 @@ const schema = computed(() => ([
   },
   {
     id: "schemaSectionsRoot",
-    type: "form",
+    type: "layout",
     control: "accordion-root",
-    modelPath: "ui.schemaAccordionSections",
     props: {
       type: "multiple",
       collapsible: true,
+      defaultValue: ["response-schema", "metadata-schema"],
     },
     children: [
       {
         id: "responseSchemaItem",
-        type: "form",
+        type: "layout",
         control: "accordion-item",
-        modelPath: "ui.schemaAccordionSections",
         props: {
           value: "response-schema",
           title: "响应 Schema（accordion-root + accordion-item）",
@@ -270,9 +264,8 @@ const schema = computed(() => ([
       },
       {
         id: "metadataSchemaItem",
-        type: "form",
+        type: "layout",
         control: "accordion-item",
-        modelPath: "ui.schemaAccordionSections",
         props: {
           value: "metadata-schema",
           title: "元数据 Schema",

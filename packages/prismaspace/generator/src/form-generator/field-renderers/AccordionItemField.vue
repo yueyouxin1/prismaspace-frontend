@@ -41,7 +41,7 @@ provide(formGeneratorHeaderActionsPortalKey, {
 
 <template>
   <AccordionItem :value="value" :disabled="disabled" :class="cn(props.class)">
-    <AccordionTrigger :class="cn(props.triggerClass)">
+    <AccordionTrigger :class="cn('items-center px-2 hover:no-underline', props.triggerClass)">
       <div class="min-w-0 flex-1 text-left">
         <div class="truncate text-sm font-semibold text-foreground">
           {{ title }}

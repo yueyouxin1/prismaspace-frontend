@@ -100,6 +100,22 @@ export interface FormFieldItem<P = Record<string, any>, Ctx = any> extends BaseI
 }
 
 /**
+ * 容器项 / 布局项：用于 Accordion、Tabs、CardGroup 这类只负责承载结构而不直接落 model 的组件
+ */
+export interface FormLayoutItem<P = Record<string, any>, Ctx = any> extends BaseItem<Ctx> {
+  type: 'layout';
+
+  /** 布局/容器组件类型 */
+  control: string;
+
+  /** 传给容器组件的 props */
+  props?: P;
+
+  /** 子项：通常为 form / layout / action 的递归组合 */
+  children?: FormItem[];
+}
+
+/**
  * Action 项：不参与 modelPath 双向绑定，用于注入按钮/局部组件等
  * A：action payload 类型（如 click 时的参数）
  */
@@ -133,4 +149,4 @@ export type ActionSpec<A = any, Ctx = any> =
   | { kind: 'api'; apiName: string; body?: Expr<Record<string, any>, Ctx> };
 
 /** 联合类型：最终对外暴露的统一契约 */
-export type FormItem = FormFieldItem<any, any> | FormActionItem<any, any>;
+export type FormItem = FormFieldItem<any, any> | FormLayoutItem<any, any> | FormActionItem<any, any>;

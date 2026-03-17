@@ -165,6 +165,10 @@ export function collectFormFieldItems(items: FormItem[]): FormFieldItem[] {
       }
       continue;
     }
+
+    if (item.type === "layout" && item.children?.length) {
+      collected.push(...collectFormFieldItems(item.children));
+    }
   }
 
   return collected;

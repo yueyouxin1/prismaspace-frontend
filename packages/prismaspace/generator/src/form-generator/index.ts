@@ -6,6 +6,7 @@ export {
   FieldRuleSchema,
   FormActionItemSchema,
   FormFieldItemSchema,
+  FormLayoutItemSchema,
   FormItemSchema,
   FormItemsSchema,
   ModelPathSchema,

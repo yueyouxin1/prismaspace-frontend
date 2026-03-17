@@ -213,6 +213,7 @@ export const builtInFieldRenderers: FieldRendererRecord = {
       return {
         type: resolved.type === "single" ? "single" : "multiple",
         collapsible: resolved.collapsible !== false,
+        defaultValue: resolved.defaultValue,
         class: resolved.class,
       }
     },

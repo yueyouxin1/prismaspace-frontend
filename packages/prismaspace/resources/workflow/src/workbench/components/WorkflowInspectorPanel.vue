@@ -4,7 +4,6 @@ import type {
   WorkflowEventRead,
   WorkflowGraphRead,
   WorkflowNodeDataRead,
-  WorkflowNodeDefRead,
   WorkflowNodeRead,
   WorkflowParameterSchema,
   WorkflowRunRead,
@@ -28,7 +27,6 @@ import type {
 } from '../types/workflow-ide'
 import {
   buildFormItemsFromParameterSchemas,
-  buildGeneratorSchema,
   buildWorkflowVariableEntries,
   cloneJson,
   formatJson,
@@ -38,7 +36,6 @@ import {
 
 const props = withDefaults(defineProps<{
   selectedNode: WorkflowNodeRead | null
-  selectedNodeDefinition?: WorkflowNodeDefRead | null
   graph: WorkflowGraphRead
   workflowInputSchemas?: WorkflowParameterSchema[]
   formContext: WorkflowFormRuntimeContext
@@ -56,7 +53,6 @@ const props = withDefaults(defineProps<{
   loadingRunDetail?: boolean
   loadingRunEvents?: boolean
 }>(), {
-  selectedNodeDefinition: null,
   workflowInputSchemas: () => [],
   validationResult: null,
   validating: false,
@@ -93,7 +89,6 @@ const debugFormModel = ref<Record<string, unknown>>({})
 const syncingRunForm = ref(false)
 const syncingDebugForm = ref(false)
 
-const generatorSchema = computed(() => buildGeneratorSchema(props.selectedNodeDefinition?.forms ?? []))
 const workflowRunFormSchema = computed(() => buildFormItemsFromParameterSchemas(props.workflowInputSchemas ?? [], 'workflow-run'))
 const nodeDebugFormSchema = computed(() => buildFormItemsFromParameterSchemas(props.selectedNode?.data.inputs ?? [], 'node-debug'))
 const variableEntries = computed(() => buildWorkflowVariableEntries(props.graph, props.selectedNode?.id ?? null))
@@ -291,14 +286,8 @@ const selectedRunText = computed(() => formatJson(props.selectedRun))
               <CardTitle>节点配置</CardTitle>
             </CardHeader>
             <CardContent>
-              <FormGenerator
-                v-if="draftNodeData && generatorSchema.length"
-                v-model="draftNodeData"
-                :schema="generatorSchema"
-                :field-renderers="fieldRenderers"
-              />
-              <p v-else class="text-sm text-muted-foreground">
-                当前节点没有表单定义，可直接编辑 inputs / outputs Schema。
+              <p class="text-sm text-muted-foreground">
+                当前检查面板不再依赖后端 `forms` 契约；节点正式配置请使用工作台右侧 `WorkflowNodeRegistry` 面板。
               </p>
             </CardContent>
           </Card>

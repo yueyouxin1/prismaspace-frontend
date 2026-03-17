@@ -694,7 +694,6 @@ export interface WorkflowNodeDefRead {
   description?: string | null
   display_order: number
   node: WorkflowNodeDataRead
-  forms: WorkflowFormProperty[]
   is_active: boolean
 }
 
@@ -738,25 +737,6 @@ export interface WorkflowParameterSchema extends WorkflowSchemaBlueprint {
   label?: string
   value?: WorkflowParameterValue
   meta?: JsonRecord
-}
-
-export interface WorkflowFormProperty {
-  id?: string
-  label?: string
-  desc?: string | null
-  type: 'form' | 'action'
-  control?: string
-  props?: JsonRecord
-  ui?: JsonRecord
-  meta?: JsonRecord
-  children?: WorkflowFormProperty[]
-  model_path?: string
-  state?: JsonRecord
-  required?: string | boolean
-  role?: string
-  action_type?: string
-  renderer?: string
-  on?: JsonRecord | null
 }
 
 export interface WorkflowNodeDataRead {
