@@ -56,6 +56,14 @@ const formModel = ref<Record<string, unknown>>({
     score: 10,
     intensity: 40,
   },
+  security: {
+    otp: "",
+    retryLimit: 3,
+  },
+  preferences: {
+    deliveryChannel: "email",
+    responseFormat: "summary",
+  },
   schemas: {
     output: createDemoOutputSchemaSeed(),
     response: createDemoOutputSchemaSeed(),
@@ -165,7 +173,7 @@ const schema = computed(() => ([
   {
     id: "hobbies",
     type: "form",
-    control: "multi-select",
+    control: "checkbox-group",
     label: "兴趣偏好",
     modelPath: "user.profile.hobbies",
     state: {
@@ -282,6 +290,97 @@ const schema = computed(() => ([
               roleOptions: demoParamSchemaRoleOptions,
               headerTitle: "METADATA SCHEMA",
               class: "h-[480px] min-h-0",
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "settingsTabsRoot",
+    type: "layout",
+    control: "tabs-root",
+    props: {
+      defaultValue: "verification",
+    },
+    children: [
+      {
+        id: "verificationTab",
+        type: "layout",
+        control: "tabs-item",
+        props: {
+          value: "verification",
+          title: "验证码与重试",
+        },
+        children: [
+          {
+            id: "otp",
+            type: "form",
+            control: "input-otp",
+            label: "验证码",
+            modelPath: "security.otp",
+            props: {
+              maxlength: 6,
+              separatorIndex: 3,
+            },
+            required: true,
+          },
+          {
+            id: "retryLimit",
+            type: "form",
+            control: "number-field",
+            label: "重试上限",
+            modelPath: "security.retryLimit",
+            props: {
+              min: 1,
+              max: 10,
+              step: 1,
+            },
+          },
+        ],
+      },
+      {
+        id: "deliveryTab",
+        type: "layout",
+        control: "tabs-item",
+        props: {
+          value: "delivery",
+          title: "交付偏好",
+        },
+        children: [
+          {
+            id: "deliveryChannel",
+            type: "form",
+            control: "native-select",
+            label: "交付渠道",
+            modelPath: "preferences.deliveryChannel",
+            props: {
+              placeholder: "请选择交付渠道",
+              options: [
+                { label: "Email", value: "email" },
+                { label: "Webhook", value: "webhook" },
+                { label: "Slack", value: "slack" },
+              ],
+            },
+            rules: [
+              {
+                message: "请选择交付渠道",
+                validate: "{{ !!value }}",
+              },
+            ],
+          },
+          {
+            id: "responseFormat",
+            type: "form",
+            control: "radio-group",
+            label: "输出形式",
+            modelPath: "preferences.responseFormat",
+            props: {
+              options: [
+                { label: "摘要", value: "summary" },
+                { label: "全文", value: "full" },
+                { label: "结构化", value: "structured" },
+              ],
             },
           },
         ],

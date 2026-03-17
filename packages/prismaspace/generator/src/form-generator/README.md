@@ -73,16 +73,21 @@ if (!result?.valid) {
 
 - `input`, `text`, `password`, `number`, `email`
 - `textarea`
-- `select`, `combobox`
+- `select`, `native-select`, `combobox`
 - `checkbox`, `switch`
+- `checkbox-group`
 - `slider`
-- `radio`, `radiogroup`
+- `radio`, `radiogroup`, `radio-group`
+- `number-field`
 - `date`, `date-picker`, `datetime`, `time`, `time-picker`
 - `date-range`, `date-range-picker`
-- `tags`
-- `multi-select`, `multiselect`
+- `tags`, `tags-input`
+- `input-otp`, `otp`
+- `multi-select`, `multiselect` (兼容别名，语义等同于 `checkbox-group`)
+- `pin-input`, `pininput` (兼容别名，内部映射到 `input-otp`；上游已废弃)
 - `accordion`, `accordion-container`
 - `accordion-root`, `accordion-item`
+- `tabs`, `tabs-root`, `tabs-container`, `tabs-item`
 
 ## 高级组件
 

@@ -11,15 +11,21 @@ import {
   AccordionItemField,
   AccordionRootField,
   CheckboxField,
+  CheckboxGroupField,
+  ComboboxField,
   DateRangeField,
   DefaultActionButton,
   InputField,
-  MultiSelectField,
+  InputOtpField,
+  NativeSelectField,
+  NumberFieldField,
   RadioGroupField,
   RangeField,
   SelectField,
   SwitchField,
   TagsField,
+  TabsItemField,
+  TabsRootField,
   TextareaField,
   UnsupportedField,
 } from "./field-renderers"
@@ -67,12 +73,26 @@ export const builtInFieldRenderers: FieldRendererRecord = {
       options: ctx.options,
     }),
   },
+  "native-select": {
+    component: NativeSelectField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+  },
+  nativeselect: {
+    component: NativeSelectField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+  },
   combobox: {
-    component: SelectField,
+    component: ComboboxField,
     getProps: (ctx) => ({
       fieldProps: {
         ...ctx.resolveDynamic(ctx.item.props ?? {}),
-        triggerClass: "w-full",
+        triggerClass: "w-full justify-between",
       },
       options: ctx.options,
     }),
@@ -120,6 +140,13 @@ export const builtInFieldRenderers: FieldRendererRecord = {
       options: ctx.options,
     }),
   },
+  "radio-group": {
+    component: RadioGroupField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+  },
   radio: {
     component: RadioGroupField,
     getProps: (ctx) => ({
@@ -155,19 +182,101 @@ export const builtInFieldRenderers: FieldRendererRecord = {
       options: ctx.options,
     }),
   },
+  "tags-input": {
+    component: TagsField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+  },
+  "checkbox-group": {
+    component: CheckboxGroupField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+  },
+  checkboxgroup: {
+    component: CheckboxGroupField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+  },
+  "multi-checkbox": {
+    component: CheckboxGroupField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+  },
   "multi-select": {
-    component: MultiSelectField,
+    component: CheckboxGroupField,
     getProps: (ctx) => ({
       fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
       options: ctx.options,
     }),
   },
   multiselect: {
-    component: MultiSelectField,
+    component: CheckboxGroupField,
     getProps: (ctx) => ({
       fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
       options: ctx.options,
     }),
+  },
+  "number-field": {
+    component: NumberFieldField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+    transformInput: (value) => (typeof value === "number" ? value : Number(value)),
+    transformOutput: (value) => (typeof value === "number" ? value : Number(value)),
+  },
+  numberfield: {
+    component: NumberFieldField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+    transformInput: (value) => (typeof value === "number" ? value : Number(value)),
+    transformOutput: (value) => (typeof value === "number" ? value : Number(value)),
+  },
+  "input-otp": {
+    component: InputOtpField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+    transformInput: (value) => (value == null ? "" : String(value)),
+    transformOutput: (value) => (value == null ? "" : String(value)),
+  },
+  otp: {
+    component: InputOtpField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+    transformInput: (value) => (value == null ? "" : String(value)),
+    transformOutput: (value) => (value == null ? "" : String(value)),
+  },
+  "pin-input": {
+    component: InputOtpField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+    transformInput: (value) => (value == null ? "" : String(value)),
+    transformOutput: (value) => (value == null ? "" : String(value)),
+  },
+  pininput: {
+    component: InputOtpField,
+    getProps: (ctx) => ({
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      options: ctx.options,
+    }),
+    transformInput: (value) => (value == null ? "" : String(value)),
+    transformOutput: (value) => (value == null ? "" : String(value)),
   },
   accordion: {
     component: AccordionField,
@@ -241,6 +350,63 @@ export const builtInFieldRenderers: FieldRendererRecord = {
         title: String(resolved.title ?? ctx.item.label ?? "Accordion Item"),
         description: typeof resolved.description === "string" ? resolved.description : "",
         value: typeof resolved.value === "string" ? resolved.value : ctx.item.id,
+        class: resolved.class,
+        triggerClass: resolved.triggerClass,
+        contentClass: resolved.contentClass,
+      }
+    },
+  },
+  tabs: {
+    component: TabsRootField,
+    rendersChildrenInDefaultSlot: true,
+    getProps: (ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      return {
+        defaultValue: typeof resolved.defaultValue === "string" ? resolved.defaultValue : undefined,
+        class: resolved.class,
+        listClass: resolved.listClass,
+      }
+    },
+    transformInput: (value) => (typeof value === "string" ? value : undefined),
+    transformOutput: (value) => (typeof value === "string" ? value : undefined),
+  },
+  "tabs-root": {
+    component: TabsRootField,
+    rendersChildrenInDefaultSlot: true,
+    getProps: (ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      return {
+        defaultValue: typeof resolved.defaultValue === "string" ? resolved.defaultValue : undefined,
+        class: resolved.class,
+        listClass: resolved.listClass,
+      }
+    },
+    transformInput: (value) => (typeof value === "string" ? value : undefined),
+    transformOutput: (value) => (typeof value === "string" ? value : undefined),
+  },
+  "tabs-container": {
+    component: TabsRootField,
+    rendersChildrenInDefaultSlot: true,
+    getProps: (ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      return {
+        defaultValue: typeof resolved.defaultValue === "string" ? resolved.defaultValue : undefined,
+        class: resolved.class,
+        listClass: resolved.listClass,
+      }
+    },
+    transformInput: (value) => (typeof value === "string" ? value : undefined),
+    transformOutput: (value) => (typeof value === "string" ? value : undefined),
+  },
+  "tabs-item": {
+    component: TabsItemField,
+    rendersChildrenInDefaultSlot: true,
+    getProps: (ctx) => {
+      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+      return {
+        title: String(resolved.title ?? ctx.item.label ?? "Tab"),
+        value: typeof resolved.value === "string" ? resolved.value : ctx.item.id,
+        disabled: Boolean(resolved.disabled),
         class: resolved.class,
         triggerClass: resolved.triggerClass,
         contentClass: resolved.contentClass,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
+import { Slider } from "@prismaspace/ui-shadcn/components/ui/slider"
 
 const props = defineProps<{
   modelValue?: unknown
@@ -18,21 +19,25 @@ const value = computed(() => {
   const normalized = Number(props.modelValue ?? min.value)
   return Number.isNaN(normalized) ? min.value : normalized
 })
+
+const sliderValue = computed(() => [value.value])
+
+function onUpdateModelValue(next: number[] | undefined): void {
+  emit("update:modelValue", Number(next?.[0] ?? min.value))
+}
 </script>
 
 <template>
   <div class="space-y-2">
-    <input
+    <Slider
       v-bind="fieldProps"
+      :model-value="sliderValue"
       :min="min"
       :max="max"
       :step="step"
-      :value="value"
-      type="range"
-      class="w-full"
       :disabled="disabled || Boolean(fieldProps?.disabled)"
-      @input="emit('update:modelValue', Number(($event.target as HTMLInputElement).value))"
-    >
+      @update:model-value="onUpdateModelValue"
+    />
     <div class="text-xs text-muted-foreground">
       {{ value }}
     </div>
