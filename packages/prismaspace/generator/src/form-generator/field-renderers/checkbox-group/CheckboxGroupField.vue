@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Checkbox } from "@prismaspace/ui-shadcn/components/ui/checkbox"
-import type { FieldOption } from "../types"
+import type { FieldOption } from "../../types"
 
 const props = defineProps<{
   modelValue?: unknown
@@ -17,6 +17,7 @@ const emit = defineEmits<{
 const selectedValues = computed<unknown[]>(() => (
   Array.isArray(props.modelValue) ? props.modelValue : []
 ))
+
 const resolvedOptions = computed(() => props.options ?? [])
 
 function toggleOption(option: FieldOption, enabled: boolean | "indeterminate"): void {
@@ -28,6 +29,7 @@ function toggleOption(option: FieldOption, enabled: boolean | "indeterminate"): 
       emit("update:modelValue", current)
       return
     }
+
     emit("update:modelValue", [...current, option.value])
     return
   }
@@ -40,7 +42,7 @@ function toggleOption(option: FieldOption, enabled: boolean | "indeterminate"): 
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div data-slot="checkbox-group" class="space-y-2">
     <label
       v-for="(option, index) in resolvedOptions"
       :key="`${option.value}-${index}`"
@@ -55,4 +57,3 @@ function toggleOption(option: FieldOption, enabled: boolean | "indeterminate"): 
     </label>
   </div>
 </template>
-

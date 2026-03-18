@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@prismaspace/ui-shadcn/components/ui/select"
-import type { FieldOption } from "../types"
+import type { FieldOption } from "../../types"
 
 const props = defineProps<{
   modelValue?: unknown

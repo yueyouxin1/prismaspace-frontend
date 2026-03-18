@@ -10,8 +10,8 @@ import {
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import { FormGenerator, type FormGeneratorExposed, type FormItem } from "@prismaspace/generator/form-generator"
 import {
+  paramSchemaEditorFieldDescriptor,
   formGeneratorValueRefTreeKey,
-  paramSchemaEditorFieldRenderer,
 } from "@prismaspace/generator/form-generator/advanced-components"
 import CounterField from "./CounterField.vue"
 import {
@@ -153,7 +153,7 @@ const schema = computed(() => ([
   {
     id: "travelWindow",
     type: "form",
-    control: "date-range-picker",
+    control: "date-range",
     label: "出行日期",
     modelPath: "user.profile.travelWindow",
     state: {
@@ -163,7 +163,7 @@ const schema = computed(() => ([
   {
     id: "skills",
     type: "form",
-    control: "tags",
+    control: "tags-input",
     label: "技能标签",
     modelPath: "user.profile.skills",
     props: {
@@ -214,7 +214,7 @@ const schema = computed(() => ([
   {
     id: "outputSchemaAccordion",
     type: "layout",
-    control: "accordion-container",
+    control: "accordion",
     props: {
       title: "复杂表单容器：Accordion + Param Schema Editor",
       description: "父容器只暴露 header portal，子编辑器通过 inject + teleport 接管头部 actions。",
@@ -299,7 +299,7 @@ const schema = computed(() => ([
   {
     id: "settingsTabsRoot",
     type: "layout",
-    control: "tabs-root",
+    control: "tabs",
     props: {
       defaultValue: "verification",
     },
@@ -412,20 +412,29 @@ const schema = computed(() => ([
 ] satisfies FormItem[]))
 
 onMounted(() => {
-  formGeneratorRef.value?.registerField("counter", {
-    component: CounterField,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        min: Number(resolved.min ?? 0),
-        max: Number(resolved.max ?? 100),
-        step: Number(resolved.step ?? 1),
-      }
+  formGeneratorRef.value?.registerField({
+    name: "counter",
+    title: "Counter Field",
+    description: "Custom demo counter using buttons plus numeric input.",
+    category: "number",
+    kind: "field",
+    valueShape: "number",
+    tags: ["counter", "custom", "number"],
+    renderer: {
+      component: CounterField,
+      getProps: (ctx) => {
+        const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
+        return {
+          min: Number(resolved.min ?? 0),
+          max: Number(resolved.max ?? 100),
+          step: Number(resolved.step ?? 1),
+        }
+      },
+      transformInput: (value) => Number(value ?? 0),
+      transformOutput: (value) => Number(value ?? 0),
     },
-    transformInput: (value) => Number(value ?? 0),
-    transformOutput: (value) => Number(value ?? 0),
   })
-  formGeneratorRef.value?.registerField("param-schema-editor", paramSchemaEditorFieldRenderer)
+  formGeneratorRef.value?.registerField(paramSchemaEditorFieldDescriptor)
 })
 
 const prettyModel = computed(() => JSON.stringify(formModel.value, null, 2))

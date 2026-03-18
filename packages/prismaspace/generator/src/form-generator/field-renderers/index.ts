@@ -1,23 +1,100 @@
-export { default as AccordionField } from "./AccordionField.vue"
-export { default as AccordionItemField } from "./AccordionItemField.vue"
-export { default as AccordionRootField } from "./AccordionRootField.vue"
-export { default as CheckboxField } from "./CheckboxField.vue"
-export { default as CheckboxGroupField } from "./CheckboxGroupField.vue"
-export { default as ComboboxField } from "./ComboboxField.vue"
-export { default as DateRangeField } from "./DateRangeField.vue"
-export { default as DefaultActionButton } from "./DefaultActionButton.vue"
-export { default as FormItemRenderer } from "./FormItemRenderer.vue"
-export { default as InputField } from "./InputField.vue"
-export { default as InputOtpField } from "./InputOtpField.vue"
-export { default as MultiSelectField } from "./MultiSelectField.vue"
-export { default as NativeSelectField } from "./NativeSelectField.vue"
-export { default as NumberFieldField } from "./NumberFieldField.vue"
-export { default as RadioGroupField } from "./RadioGroupField.vue"
-export { default as RangeField } from "./RangeField.vue"
-export { default as SelectField } from "./SelectField.vue"
-export { default as SwitchField } from "./SwitchField.vue"
-export { default as TagsField } from "./TagsField.vue"
-export { default as TabsItemField } from "./TabsItemField.vue"
-export { default as TabsRootField } from "./TabsRootField.vue"
-export { default as TextareaField } from "./TextareaField.vue"
-export { default as UnsupportedField } from "./UnsupportedField.vue"
+import type { FieldRendererDescriptor } from "../types"
+import AccordionField from "./accordion/AccordionField.vue"
+import AccordionItemField from "./accordion/AccordionItemField.vue"
+import AccordionRootField from "./accordion/AccordionRootField.vue"
+import { accordionFieldDescriptors } from "./accordion/descriptor"
+import CheckboxField from "./checkbox/CheckboxField.vue"
+import { checkboxFieldDescriptors } from "./checkbox/descriptor"
+import CheckboxGroupField from "./checkbox-group/CheckboxGroupField.vue"
+import { checkboxGroupFieldDescriptors } from "./checkbox-group/descriptor"
+import ComboboxField from "./combobox/ComboboxField.vue"
+import { comboboxFieldDescriptors } from "./combobox/descriptor"
+import DateRangeField from "./date-range/DateRangeField.vue"
+import { dateRangeFieldDescriptors } from "./date-range/descriptor"
+import FormItemRenderer from "./FormItemRenderer.vue"
+import InputField from "./text-input/InputField.vue"
+import { textInputFieldDescriptors } from "./text-input/descriptor"
+import InputOtpField from "./input-otp/InputOtpField.vue"
+import { inputOtpFieldDescriptors } from "./input-otp/descriptor"
+import NativeSelectField from "./native-select/NativeSelectField.vue"
+import { nativeSelectFieldDescriptors } from "./native-select/descriptor"
+import NumberFieldField from "./number-field/NumberFieldField.vue"
+import { numberFieldDescriptors } from "./number-field/descriptor"
+import RadioGroupField from "./radio-group/RadioGroupField.vue"
+import { radioGroupFieldDescriptors } from "./radio-group/descriptor"
+import RangeField from "./slider/RangeField.vue"
+import { sliderFieldDescriptors } from "./slider/descriptor"
+import SelectField from "./select/SelectField.vue"
+import { selectFieldDescriptors } from "./select/descriptor"
+import SwitchField from "./switch/SwitchField.vue"
+import { switchFieldDescriptors } from "./switch/descriptor"
+import TabsItemField from "./tabs/TabsItemField.vue"
+import TabsRootField from "./tabs/TabsRootField.vue"
+import { tabsFieldDescriptors } from "./tabs/descriptor"
+import TagsField from "./tags-input/TagsField.vue"
+import { tagsInputFieldDescriptors } from "./tags-input/descriptor"
+import TextareaField from "./textarea/TextareaField.vue"
+import { textareaFieldDescriptors } from "./textarea/descriptor"
+import UnsupportedField from "./UnsupportedField.vue"
+
+export {
+  AccordionField,
+  AccordionItemField,
+  AccordionRootField,
+  CheckboxField,
+  CheckboxGroupField,
+  ComboboxField,
+  DateRangeField,
+  FormItemRenderer,
+  InputField,
+  InputOtpField,
+  NativeSelectField,
+  NumberFieldField,
+  RadioGroupField,
+  RangeField,
+  SelectField,
+  SwitchField,
+  TabsItemField,
+  TabsRootField,
+  TagsField,
+  TextareaField,
+  UnsupportedField,
+}
+
+export {
+  accordionFieldDescriptors,
+  checkboxFieldDescriptors,
+  checkboxGroupFieldDescriptors,
+  comboboxFieldDescriptors,
+  dateRangeFieldDescriptors,
+  inputOtpFieldDescriptors,
+  nativeSelectFieldDescriptors,
+  numberFieldDescriptors,
+  radioGroupFieldDescriptors,
+  selectFieldDescriptors,
+  sliderFieldDescriptors,
+  switchFieldDescriptors,
+  tabsFieldDescriptors,
+  tagsInputFieldDescriptors,
+  textInputFieldDescriptors,
+  textareaFieldDescriptors,
+}
+
+export const builtInFieldDescriptors: FieldRendererDescriptor[] = [
+  ...textInputFieldDescriptors,
+  ...textareaFieldDescriptors,
+  ...selectFieldDescriptors,
+  ...nativeSelectFieldDescriptors,
+  ...comboboxFieldDescriptors,
+  ...checkboxFieldDescriptors,
+  ...checkboxGroupFieldDescriptors,
+  ...switchFieldDescriptors,
+  ...radioGroupFieldDescriptors,
+  ...sliderFieldDescriptors,
+  ...numberFieldDescriptors,
+  ...dateRangeFieldDescriptors,
+  ...tagsInputFieldDescriptors,
+  ...inputOtpFieldDescriptors,
+  ...accordionFieldDescriptors,
+  ...tabsFieldDescriptors,
+]

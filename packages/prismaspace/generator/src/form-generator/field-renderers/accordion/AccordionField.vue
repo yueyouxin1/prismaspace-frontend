@@ -8,7 +8,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@prismaspace/ui-shadcn/components/ui/accordion";
-import { formGeneratorHeaderActionsPortalKey } from "../injection-keys";
+import { formGeneratorHeaderActionsPortalKey } from "../../injection-keys";
 
 const props = withDefaults(
   defineProps<{

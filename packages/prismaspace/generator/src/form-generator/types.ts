@@ -72,8 +72,65 @@ export type ActionRendererDefinition = {
   getProps?: (ctx: ActionResolveContext) => Record<string, unknown>
 }
 
+export type FormComponentKind = "field" | "layout" | "action"
+
+export type FormComponentValueShape =
+  | "string"
+  | "number"
+  | "boolean"
+  | "array"
+  | "object"
+  | "none"
+  | "unknown"
+
+export type FormComponentCategory =
+  | "text"
+  | "number"
+  | "boolean"
+  | "selection"
+  | "date"
+  | "collection"
+  | "verification"
+  | "layout"
+  | "action"
+  | "advanced"
+  | "misc"
+
+export type FieldRendererDescriptor = {
+  name: string
+  title: string
+  description: string
+  category: Exclude<FormComponentCategory, "action">
+  kind: Exclude<FormComponentKind, "action">
+  valueShape: FormComponentValueShape
+  supportsOptions?: boolean
+  supportsChildren?: boolean
+  tags?: string[]
+  renderer: FieldRendererDefinition
+}
+
+export type ActionRendererDescriptor = {
+  name: string
+  title: string
+  description: string
+  category: "action"
+  kind: "action"
+  tags?: string[]
+  renderer: ActionRendererDefinition
+}
+
+export type FieldComponentCatalogItem = Omit<FieldRendererDescriptor, "renderer">
+export type ActionComponentCatalogItem = Omit<ActionRendererDescriptor, "renderer">
+export type FormComponentCatalog = {
+  fields: FieldComponentCatalogItem[]
+  actions: ActionComponentCatalogItem[]
+}
+
 export type FieldRendererRecord = Record<string, FieldRendererDefinition>
 export type ActionRendererRecord = Record<string, ActionRendererDefinition>
+
+export type FieldDescriptorRecord = Record<string, FieldRendererDescriptor>
+export type ActionDescriptorRecord = Record<string, ActionRendererDescriptor>
 
 export type RegisterableFieldRenderers =
   | FieldRendererRecord
@@ -82,6 +139,16 @@ export type RegisterableFieldRenderers =
 export type RegisterableActionRenderers =
   | ActionRendererRecord
   | Map<string, ActionRendererDefinition>
+
+export type RegisterableFieldDescriptors =
+  | FieldRendererDescriptor[]
+  | FieldDescriptorRecord
+  | Map<string, FieldRendererDescriptor>
+
+export type RegisterableActionDescriptors =
+  | ActionRendererDescriptor[]
+  | ActionDescriptorRecord
+  | Map<string, ActionRendererDescriptor>
 
 export type FormGeneratorActionEvent = {
   item: FormActionItem
@@ -95,13 +162,31 @@ export type FormValidationResult = {
   errors: FormValidationErrors
 }
 
+export type FieldRegistrationMeta = Omit<FieldRendererDescriptor, "name" | "renderer">
+export type ActionRegistrationMeta = Omit<ActionRendererDescriptor, "name" | "renderer">
+
+export type RegisterFieldFn = {
+  (descriptor: FieldRendererDescriptor): void
+  (name: string, renderer: FieldRendererDefinition, meta: FieldRegistrationMeta): void
+}
+
+export type RegisterActionFn = {
+  (descriptor: ActionRendererDescriptor): void
+  (name: string, renderer: ActionRendererDefinition, meta: ActionRegistrationMeta): void
+}
+
 export type FormGeneratorExposed = {
-  registerField: (fieldType: string, renderer: FieldRendererDefinition) => void
+  registerField: RegisterFieldFn
   unregisterField: (fieldType: string) => void
-  registerAction: (actionType: string, renderer: ActionRendererDefinition) => void
+  registerAction: RegisterActionFn
   unregisterAction: (actionType: string) => void
   validate: () => Promise<FormValidationResult>
   validateField: (fieldId: string) => Promise<string[]>
   clearValidation: () => void
   getValidationErrors: () => FormValidationErrors
+  getFieldDescriptor: (fieldType: string) => FieldComponentCatalogItem | undefined
+  listFieldDescriptors: () => FieldComponentCatalogItem[]
+  getActionDescriptor: (actionType: string) => ActionComponentCatalogItem | undefined
+  listActionDescriptors: () => ActionComponentCatalogItem[]
+  getComponentCatalog: () => FormComponentCatalog
 }

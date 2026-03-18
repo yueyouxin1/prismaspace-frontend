@@ -3,7 +3,7 @@ import type { HTMLAttributes } from "vue"
 import { computed, provide, ref } from "vue"
 import { cn } from "@prismaspace/ui-shadcn/lib/utils"
 import { Tabs, TabsList } from "@prismaspace/ui-shadcn/components/ui/tabs"
-import { formGeneratorTabsTriggerPortalKey } from "../injection-keys"
+import { formGeneratorTabsTriggerPortalKey } from "../../injection-keys"
 
 const props = withDefaults(defineProps<{
   modelValue?: string

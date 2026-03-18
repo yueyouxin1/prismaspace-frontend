@@ -2,7 +2,7 @@
 import { computed } from "vue"
 import { Label } from "@prismaspace/ui-shadcn/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@prismaspace/ui-shadcn/components/ui/radio-group"
-import type { FieldOption } from "../types"
+import type { FieldOption } from "../../types"
 
 const props = defineProps<{
   modelValue?: unknown

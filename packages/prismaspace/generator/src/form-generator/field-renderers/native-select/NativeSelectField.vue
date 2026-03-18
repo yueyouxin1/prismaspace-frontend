@@ -4,7 +4,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@prismaspace/ui-shadcn/components/ui/native-select"
-import type { FieldOption } from "../types"
+import type { FieldOption } from "../../types"
 
 const props = defineProps<{
   modelValue?: unknown

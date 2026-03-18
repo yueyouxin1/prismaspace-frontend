@@ -39,7 +39,7 @@ const schema: FormItem[] = [
 ## Item 语义
 
 - `type: "form"`: 真正参与 `modelPath` 双向绑定、校验和提交的数据字段
-- `type: "layout"`: 纯结构/容器项，不要求 `modelPath`，适合 `accordion-root`、`accordion-item`、`accordion-container` 这类无持久化布局组件
+- `type: "layout"`: 纯结构/容器项，不要求 `modelPath`，适合 `accordion-root`、`accordion-item`、`tabs`、`tabs-item` 这类无持久化布局组件
 - `type: "action"`: 声明式动作项
 
 ## 自定义字段注册
@@ -47,11 +47,30 @@ const schema: FormItem[] = [
 ```ts
 const ref = useTemplateRef<FormGeneratorExposed>("generator")
 
-ref.value?.registerField("counter", {
-  component: CounterField,
-  transformInput: (value) => Number(value ?? 0),
-  transformOutput: (value) => Number(value ?? 0),
+ref.value?.registerField({
+  name: "counter",
+  title: "Counter Field",
+  description: "Numeric stepper built from custom demo controls.",
+  category: "number",
+  kind: "field",
+  valueShape: "number",
+  renderer: {
+    component: CounterField,
+    transformInput: (value) => Number(value ?? 0),
+    transformOutput: (value) => Number(value ?? 0),
+  },
 })
+```
+
+注册 descriptor 会自动提供：
+
+- 唯一标准名称
+- 人类 / AI 可读的组件说明
+- catalog 查询和后续自动表单生成
+
+```ts
+const catalog = ref.value?.getComponentCatalog()
+console.log(catalog?.fields)
 ```
 
 ## 校验
@@ -71,23 +90,21 @@ if (!result?.valid) {
 
 ## 内置字段类型
 
-- `input`, `text`, `password`, `number`, `email`
+- `input`, `password`, `email`, `number`
 - `textarea`
 - `select`, `native-select`, `combobox`
 - `checkbox`, `switch`
 - `checkbox-group`
 - `slider`
-- `radio`, `radiogroup`, `radio-group`
+- `radio-group`
 - `number-field`
-- `date`, `date-picker`, `datetime`, `time`, `time-picker`
-- `date-range`, `date-range-picker`
-- `tags`, `tags-input`
-- `input-otp`, `otp`
-- `multi-select`, `multiselect` (兼容别名，语义等同于 `checkbox-group`)
-- `pin-input`, `pininput` (兼容别名，内部映射到 `input-otp`；上游已废弃)
-- `accordion`, `accordion-container`
+- `date`, `datetime`, `time`
+- `date-range`
+- `tags-input`
+- `input-otp`
+- `accordion`
 - `accordion-root`, `accordion-item`
-- `tabs`, `tabs-root`, `tabs-container`, `tabs-item`
+- `tabs`, `tabs-item`
 
 ## 高级组件
 
@@ -96,11 +113,11 @@ if (!result?.valid) {
 ```ts
 import {
   formGeneratorValueRefTreeKey,
-  paramSchemaEditorFieldRenderer,
+  paramSchemaEditorFieldDescriptor,
 } from "@prismaspace/generator/form-generator/advanced-components"
 
 provide(formGeneratorValueRefTreeKey, valueRefTree)
-ref.value?.registerField("param-schema-editor", paramSchemaEditorFieldRenderer)
+ref.value?.registerField(paramSchemaEditorFieldDescriptor)
 ```
 
 > 不在内置映射中的 `control` 会落到 `UnsupportedField`，建议通过 `registerField` 扩展。

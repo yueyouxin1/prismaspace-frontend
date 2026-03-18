@@ -1,478 +1,277 @@
 import type {
+  ActionComponentCatalogItem,
   ActionRendererDefinition,
+  ActionRendererDescriptor,
   ActionRendererRecord,
+  FieldComponentCatalogItem,
   FieldRendererDefinition,
+  FieldRendererDescriptor,
   FieldRendererRecord,
+  RegisterableActionDescriptors,
   RegisterableActionRenderers,
+  RegisterableFieldDescriptors,
   RegisterableFieldRenderers,
 } from "./types"
-import {
-  AccordionField,
-  AccordionItemField,
-  AccordionRootField,
-  CheckboxField,
-  CheckboxGroupField,
-  ComboboxField,
-  DateRangeField,
-  DefaultActionButton,
-  InputField,
-  InputOtpField,
-  NativeSelectField,
-  NumberFieldField,
-  RadioGroupField,
-  RangeField,
-  SelectField,
-  SwitchField,
-  TagsField,
-  TabsItemField,
-  TabsRootField,
-  TextareaField,
-  UnsupportedField,
-} from "./field-renderers"
+import { builtInActionDescriptors } from "./action-renderers"
+import { UnsupportedField, builtInFieldDescriptors } from "./field-renderers"
+
+export { builtInActionDescriptors } from "./action-renderers"
+export { builtInFieldDescriptors } from "./field-renderers"
 
 const normalizeKey = (value: string) => value.trim().toLowerCase()
 
-type AccordionModelValue = string | string[] | undefined
-
-const withInputType = (type: string): FieldRendererDefinition => ({
-  component: InputField,
-  getProps: (ctx) => ({
-    fieldProps: {
-      ...ctx.resolveDynamic(ctx.item.props ?? {}),
-      type,
-    },
-    options: ctx.options,
-  }),
-})
-
-export const builtInFieldRenderers: FieldRendererRecord = {
-  input: withInputType("text"),
-  text: withInputType("text"),
-  password: withInputType("password"),
-  number: withInputType("number"),
-  email: withInputType("email"),
-  date: withInputType("date"),
-  "date-picker": withInputType("date"),
-  datepicker: withInputType("date"),
-  datetime: withInputType("datetime-local"),
-  "datetime-picker": withInputType("datetime-local"),
-  time: withInputType("time"),
-  "time-picker": withInputType("time"),
-  timepicker: withInputType("time"),
-  textarea: {
-    component: TextareaField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  select: {
-    component: SelectField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "native-select": {
-    component: NativeSelectField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  nativeselect: {
-    component: NativeSelectField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  combobox: {
-    component: ComboboxField,
-    getProps: (ctx) => ({
-      fieldProps: {
-        ...ctx.resolveDynamic(ctx.item.props ?? {}),
-        triggerClass: "w-full justify-between",
-      },
-      options: ctx.options,
-    }),
-  },
-  checkbox: {
-    component: CheckboxField,
-    modelProp: "modelValue",
-    getProps: (ctx) => {
-      const resolvedProps = ctx.resolveDynamic(ctx.item.props ?? {})
-      const { label: _label, ...fieldProps } = resolvedProps
-      return {
-        fieldProps,
-        options: ctx.options,
-      }
-    },
-    transformInput: (value) => Boolean(value),
-    transformOutput: (value) => Boolean(value),
-  },
-  switch: {
-    component: SwitchField,
-    modelProp: "modelValue",
-    getProps: (ctx) => {
-      const resolvedProps = ctx.resolveDynamic(ctx.item.props ?? {})
-      const { label: _label, ...fieldProps } = resolvedProps
-      return {
-        fieldProps,
-        options: ctx.options,
-      }
-    },
-    transformInput: (value) => Boolean(value),
-    transformOutput: (value) => Boolean(value),
-  },
-  slider: {
-    component: RangeField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-    transformOutput: (value) => Number(value),
-  },
-  radiogroup: {
-    component: RadioGroupField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "radio-group": {
-    component: RadioGroupField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  radio: {
-    component: RadioGroupField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "date-range": {
-    component: DateRangeField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "date-range-picker": {
-    component: DateRangeField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  daterangepicker: {
-    component: DateRangeField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  tags: {
-    component: TagsField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "tags-input": {
-    component: TagsField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "checkbox-group": {
-    component: CheckboxGroupField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  checkboxgroup: {
-    component: CheckboxGroupField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "multi-checkbox": {
-    component: CheckboxGroupField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "multi-select": {
-    component: CheckboxGroupField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  multiselect: {
-    component: CheckboxGroupField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-  },
-  "number-field": {
-    component: NumberFieldField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-    transformInput: (value) => (typeof value === "number" ? value : Number(value)),
-    transformOutput: (value) => (typeof value === "number" ? value : Number(value)),
-  },
-  numberfield: {
-    component: NumberFieldField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-    transformInput: (value) => (typeof value === "number" ? value : Number(value)),
-    transformOutput: (value) => (typeof value === "number" ? value : Number(value)),
-  },
-  "input-otp": {
-    component: InputOtpField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-    transformInput: (value) => (value == null ? "" : String(value)),
-    transformOutput: (value) => (value == null ? "" : String(value)),
-  },
-  otp: {
-    component: InputOtpField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-    transformInput: (value) => (value == null ? "" : String(value)),
-    transformOutput: (value) => (value == null ? "" : String(value)),
-  },
-  "pin-input": {
-    component: InputOtpField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-    transformInput: (value) => (value == null ? "" : String(value)),
-    transformOutput: (value) => (value == null ? "" : String(value)),
-  },
-  pininput: {
-    component: InputOtpField,
-    getProps: (ctx) => ({
-      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-      options: ctx.options,
-    }),
-    transformInput: (value) => (value == null ? "" : String(value)),
-    transformOutput: (value) => (value == null ? "" : String(value)),
-  },
-  accordion: {
-    component: AccordionField,
-    rendersChildrenInDefaultSlot: true,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        title: String(resolved.title ?? ctx.item.label ?? "Accordion"),
-        description: typeof resolved.description === "string" ? resolved.description : "",
-        itemValue: typeof resolved.itemValue === "string" ? resolved.itemValue : ctx.item.id,
-        defaultOpen: Boolean(resolved.defaultOpen),
-        class: resolved.class,
-        triggerClass: resolved.triggerClass,
-        contentClass: resolved.contentClass,
-      }
-    },
-    transformInput: (value) => Boolean(value),
-    transformOutput: (value) => Boolean(value),
-  },
-  "accordion-container": {
-    component: AccordionField,
-    rendersChildrenInDefaultSlot: true,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        title: String(resolved.title ?? ctx.item.label ?? "Accordion"),
-        description: typeof resolved.description === "string" ? resolved.description : "",
-        itemValue: typeof resolved.itemValue === "string" ? resolved.itemValue : ctx.item.id,
-        defaultOpen: Boolean(resolved.defaultOpen),
-        class: resolved.class,
-        triggerClass: resolved.triggerClass,
-        contentClass: resolved.contentClass,
-      }
-    },
-    transformInput: (value) => Boolean(value),
-    transformOutput: (value) => Boolean(value),
-  },
-  "accordion-root": {
-    component: AccordionRootField,
-    rendersChildrenInDefaultSlot: true,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        type: resolved.type === "single" ? "single" : "multiple",
-        collapsible: resolved.collapsible !== false,
-        defaultValue: resolved.defaultValue,
-        class: resolved.class,
-      }
-    },
-    transformInput: (value, ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      if (resolved.type === "single") {
-        return typeof value === "string" ? value : undefined
-      }
-      return Array.isArray(value) ? value : []
-    },
-    transformOutput: (value, ctx): AccordionModelValue => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      if (resolved.type === "single") {
-        return typeof value === "string" ? value : undefined
-      }
-      return Array.isArray(value) ? value : []
-    },
-  },
-  "accordion-item": {
-    component: AccordionItemField,
-    rendersChildrenInDefaultSlot: true,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        title: String(resolved.title ?? ctx.item.label ?? "Accordion Item"),
-        description: typeof resolved.description === "string" ? resolved.description : "",
-        value: typeof resolved.value === "string" ? resolved.value : ctx.item.id,
-        class: resolved.class,
-        triggerClass: resolved.triggerClass,
-        contentClass: resolved.contentClass,
-      }
-    },
-  },
-  tabs: {
-    component: TabsRootField,
-    rendersChildrenInDefaultSlot: true,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        defaultValue: typeof resolved.defaultValue === "string" ? resolved.defaultValue : undefined,
-        class: resolved.class,
-        listClass: resolved.listClass,
-      }
-    },
-    transformInput: (value) => (typeof value === "string" ? value : undefined),
-    transformOutput: (value) => (typeof value === "string" ? value : undefined),
-  },
-  "tabs-root": {
-    component: TabsRootField,
-    rendersChildrenInDefaultSlot: true,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        defaultValue: typeof resolved.defaultValue === "string" ? resolved.defaultValue : undefined,
-        class: resolved.class,
-        listClass: resolved.listClass,
-      }
-    },
-    transformInput: (value) => (typeof value === "string" ? value : undefined),
-    transformOutput: (value) => (typeof value === "string" ? value : undefined),
-  },
-  "tabs-container": {
-    component: TabsRootField,
-    rendersChildrenInDefaultSlot: true,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        defaultValue: typeof resolved.defaultValue === "string" ? resolved.defaultValue : undefined,
-        class: resolved.class,
-        listClass: resolved.listClass,
-      }
-    },
-    transformInput: (value) => (typeof value === "string" ? value : undefined),
-    transformOutput: (value) => (typeof value === "string" ? value : undefined),
-  },
-  "tabs-item": {
-    component: TabsItemField,
-    rendersChildrenInDefaultSlot: true,
-    getProps: (ctx) => {
-      const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
-      return {
-        title: String(resolved.title ?? ctx.item.label ?? "Tab"),
-        value: typeof resolved.value === "string" ? resolved.value : ctx.item.id,
-        disabled: Boolean(resolved.disabled),
-        class: resolved.class,
-        triggerClass: resolved.triggerClass,
-        contentClass: resolved.contentClass,
-      }
-    },
-  },
-  custom: {
-    component: UnsupportedField,
-    getProps: (ctx) => ({
-      fieldProps: {
-        ...ctx.resolveDynamic(ctx.item.props ?? {}),
-        control: ctx.item.control,
-      },
-      options: ctx.options,
-    }),
-  },
+function fieldCatalogItemFromDescriptor(descriptor: FieldRendererDescriptor): FieldComponentCatalogItem {
+  const { renderer: _renderer, ...rest } = descriptor
+  return rest
 }
 
-export const builtInActionRenderers: ActionRendererRecord = {
-  button: {
-    component: DefaultActionButton,
-    eventName: "click",
-    getProps: (ctx) => ({
-      label: ctx.item.label,
-      disabled: ctx.evaluateExpr(ctx.item.state?.disabled, false) === true,
-      actionProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-    }),
-  },
+function actionCatalogItemFromDescriptor(descriptor: ActionRendererDescriptor): ActionComponentCatalogItem {
+  const { renderer: _renderer, ...rest } = descriptor
+  return rest
 }
 
-function mapFromRecord<T>(record: Record<string, T>): Map<string, T> {
-  const entries = Object.entries(record).map(([key, value]) => [normalizeKey(key), value] as const)
-  return new Map(entries)
-}
-
-function mergeMap<T>(
-  base: Map<string, T>,
-  extensions?: Record<string, T> | Map<string, T>,
-): Map<string, T> {
-  if (!extensions) {
-    return base
+function descriptorsFromFieldInput(
+  input?: RegisterableFieldDescriptors | RegisterableFieldRenderers,
+): FieldRendererDescriptor[] {
+  if (!input) {
+    return []
   }
 
-  if (extensions instanceof Map) {
-    for (const [key, value] of extensions.entries()) {
-      base.set(normalizeKey(key), value)
+  if (Array.isArray(input)) {
+    return input
+  }
+
+  if (input instanceof Map) {
+    return [...input.entries()].map(([key, value]) => {
+      if ("renderer" in value) {
+        return value
+      }
+
+      return {
+        name: String(key),
+        title: String(key),
+        description: `Legacy field renderer "${key}" registered without descriptor metadata.`,
+        category: "misc",
+        kind: "field",
+        valueShape: "unknown",
+        renderer: value,
+      } satisfies FieldRendererDescriptor
+    })
+  }
+
+  return Object.entries(input).map(([key, value]) => {
+    if (value && typeof value === "object" && "renderer" in value) {
+      return value
     }
-    return base
+
+    return {
+      name: key,
+      title: key,
+      description: `Legacy field renderer "${key}" registered without descriptor metadata.`,
+      category: "misc",
+      kind: "field",
+      valueShape: "unknown",
+      renderer: value as FieldRendererDefinition,
+    } satisfies FieldRendererDescriptor
+  })
+}
+
+function descriptorsFromActionInput(
+  input?: RegisterableActionDescriptors | RegisterableActionRenderers,
+): ActionRendererDescriptor[] {
+  if (!input) {
+    return []
   }
 
-  for (const [key, value] of Object.entries(extensions)) {
-    base.set(normalizeKey(key), value)
+  if (Array.isArray(input)) {
+    return input
   }
-  return base
+
+  if (input instanceof Map) {
+    return [...input.entries()].map(([key, value]) => {
+      if ("renderer" in value) {
+        return value
+      }
+
+      return {
+        name: String(key),
+        title: String(key),
+        description: `Legacy action renderer "${key}" registered without descriptor metadata.`,
+        category: "action",
+        kind: "action",
+        renderer: value,
+      } satisfies ActionRendererDescriptor
+    })
+  }
+
+  return Object.entries(input).map(([key, value]) => {
+    if (value && typeof value === "object" && "renderer" in value) {
+      return value
+    }
+
+    return {
+      name: key,
+      title: key,
+      description: `Legacy action renderer "${key}" registered without descriptor metadata.`,
+      category: "action",
+      kind: "action",
+      renderer: value as ActionRendererDefinition,
+    } satisfies ActionRendererDescriptor
+  })
+}
+
+function buildFieldDescriptorRegistry(descriptors: FieldRendererDescriptor[]): Map<string, FieldRendererDescriptor> {
+  const registry = new Map<string, FieldRendererDescriptor>()
+
+  for (const input of descriptors) {
+    const descriptor = {
+      ...input,
+      name: normalizeKey(input.name),
+    }
+
+    registry.set(descriptor.name, descriptor)
+  }
+
+  return registry
+}
+
+function buildActionDescriptorRegistry(descriptors: ActionRendererDescriptor[]): Map<string, ActionRendererDescriptor> {
+  const registry = new Map<string, ActionRendererDescriptor>()
+
+  for (const input of descriptors) {
+    const descriptor = {
+      ...input,
+      name: normalizeKey(input.name),
+    }
+
+    registry.set(descriptor.name, descriptor)
+  }
+
+  return registry
+}
+
+function mergeDescriptorMaps<T extends { name: string }>(
+  base: Map<string, T>,
+  additions: Map<string, T>,
+): Map<string, T> {
+  const merged = new Map(base)
+
+  for (const [key, descriptor] of additions.entries()) {
+    merged.set(key, descriptor)
+  }
+
+  return merged
+}
+
+function rendererMapFromFieldDescriptors(
+  registry: Map<string, FieldRendererDescriptor>,
+): Map<string, FieldRendererDefinition> {
+  return new Map(
+    [...registry.entries()].map(([key, descriptor]) => [key, descriptor.renderer] as const),
+  )
+}
+
+function rendererMapFromActionDescriptors(
+  registry: Map<string, ActionRendererDescriptor>,
+): Map<string, ActionRendererDefinition> {
+  return new Map(
+    [...registry.entries()].map(([key, descriptor]) => [key, descriptor.renderer] as const),
+  )
+}
+
+export const builtInFieldDescriptorRegistry = buildFieldDescriptorRegistry(builtInFieldDescriptors)
+export const builtInActionDescriptorRegistry = buildActionDescriptorRegistry(builtInActionDescriptors)
+
+export const builtInFieldRenderers: FieldRendererRecord = Object.fromEntries(
+  [...rendererMapFromFieldDescriptors(builtInFieldDescriptorRegistry).entries()],
+)
+
+export const builtInActionRenderers: ActionRendererRecord = Object.fromEntries(
+  [...rendererMapFromActionDescriptors(builtInActionDescriptorRegistry).entries()],
+)
+
+export function createFieldDescriptorRegistry(
+  customDescriptors?: RegisterableFieldDescriptors,
+  customRenderers?: RegisterableFieldRenderers,
+): Map<string, FieldRendererDescriptor> {
+  let registry = new Map(builtInFieldDescriptorRegistry)
+
+  const descriptorEntries = descriptorsFromFieldInput(customDescriptors)
+  if (descriptorEntries.length > 0) {
+    registry = mergeDescriptorMaps(registry, buildFieldDescriptorRegistry(descriptorEntries))
+  }
+
+  const legacyEntries = descriptorsFromFieldInput(customRenderers)
+  if (legacyEntries.length > 0) {
+    registry = mergeDescriptorMaps(registry, buildFieldDescriptorRegistry(legacyEntries))
+  }
+
+  return registry
+}
+
+export function createActionDescriptorRegistry(
+  customDescriptors?: RegisterableActionDescriptors,
+  customRenderers?: RegisterableActionRenderers,
+): Map<string, ActionRendererDescriptor> {
+  let registry = new Map(builtInActionDescriptorRegistry)
+
+  const descriptorEntries = descriptorsFromActionInput(customDescriptors)
+  if (descriptorEntries.length > 0) {
+    registry = mergeDescriptorMaps(registry, buildActionDescriptorRegistry(descriptorEntries))
+  }
+
+  const legacyEntries = descriptorsFromActionInput(customRenderers)
+  if (legacyEntries.length > 0) {
+    registry = mergeDescriptorMaps(registry, buildActionDescriptorRegistry(legacyEntries))
+  }
+
+  return registry
 }
 
 export function createFieldRendererRegistry(
   customRenderers?: RegisterableFieldRenderers,
+  customDescriptors?: RegisterableFieldDescriptors,
 ): Map<string, FieldRendererDefinition> {
-  return mergeMap(mapFromRecord(builtInFieldRenderers), customRenderers)
+  return rendererMapFromFieldDescriptors(
+    createFieldDescriptorRegistry(customDescriptors, customRenderers),
+  )
 }
 
 export function createActionRendererRegistry(
   customRenderers?: RegisterableActionRenderers,
+  customDescriptors?: RegisterableActionDescriptors,
 ): Map<string, ActionRendererDefinition> {
-  return mergeMap(mapFromRecord(builtInActionRenderers), customRenderers)
+  return rendererMapFromActionDescriptors(
+    createActionDescriptorRegistry(customDescriptors, customRenderers),
+  )
+}
+
+export function listFieldDescriptors(
+  registry: Map<string, FieldRendererDescriptor>,
+): FieldComponentCatalogItem[] {
+  return [...registry.values()].map(fieldCatalogItemFromDescriptor)
+}
+
+export function listActionDescriptors(
+  registry: Map<string, ActionRendererDescriptor>,
+): ActionComponentCatalogItem[] {
+  return [...registry.values()].map(actionCatalogItemFromDescriptor)
+}
+
+export function getFieldDescriptor(
+  registry: Map<string, FieldRendererDescriptor>,
+  control: string,
+): FieldComponentCatalogItem | undefined {
+  const descriptor = registry.get(normalizeKey(control || ""))
+  return descriptor ? fieldCatalogItemFromDescriptor(descriptor) : undefined
+}
+
+export function getActionDescriptor(
+  registry: Map<string, ActionRendererDescriptor>,
+  actionType: string,
+): ActionComponentCatalogItem | undefined {
+  const descriptor = registry.get(normalizeKey(actionType || ""))
+  return descriptor ? actionCatalogItemFromDescriptor(descriptor) : undefined
 }
 
 export function resolveFieldRenderer(
@@ -495,5 +294,5 @@ export function resolveActionRenderer(
   actionType: string,
 ): ActionRendererDefinition {
   const normalized = normalizeKey(actionType || "button")
-  return registry.get(normalized) ?? builtInActionRenderers.button!
+  return registry.get(normalized) ?? builtInActionDescriptorRegistry.get("button")!.renderer
 }

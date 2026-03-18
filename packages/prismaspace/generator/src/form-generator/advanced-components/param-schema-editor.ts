@@ -1,4 +1,4 @@
-import type { FieldRendererDefinition } from "../types";
+import type { FieldRendererDefinition, FieldRendererDescriptor } from "../types";
 import ParamSchemaEditorField from "./ParamSchemaEditorField.vue";
 
 export const paramSchemaEditorFieldRenderer: FieldRendererDefinition = {
@@ -12,4 +12,15 @@ export const paramSchemaEditorFieldRenderer: FieldRendererDefinition = {
   transformOutput: (value) => {
     return Array.isArray(value) ? value : [];
   },
+};
+
+export const paramSchemaEditorFieldDescriptor: FieldRendererDescriptor = {
+  name: "param-schema-editor",
+  title: "Param Schema Editor",
+  description: "Advanced schema editor field integrating ParamSchemaRegularEditor with optional injected valueRefTree and parent action teleport.",
+  category: "advanced",
+  kind: "field",
+  valueShape: "array",
+  tags: ["schema", "editor", "advanced"],
+  renderer: paramSchemaEditorFieldRenderer,
 };

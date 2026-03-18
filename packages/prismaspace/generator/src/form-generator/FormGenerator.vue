@@ -2,19 +2,35 @@
 import { computed, reactive, ref, shallowReactive, watch } from "vue"
 import { FieldGroup } from "@prismaspace/ui-shadcn/components/ui/field"
 import type {
+  ActionRendererDescriptor,
   ActionRendererDefinition,
   FieldRendererDefinition,
+  FieldRendererDescriptor,
+  FieldRegistrationMeta,
   FormContext,
+  FormComponentCatalog,
   FormGeneratorActionEvent,
   FormGeneratorExposed,
   FormModel,
   FormValidationErrors,
   FormValidationResult,
+  RegisterableActionDescriptors,
   RegisterableActionRenderers,
+  RegisterableFieldDescriptors,
   RegisterableFieldRenderers,
+  ActionRegistrationMeta,
 } from "./types"
 import type { FormActionItem, FormFieldItem, FormItem } from "./types/form-schema"
-import { createActionRendererRegistry, createFieldRendererRegistry } from "./component-registry"
+import {
+  createActionDescriptorRegistry,
+  createActionRendererRegistry,
+  createFieldDescriptorRegistry,
+  createFieldRendererRegistry,
+  getActionDescriptor,
+  getFieldDescriptor,
+  listActionDescriptors,
+  listFieldDescriptors,
+} from "./component-registry"
 import { FormItemRenderer } from "./field-renderers"
 import { collectFormFieldItems, normalizeFormItems, validateFormField } from "./utils"
 
@@ -22,7 +38,9 @@ const props = withDefaults(defineProps<{
   schema: FormItem[]
   modelValue?: FormModel
   context?: FormContext
+  fieldDescriptors?: RegisterableFieldDescriptors
   fieldRenderers?: RegisterableFieldRenderers
+  actionDescriptors?: RegisterableActionDescriptors
   actionRenderers?: RegisterableActionRenderers
 }>(), {
   context: () => ({}),
@@ -36,8 +54,8 @@ const emit = defineEmits<{
 }>()
 
 const localModel = reactive<FormModel>({})
-const localFieldRenderers = shallowReactive(new Map<string, FieldRendererDefinition>())
-const localActionRenderers = shallowReactive(new Map<string, ActionRendererDefinition>())
+const localFieldDescriptors = shallowReactive(new Map<string, FieldRendererDescriptor>())
+const localActionDescriptors = shallowReactive(new Map<string, ActionRendererDescriptor>())
 const validationErrors = reactive<FormValidationErrors>({})
 const touchedFields = reactive<Record<string, boolean>>({})
 const validationRunTokens = reactive<Record<string, number>>({})
@@ -54,36 +72,164 @@ const normalizedSchema = computed<FormItem[]>(() => {
   }
 })
 
-const fieldRegistry = computed(() => {
-  const registry = createFieldRendererRegistry(props.fieldRenderers)
-  for (const [key, renderer] of localFieldRenderers.entries()) {
-    registry.set(key.trim().toLowerCase(), renderer)
+function toFieldDescriptorRecord(input?: RegisterableFieldDescriptors): Record<string, FieldRendererDescriptor> {
+  if (!input) {
+    return {}
   }
-  return registry
+
+  if (Array.isArray(input)) {
+    return Object.fromEntries(input.map((descriptor) => [descriptor.name, descriptor]))
+  }
+
+  if (input instanceof Map) {
+    return Object.fromEntries(input.entries())
+  }
+
+  return { ...input }
+}
+
+function toActionDescriptorRecord(input?: RegisterableActionDescriptors): Record<string, ActionRendererDescriptor> {
+  if (!input) {
+    return {}
+  }
+
+  if (Array.isArray(input)) {
+    return Object.fromEntries(input.map((descriptor) => [descriptor.name, descriptor]))
+  }
+
+  if (input instanceof Map) {
+    return Object.fromEntries(input.entries())
+  }
+
+  return { ...input }
+}
+
+function toFieldRendererRecord(input?: RegisterableFieldRenderers): Record<string, FieldRendererDefinition> {
+  if (!input) {
+    return {}
+  }
+
+  if (input instanceof Map) {
+    return Object.fromEntries(input.entries())
+  }
+
+  return { ...input }
+}
+
+function toActionRendererRecord(input?: RegisterableActionRenderers): Record<string, ActionRendererDefinition> {
+  if (!input) {
+    return {}
+  }
+
+  if (input instanceof Map) {
+    return Object.fromEntries(input.entries())
+  }
+
+  return { ...input }
+}
+
+const mergedFieldDescriptors = computed<Record<string, FieldRendererDescriptor>>(() => ({
+  ...toFieldDescriptorRecord(props.fieldDescriptors),
+  ...Object.fromEntries(localFieldDescriptors.entries()),
+}))
+
+const mergedFieldRenderers = computed<Record<string, FieldRendererDefinition>>(() => ({
+  ...toFieldRendererRecord(props.fieldRenderers),
+}))
+
+const fieldDescriptorRegistry = computed(() => {
+  return createFieldDescriptorRegistry(
+    mergedFieldDescriptors.value,
+    mergedFieldRenderers.value,
+  )
+})
+
+const fieldRegistry = computed(() => {
+  return createFieldRendererRegistry(
+    mergedFieldRenderers.value,
+    mergedFieldDescriptors.value,
+  )
+})
+
+const mergedActionDescriptors = computed<Record<string, ActionRendererDescriptor>>(() => ({
+  ...toActionDescriptorRecord(props.actionDescriptors),
+  ...Object.fromEntries(localActionDescriptors.entries()),
+}))
+
+const mergedActionRenderers = computed<Record<string, ActionRendererDefinition>>(() => ({
+  ...toActionRendererRecord(props.actionRenderers),
+}))
+
+const actionDescriptorRegistry = computed(() => {
+  return createActionDescriptorRegistry(
+    mergedActionDescriptors.value,
+    mergedActionRenderers.value,
+  )
 })
 
 const actionRegistry = computed(() => {
-  const registry = createActionRendererRegistry(props.actionRenderers)
-  for (const [key, renderer] of localActionRenderers.entries()) {
-    registry.set(key.trim().toLowerCase(), renderer)
-  }
-  return registry
+  return createActionRendererRegistry(
+    mergedActionRenderers.value,
+    mergedActionDescriptors.value,
+  )
 })
 
-function registerField(fieldType: string, renderer: FieldRendererDefinition): void {
-  localFieldRenderers.set(fieldType.trim().toLowerCase(), renderer)
+function createFieldDescriptor(name: string, renderer: FieldRendererDefinition, meta: FieldRegistrationMeta): FieldRendererDescriptor {
+  return {
+    name,
+    renderer,
+    ...meta,
+  }
+}
+
+function createActionDescriptor(name: string, renderer: ActionRendererDefinition, meta: ActionRegistrationMeta): ActionRendererDescriptor {
+  return {
+    name,
+    renderer,
+    ...meta,
+  }
+}
+
+function registerField(
+  descriptorOrName: FieldRendererDescriptor | string,
+  renderer?: FieldRendererDefinition,
+  meta?: FieldRegistrationMeta,
+): void {
+  const descriptor = typeof descriptorOrName === "string"
+    ? (renderer && meta ? createFieldDescriptor(descriptorOrName, renderer, meta) : undefined)
+    : descriptorOrName
+
+  if (!descriptor) {
+    throw new Error("registerField 需要传入 descriptor，或传入 name + renderer + meta。")
+  }
+
+  localFieldDescriptors.set(descriptor.name.trim().toLowerCase(), descriptor)
 }
 
 function unregisterField(fieldType: string): void {
-  localFieldRenderers.delete(fieldType.trim().toLowerCase())
+  const normalized = fieldType.trim().toLowerCase()
+  localFieldDescriptors.delete(normalized)
 }
 
-function registerAction(actionType: string, renderer: ActionRendererDefinition): void {
-  localActionRenderers.set(actionType.trim().toLowerCase(), renderer)
+function registerAction(
+  descriptorOrName: ActionRendererDescriptor | string,
+  renderer?: ActionRendererDefinition,
+  meta?: ActionRegistrationMeta,
+): void {
+  const descriptor = typeof descriptorOrName === "string"
+    ? (renderer && meta ? createActionDescriptor(descriptorOrName, renderer, meta) : undefined)
+    : descriptorOrName
+
+  if (!descriptor) {
+    throw new Error("registerAction 需要传入 descriptor，或传入 name + renderer + meta。")
+  }
+
+  localActionDescriptors.set(descriptor.name.trim().toLowerCase(), descriptor)
 }
 
 function unregisterAction(actionType: string): void {
-  localActionRenderers.delete(actionType.trim().toLowerCase())
+  const normalized = actionType.trim().toLowerCase()
+  localActionDescriptors.delete(normalized)
 }
 
 function syncValidationErrors(fieldId: string, errors: string[]): void {
@@ -199,6 +345,13 @@ function clearValidation(): void {
   }
 }
 
+function getComponentCatalog(): FormComponentCatalog {
+  return {
+    fields: listFieldDescriptors(fieldDescriptorRegistry.value),
+    actions: listActionDescriptors(actionDescriptorRegistry.value),
+  }
+}
+
 async function onFieldChange(item: FormFieldItem): Promise<void> {
   touchedFields[item.id] = true
 
@@ -269,6 +422,11 @@ defineExpose<FormGeneratorExposed>({
   validateField,
   clearValidation,
   getValidationErrors: snapshotValidationErrors,
+  getFieldDescriptor: (fieldType) => getFieldDescriptor(fieldDescriptorRegistry.value, fieldType),
+  listFieldDescriptors: () => listFieldDescriptors(fieldDescriptorRegistry.value),
+  getActionDescriptor: (actionType) => getActionDescriptor(actionDescriptorRegistry.value, actionType),
+  listActionDescriptors: () => listActionDescriptors(actionDescriptorRegistry.value),
+  getComponentCatalog,
 })
 </script>
 

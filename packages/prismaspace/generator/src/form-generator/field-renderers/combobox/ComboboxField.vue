@@ -12,7 +12,7 @@ import {
 } from "@prismaspace/ui-shadcn/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@prismaspace/ui-shadcn/components/ui/popover"
 import { cn } from "@prismaspace/ui-shadcn/lib/utils"
-import type { FieldOption } from "../types"
+import type { FieldOption } from "../../types"
 
 const props = defineProps<{
   modelValue?: unknown
