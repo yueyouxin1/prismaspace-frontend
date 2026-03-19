@@ -309,40 +309,121 @@ export const buildWorkflowVariableEntries = (
 export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
   const nodeMap = new Map<string, {
     id: string
+    key: string
+    name: string
     label: string
     blockID: string
+    selectable?: boolean
     children: Array<{
       id: string
+      key: string
+      name: string
       label: string
-      path: string
-      blockID: string
+      blockID?: string
+      path?: string
       source?: string
       schemaType?: WorkflowParameterSchema['type']
+      selectable?: boolean
+      children?: Array<any>
     }>
   }>()
+
+  const ensureChildNode = (
+    siblings: Array<{
+      id: string
+      key: string
+      name: string
+      label: string
+      blockID?: string
+      path?: string
+      source?: string
+      schemaType?: WorkflowParameterSchema['type']
+      selectable?: boolean
+      children?: Array<any>
+    }>,
+    payload: {
+      id: string
+      key: string
+      name: string
+      label: string
+      blockID?: string
+      path?: string
+      source?: string
+      schemaType?: WorkflowParameterSchema['type']
+      selectable?: boolean
+    },
+  ) => {
+    const existing = siblings.find(item => item.key === payload.key)
+    if (existing) {
+      if (payload.path) existing.path = payload.path
+      if (payload.blockID) existing.blockID = payload.blockID
+      if (payload.source) existing.source = payload.source
+      if (payload.schemaType) existing.schemaType = payload.schemaType
+      if (typeof payload.selectable === 'boolean') existing.selectable = payload.selectable
+      existing.children ??= []
+      return existing
+    }
+
+    const next = {
+      ...payload,
+      children: [] as Array<any>,
+    }
+    siblings.push(next)
+    return next
+  }
 
   entries.forEach((entry) => {
     const group = nodeMap.get(entry.nodeId) ?? {
       id: entry.nodeId,
+      key: entry.nodeId,
+      name: entry.nodeName,
       label: entry.nodeName,
       blockID: entry.nodeId,
+      selectable: false,
       children: [],
     }
-    group.children.push({
-      id: entry.key,
-      label: entry.path,
-      path: entry.path,
-      blockID: entry.nodeId,
-      source: entry.refValue.content.source,
-      schemaType: entry.schema.type,
+
+    const segments = entry.path
+      .split('.')
+      .map(segment => segment.trim())
+      .filter(Boolean)
+
+    let cursor = group.children
+    let currentPath = ''
+
+    segments.forEach((segment, index) => {
+      currentPath = currentPath ? `${currentPath}.${segment}` : segment
+      const isLeaf = index === segments.length - 1
+      const node = ensureChildNode(cursor, {
+        id: `${entry.nodeId}:${currentPath}`,
+        key: `${entry.nodeId}:${currentPath}`,
+        name: segment,
+        label: segment,
+        ...(isLeaf
+          ? {
+              path: currentPath,
+              blockID: entry.nodeId,
+              source: entry.refValue.content.source,
+              schemaType: entry.schema.type,
+              selectable: true,
+            }
+          : {
+              selectable: false,
+            }),
+      })
+      cursor = node.children ?? []
     })
+
     nodeMap.set(entry.nodeId, group)
   })
 
   return Array.from(nodeMap.values()).map(group => ({
     id: group.id,
+    key: group.key,
+    name: group.name,
     label: group.label,
     blockID: group.blockID,
+    selectable: false,
     children: group.children,
   }))
 }

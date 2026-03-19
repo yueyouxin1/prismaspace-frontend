@@ -34,6 +34,16 @@ provide(formGeneratorTabsTriggerPortalKey, {
   upsertItem(item) {
     const index = tabItems.value.findIndex((entry) => entry.id === item.id)
     if (index >= 0) {
+      const currentItem = tabItems.value[index]
+      if (
+        currentItem
+        && currentItem.title === item.title
+        && currentItem.value === item.value
+        && currentItem.disabled === item.disabled
+        && currentItem.triggerClass === item.triggerClass
+      ) {
+        return
+      }
       tabItems.value.splice(index, 1, item)
       return
     }
