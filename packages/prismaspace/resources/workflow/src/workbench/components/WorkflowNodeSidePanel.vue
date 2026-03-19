@@ -12,10 +12,10 @@ import {
   type FieldRendererDefinition,
   type FieldOption,
 } from '@prismaspace/generator/form-generator'
-import { paramSchemaEditorFieldRenderer } from '@prismaspace/generator/form-generator/advanced-components'
 import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
 import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import WorkflowVariableExplorer from './WorkflowVariableExplorer.vue'
+import WorkflowParamSchemaEditorField from './fields/WorkflowParamSchemaEditorField.vue'
 import WorkflowParameterSchemaEditorField from './fields/WorkflowParameterSchemaEditorField.vue'
 import WorkflowOptionSelectField from './fields/WorkflowOptionSelectField.vue'
 import WorkflowJsonValueField from './fields/WorkflowJsonValueField.vue'
@@ -105,6 +105,13 @@ const parameterSchemaFieldRenderer: FieldRendererDefinition = {
   }),
 }
 
+const workflowParamSchemaEditorFieldRenderer: FieldRendererDefinition = {
+  component: WorkflowParamSchemaEditorField,
+  getProps: (ctx) => ctx.resolveDynamic(ctx.item.props ?? {}),
+  transformInput: (value) => Array.isArray(value) ? value : [],
+  transformOutput: (value) => Array.isArray(value) ? value : [],
+}
+
 const jsonFieldRenderer: FieldRendererDefinition = {
   component: WorkflowJsonValueField,
   getProps: (ctx) => ({
@@ -116,7 +123,7 @@ const fieldRenderers = computed<Record<string, FieldRendererDefinition>>(() => (
   resource_selector: optionFieldRenderer,
   model_selector: optionFieldRenderer,
   parameter_schema: parameterSchemaFieldRenderer,
-  'param-schema-editor': paramSchemaEditorFieldRenderer,
+  'param-schema-editor': workflowParamSchemaEditorFieldRenderer,
   workflow_json: jsonFieldRenderer,
 }))
 
