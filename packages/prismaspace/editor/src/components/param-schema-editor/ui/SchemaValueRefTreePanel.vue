@@ -1,19 +1,17 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { VariableTreePanelShell } from "../../variable-tree";
 import type { ValueRefPickerViewModel } from "./value-ref-picker";
 import { getValueRefPickerItemIssue } from "./value-ref-picker";
 import { formatValueRefSummary } from "./runtime-editor-utils";
 import SchemaValueRefTree from "./SchemaValueRefTree.vue";
-import { Button } from "@prismaspace/ui-shadcn/components/ui/button";
-import { Input } from "@prismaspace/ui-shadcn/components/ui/input";
-import { ScrollArea } from "@prismaspace/ui-shadcn/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@prismaspace/ui-shadcn/components/ui/tooltip";
-import { AlertCircle, Search, X } from "lucide-vue-next";
+import { AlertCircle } from "lucide-vue-next";
 
 defineOptions({ name: "SchemaValueRefTreePanel" });
 
@@ -49,24 +47,21 @@ const selectedIssue = computed(() => {
 
 <template>
   <TooltipProvider :delay-duration="200">
-    <div class="flex min-h-0 flex-col overflow-hidden rounded-lg bg-background">
-      <div class="flex items-center gap-2 border-b px-3">
-        <Search class="size-4 shrink-0 text-muted-foreground" />
-        <Input :model-value="picker.query" :placeholder="searchPlaceholder"
-          class="h-10 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
-          @update:model-value="picker.setQuery(String($event))" />
-        <Button v-if="picker.query" type="button" size="icon-sm" variant="ghost" class="size-7 rounded-sm"
-          @click="picker.clearQuery">
-          <X class="size-3.5" />
-        </Button>
-      </div>
-
-      <ScrollArea class="min-h-0 flex-1">
+    <VariableTreePanelShell
+      :query="picker.query"
+      :search-placeholder="searchPlaceholder"
+      show-search
+      content-class="min-h-full"
+      footer-class="flex items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground"
+      class="min-h-0"
+      @update:query="picker.setQuery"
+    >
+      <template #default>
         <SchemaValueRefTree :picker="picker" :items="picker.filteredItems" :empty-text="emptyText" class="min-h-full"
           @request-close="emit('request-close')" />
-      </ScrollArea>
+      </template>
 
-      <div v-if="picker.selected" class="flex items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+      <template v-if="picker.selected" #footer>
         <span class="truncate">{{ selectedLabel || placeholder }}</span>
 
         <Tooltip v-if="selectedIssue || getValueRefPickerItemIssue(picker.selectedItem)">
@@ -83,7 +78,7 @@ const selectedIssue = computed(() => {
         <span v-if="selectedType" class="ml-auto shrink-0 font-medium">
           {{ selectedType }}
         </span>
-      </div>
-    </div>
+      </template>
+    </VariableTreePanelShell>
   </TooltipProvider>
 </template>

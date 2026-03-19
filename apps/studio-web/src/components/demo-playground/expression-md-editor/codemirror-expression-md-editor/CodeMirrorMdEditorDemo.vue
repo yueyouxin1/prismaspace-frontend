@@ -4,6 +4,7 @@ import {
   CodeMirrorMdEditor,
   type CodeMirrorMdEditorExpose,
   type CodeMirrorMdExpressionRule,
+  CodeMirrorMdEditorVariablePanel,
 } from "@prismaspace/editor"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
@@ -13,8 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@prismaspace/ui-shadcn/components/ui/card"
+import { demoExpressionVariableTree } from "../demo-variable-tree"
 import CodeMirrorLibraryBlockView from "./CodeMirrorLibraryBlockView.vue"
-import CodeMirrorMdEditorVariablePanel from "./CodeMirrorMdEditorVariablePanel.vue"
 
 const DEMO_CONTENT = `# Markdown Edit
 
@@ -135,6 +136,7 @@ function resetContent(): void {
         :fontSize="15"
         :readonly="readonly"
         :popup-component="popupEnabled ? CodeMirrorMdEditorVariablePanel : undefined"
+        :popup-props="{ tree: demoExpressionVariableTree }"
         :trigger-patterns="[/\{\{[^}\n]*$/, /\$\{[^}\n]*$/]"
         :expression-rules="expressionRules"
         :height="460"

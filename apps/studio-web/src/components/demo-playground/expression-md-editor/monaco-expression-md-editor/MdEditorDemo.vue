@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { MdEditor, type MdEditorExpose, type MdExpressionRule } from "@prismaspace/editor"
+import { MdEditor, MdEditorVariablePanel, type MdEditorExpose, type MdExpressionRule } from "@prismaspace/editor"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
   Card,
@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@prismaspace/ui-shadcn/components/ui/card"
-import MdEditorVariablePanel from "./MdEditorVariablePanel.vue"
+import { demoExpressionVariableTree } from "../demo-variable-tree"
 
 const DEMO_CONTENT = `# Monaco Markdown Edit
 
@@ -126,6 +126,7 @@ function resetContent(): void {
         :fontSize="15"
         :readonly="readonly"
         :popup-component="popupEnabled ? MdEditorVariablePanel : undefined"
+        :popup-props="{ tree: demoExpressionVariableTree }"
         :trigger-patterns="[/\{\{[^}\n]*$/, /\$\{[^}\n]*$/]"
         :expression-rules="expressionRenderEnabled ? expressionRules : []"
         :height="460"

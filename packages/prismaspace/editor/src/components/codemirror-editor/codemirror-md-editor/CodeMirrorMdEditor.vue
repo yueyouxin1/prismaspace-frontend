@@ -11,6 +11,7 @@ import {
 } from '@codemirror/view'
 import { createApp, h, nextTick, onBeforeUnmount, onMounted, ref, watch, computed } from 'vue'
 import CodeMirrorEditor from '../CodeMirrorEditor.vue'
+import { findInlineExpressionMatch } from '../../expression-popup-utils'
 import type {
   CodeMirrorEditorExpose,
   CodeMirrorEditorReadyPayload,
@@ -308,7 +309,8 @@ const applyEdit = (payload: CodeMirrorExpressionPopupSelectPayload): void => {
 
   const closeToken = resolveCloseToken(payload.insertText)
   let overlap = 0
-  if (closeToken) {
+  const rangeText = currentView.state.doc.sliceString(range.from, range.to)
+  if (closeToken && !rangeText.endsWith(closeToken)) {
     const lookahead = currentView.state.doc.sliceString(range.to, Math.min(docLength, range.to + closeToken.length))
     for (let index = closeToken.length; index > 0; index -= 1) {
       if (lookahead.startsWith(closeToken.slice(0, index))) {
@@ -644,39 +646,25 @@ const findTriggerMatch = (): TriggerMatch | null => {
 
   const head = selection.head
   const line = currentView.state.doc.lineAt(head)
-  const prefix = currentView.state.doc.sliceString(line.from, head)
-
-  for (const pattern of props.triggerPatterns) {
-    const normalizedFlags = pattern.flags.replace(/g/g, '')
-    const matcher = new RegExp(pattern.source, normalizedFlags)
-    const result = matcher.exec(prefix)
-    if (!result || typeof result.index !== 'number') {
-      continue
-    }
-
-    const matchedText = result[0]
-    if (!matchedText) {
-      continue
-    }
-
-    const startOffset = line.from + result.index
-    const queryText = prefix.slice(result.index + 2)
-    return {
-      triggerText: matchedText.slice(0, 2),
-      queryText,
-      replaceRange: {
-        from: startOffset,
-        to: head,
-      },
-      position: {
-        offset: head,
-        lineNumber: line.number,
-        column: head - line.from + 1,
-      },
-    }
+  const cursorIndex = head - line.from
+  const match = findInlineExpressionMatch(line.text, cursorIndex, props.triggerPatterns)
+  if (!match) {
+    return null
   }
 
-  return null
+  return {
+    triggerText: match.triggerText,
+    queryText: match.queryText,
+    replaceRange: {
+      from: line.from + match.startIndex,
+      to: line.from + match.endIndex,
+    },
+    position: {
+      offset: head,
+      lineNumber: line.number,
+      column: cursorIndex + 1,
+    },
+  }
 }
 
 const maybeShowPopup = (): void => {
@@ -894,7 +882,7 @@ defineExpose<CodeMirrorMdEditorExpose>({
 
 .codemirror-md-editor-popup {
   position: absolute;
-  z-index: 100;
+  z-index: 20;
   min-width: 220px;
   pointer-events: auto;
 }

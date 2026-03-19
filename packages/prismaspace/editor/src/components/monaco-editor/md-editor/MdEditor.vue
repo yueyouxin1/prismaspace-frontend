@@ -4,6 +4,7 @@ import type { Component } from 'vue'
 import type * as monaco from 'monaco-editor'
 import MonacoEditor from '../MonacoEditor.vue'
 import type { MonacoEditorExpose } from '../types'
+import { findInlineExpressionMatch } from '../../expression-popup-utils'
 import type {
   ExpressionPopupContext,
   ExpressionPopupSelectPayload,
@@ -18,11 +19,11 @@ type TriggerMatch = {
   position: monaco.IPosition
 }
 
-type PopupWidget = monaco.editor.IContentWidget & {
-  setPosition: (position: monaco.IPosition) => void
+type PopupHost = {
   setVisible: (visible: boolean) => void
   getVisible: () => boolean
   getDomNodeRef: () => HTMLElement
+  destroy: () => void
 }
 
 const props = withDefaults(defineProps<MdEditorProps>(), {
@@ -60,8 +61,7 @@ const monacoEditorRef = ref<MonacoEditorExpose>()
 const editorReady = ref(false)
 
 let editor: monaco.editor.IStandaloneCodeEditor | undefined
-let monacoApi: typeof monaco | undefined
-let popupWidget: PopupWidget | undefined
+let popupHost: PopupHost | undefined
 let popupApp: ReturnType<typeof createApp> | undefined
 let popupVisible = false
 let suppressNextTrigger = false
@@ -70,6 +70,8 @@ let keydownListener: monaco.IDisposable | undefined
 let blurListener: monaco.IDisposable | undefined
 let cursorListener: monaco.IDisposable | undefined
 let contentListener: monaco.IDisposable | undefined
+let scrollListener: monaco.IDisposable | undefined
+let layoutListener: monaco.IDisposable | undefined
 let outsideClickListener: ((event: PointerEvent) => void) | undefined
 let pointerDownInsidePopup = false
 let highlightDecorationIds: string[] = []
@@ -87,7 +89,7 @@ const markPopupInteraction = (): void => {
 }
 
 const shouldKeepPopupOnBlur = (): boolean => {
-  if (pointerDownInsidePopup || !popupWidget) {
+  if (pointerDownInsidePopup || !popupHost) {
     return pointerDownInsidePopup
   }
 
@@ -96,7 +98,7 @@ const shouldKeepPopupOnBlur = (): boolean => {
     return false
   }
 
-  return popupWidget.getDomNodeRef().contains(activeElement)
+  return popupHost.getDomNodeRef().contains(activeElement)
 }
 
 const toSafeClassToken = (value: string): string => value.replace(/[^a-zA-Z0-9_-]/g, '-')
@@ -207,41 +209,37 @@ const renderExpressionRules = (): void => {
   highlightDecorationIds = editor.deltaDecorations(highlightDecorationIds, highlightDecorations)
 }
 
-const createPopupWidget = (): PopupWidget => {
+const createPopupHost = (): PopupHost => {
   const domNode = document.createElement('div')
   domNode.className = 'md-editor-expression-popup'
   domNode.style.display = 'none'
+  domNode.style.left = '-9999px'
+  domNode.style.top = '-9999px'
   domNode.addEventListener('mousedown', stopMouseEvent)
   domNode.addEventListener('click', stopMouseEvent)
   domNode.addEventListener('pointerdown', markPopupInteraction, true)
-
-  let position: monaco.IPosition = { lineNumber: 1, column: 1 }
+  document.body.appendChild(domNode)
   let visible = false
 
   return {
-    getId: () => 'md-editor-expression-widget',
-    getDomNode: () => domNode,
-    getPosition: () => ({
-      position,
-      preference: [
-        monacoApi?.editor.ContentWidgetPositionPreference.BELOW,
-        monacoApi?.editor.ContentWidgetPositionPreference.ABOVE,
-      ].filter(Boolean) as monaco.editor.ContentWidgetPositionPreference[],
-    }),
-    setPosition: (nextPosition: monaco.IPosition) => {
-      position = nextPosition
-    },
     setVisible: (nextVisible: boolean) => {
       visible = nextVisible
       domNode.style.display = nextVisible ? 'block' : 'none'
+      if (!nextVisible) {
+        domNode.style.left = '-9999px'
+        domNode.style.top = '-9999px'
+      }
     },
     getVisible: () => visible,
     getDomNodeRef: () => domNode,
+    destroy: () => {
+      domNode.remove()
+    },
   }
 }
 
 const attachPopupApp = (): void => {
-  if (!popupWidget || !props.popupComponent) {
+  if (!popupHost || !props.popupComponent) {
     return
   }
 
@@ -259,7 +257,7 @@ const attachPopupApp = (): void => {
         },
       }),
   })
-  popupApp.mount(popupWidget.getDomNodeRef())
+  popupApp.mount(popupHost.getDomNodeRef())
 }
 
 const destroyPopupApp = (): void => {
@@ -282,30 +280,73 @@ const closePopupByEscape = (event: monaco.IKeyboardEvent): void => {
 }
 
 const hidePopup = (): void => {
-  if (!editor || !popupWidget || !popupVisible) {
+  if (!popupHost || !popupVisible) {
     return
   }
 
   popupVisible = false
   currentContext = undefined
-  popupWidget.setVisible(false)
-  editor.layoutContentWidget(popupWidget)
+  popupHost.setVisible(false)
   emit('popup-hide')
 }
 
 const isMouseOutsidePopupAndEditor = (event: PointerEvent): boolean => {
   const target = event.target as Node | null
-  if (!target || !editor || !popupWidget) {
+  if (!target || !editor || !popupHost) {
     return false
   }
 
-  const popupNode = popupWidget.getDomNodeRef()
+  const popupNode = popupHost.getDomNodeRef()
   const editorNode = editor.getDomNode()
   if (!editorNode) {
     return false
   }
 
   return !popupNode.contains(target) && !editorNode.contains(target)
+}
+
+const updatePopupPosition = (): void => {
+  if (!popupVisible || !popupHost || !editor || !currentContext) {
+    return
+  }
+
+  const popupNode = popupHost.getDomNodeRef()
+  const editorNode = editor.getDomNode()
+  const anchor = editor.getScrolledVisiblePosition(currentContext.position)
+  if (!editorNode || !anchor) {
+    return
+  }
+
+  const editorRect = editorNode.getBoundingClientRect()
+  const popupWidth = popupNode.offsetWidth || 220
+  const popupHeight = popupNode.offsetHeight || 0
+  const viewportPadding = 8
+  const offset = 6
+  const preferredTop = editorRect.top + anchor.top + anchor.height + offset
+  const fallbackTop = editorRect.top + anchor.top - popupHeight - offset
+
+  let top = preferredTop
+  if (popupHeight && preferredTop + popupHeight > window.innerHeight - viewportPadding && fallbackTop >= viewportPadding) {
+    top = fallbackTop
+  } else if (popupHeight) {
+    top = Math.min(preferredTop, Math.max(window.innerHeight - popupHeight - viewportPadding, viewportPadding))
+  }
+
+  const maxLeft = Math.max(window.innerWidth - popupWidth - viewportPadding, viewportPadding)
+  const left = Math.min(
+    Math.max(editorRect.left + anchor.left, viewportPadding),
+    maxLeft,
+  )
+
+  popupNode.style.left = `${Math.round(left)}px`
+  popupNode.style.top = `${Math.round(Math.max(top, viewportPadding))}px`
+}
+
+const handlePopupViewportChange = (): void => {
+  if (!popupVisible) {
+    return
+  }
+  updatePopupPosition()
 }
 
 const findTriggerMatch = (): TriggerMatch | null => {
@@ -315,47 +356,27 @@ const findTriggerMatch = (): TriggerMatch | null => {
     return null
   }
 
-  const prefix = model.getValueInRange({
-    startLineNumber: position.lineNumber,
-    startColumn: 1,
-    endLineNumber: position.lineNumber,
-    endColumn: position.column,
-  })
-
-  for (const pattern of props.triggerPatterns) {
-    const normalizedFlags = pattern.flags.replace(/g/g, '')
-    const matcher = new RegExp(pattern.source, normalizedFlags)
-    const result = matcher.exec(prefix)
-    if (!result || typeof result.index !== 'number') {
-      continue
-    }
-
-    const matchedText = result[0]
-    if (!matchedText) {
-      continue
-    }
-
-    const triggerStartColumn = result.index + 1
-    const queryText = prefix.slice(triggerStartColumn - 1 + 2)
-
-    return {
-      triggerText: matchedText.slice(0, 2),
-      queryText,
-      defaultReplaceRange: {
-        startLineNumber: position.lineNumber,
-        startColumn: triggerStartColumn,
-        endLineNumber: position.lineNumber,
-        endColumn: position.column,
-      },
-      position,
-    }
+  const lineText = model.getLineContent(position.lineNumber)
+  const match = findInlineExpressionMatch(lineText, position.column - 1, props.triggerPatterns)
+  if (!match) {
+    return null
   }
 
-  return null
+  return {
+    triggerText: match.triggerText,
+    queryText: match.queryText,
+    defaultReplaceRange: {
+      startLineNumber: position.lineNumber,
+      startColumn: match.startIndex + 1,
+      endLineNumber: position.lineNumber,
+      endColumn: match.endIndex + 1,
+    },
+    position,
+  }
 }
 
 const maybeShowPopup = (): void => {
-  if (!editor || !popupWidget || props.readonly || !props.popupComponent) {
+  if (!editor || !popupHost || props.readonly || !props.popupComponent) {
     hidePopup()
     return
   }
@@ -382,9 +403,11 @@ const maybeShowPopup = (): void => {
   attachPopupApp()
 
   popupVisible = true
-  popupWidget.setPosition(match.position)
-  popupWidget.setVisible(true)
-  editor.layoutContentWidget(popupWidget)
+  popupHost.setVisible(true)
+  updatePopupPosition()
+  nextTick(() => {
+    updatePopupPosition()
+  })
   emit('popup-show', currentContext)
 }
 
@@ -414,7 +437,8 @@ const applyEdit = (payload: ExpressionPopupSelectPayload): void => {
       : ''
 
   let normalizedRange: monaco.IRange = { ...range }
-  if (closeToken) {
+  const rangeText = model.getValueInRange(normalizedRange)
+  if (closeToken && !rangeText.endsWith(closeToken)) {
     const lookahead = model.getValueInRange({
       startLineNumber: normalizedRange.endLineNumber,
       startColumn: normalizedRange.endColumn,
@@ -456,12 +480,11 @@ const handlePopupSelect = (payload: ExpressionPopupSelectPayload): void => {
 }
 
 const bindPopupLifecycle = (): void => {
-  if (!editor || !monacoApi || popupWidget) {
+  if (!editor || popupHost) {
     return
   }
 
-  popupWidget = createPopupWidget()
-  editor.addContentWidget(popupWidget)
+  popupHost = createPopupHost()
 
   keydownListener = editor.onKeyDown(closePopupByEscape)
   blurListener = editor.onDidBlurEditorText(() => {
@@ -479,6 +502,12 @@ const bindPopupLifecycle = (): void => {
     renderExpressionRules()
     maybeShowPopup()
   })
+  scrollListener = editor.onDidScrollChange(() => {
+    handlePopupViewportChange()
+  })
+  layoutListener = editor.onDidLayoutChange(() => {
+    handlePopupViewportChange()
+  })
 
   outsideClickListener = (event: PointerEvent) => {
     if (!popupVisible) {
@@ -489,6 +518,8 @@ const bindPopupLifecycle = (): void => {
     }
   }
   window.addEventListener('pointerdown', outsideClickListener, true)
+  window.addEventListener('scroll', handlePopupViewportChange, true)
+  window.addEventListener('resize', handlePopupViewportChange)
 }
 
 const cleanupPopupLifecycle = (): void => {
@@ -496,27 +527,30 @@ const cleanupPopupLifecycle = (): void => {
   blurListener?.dispose()
   cursorListener?.dispose()
   contentListener?.dispose()
+  scrollListener?.dispose()
+  layoutListener?.dispose()
   keydownListener = undefined
   blurListener = undefined
   cursorListener = undefined
   contentListener = undefined
+  scrollListener = undefined
+  layoutListener = undefined
 
   if (outsideClickListener) {
     window.removeEventListener('pointerdown', outsideClickListener, true)
     outsideClickListener = undefined
   }
+  window.removeEventListener('scroll', handlePopupViewportChange, true)
+  window.removeEventListener('resize', handlePopupViewportChange)
 
-  if (editor && popupWidget) {
-    editor.removeContentWidget(popupWidget)
-  }
-
-  popupWidget?.getDomNodeRef().removeEventListener('mousedown', stopMouseEvent)
-  popupWidget?.getDomNodeRef().removeEventListener('click', stopMouseEvent)
-  popupWidget?.getDomNodeRef().removeEventListener('pointerdown', markPopupInteraction, true)
-  popupWidget = undefined
+  destroyPopupApp()
+  popupHost?.getDomNodeRef().removeEventListener('mousedown', stopMouseEvent)
+  popupHost?.getDomNodeRef().removeEventListener('click', stopMouseEvent)
+  popupHost?.getDomNodeRef().removeEventListener('pointerdown', markPopupInteraction, true)
+  popupHost?.destroy()
+  popupHost = undefined
   popupVisible = false
   currentContext = undefined
-  destroyPopupApp()
 }
 
 const cleanupExpressionRenderer = (): void => {
@@ -529,7 +563,6 @@ const onEditorReady = (payload: {
   monaco: typeof monaco
 }): void => {
   editor = payload.editor
-  monacoApi = payload.monaco
   editorReady.value = true
   bindPopupLifecycle()
   renderExpressionRules()
@@ -552,9 +585,7 @@ watch(
     if (popupVisible) {
       attachPopupApp()
       nextTick(() => {
-        if (popupWidget) {
-          editor?.layoutContentWidget(popupWidget)
-        }
+        updatePopupPosition()
       })
     }
   },
@@ -565,6 +596,9 @@ watch(
   () => {
     if (popupVisible) {
       attachPopupApp()
+      nextTick(() => {
+        updatePopupPosition()
+      })
     }
   },
   { deep: true },
@@ -644,8 +678,8 @@ defineExpose<MdEditorExpose>({
 
 <style scoped>
 :global(.md-editor-expression-popup) {
-  position: absolute;
-  z-index: 90;
+  position: fixed;
+  z-index: 200;
   min-width: 220px;
   pointer-events: auto;
 }

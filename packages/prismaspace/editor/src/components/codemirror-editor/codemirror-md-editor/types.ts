@@ -2,6 +2,7 @@ import type { Extension } from '@codemirror/state'
 import type { EditorView, ViewUpdate } from '@codemirror/view'
 import type { Component } from 'vue'
 import type { CodeMirrorEditorProps } from '../types'
+import type { VariableTreeInsertValueResolver, VariableTreeNode } from '../../variable-tree'
 
 export type CodeMirrorMdEditorRange = {
   from: number
@@ -76,3 +77,11 @@ export interface CodeMirrorMdEditorExpose {
 }
 
 export type CodeMirrorMdEditorViewUpdate = ViewUpdate
+
+export interface CodeMirrorMdEditorVariablePanelProps {
+  context?: CodeMirrorExpressionPopupContext
+  tree?: VariableTreeNode[]
+  title?: string
+  emptyText?: string
+  resolveInsertValue?: VariableTreeInsertValueResolver
+}

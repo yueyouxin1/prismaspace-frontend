@@ -1,6 +1,7 @@
 import type { Component } from 'vue'
 import type * as monaco from 'monaco-editor'
 import type { MonacoEditorProps } from '../types'
+import type { VariableTreeInsertValueResolver, VariableTreeNode } from '../../variable-tree'
 
 export type ExpressionPopupSelectPayload = {
   insertText: string
@@ -49,4 +50,12 @@ export interface MdEditorExpose {
   getModel: () => monaco.editor.ITextModel | undefined
   insertText: (text: string, range?: monaco.IRange) => void
   hidePopup: () => void
+}
+
+export interface MdEditorVariablePanelProps {
+  context?: ExpressionPopupContext
+  tree?: VariableTreeNode[]
+  title?: string
+  emptyText?: string
+  resolveInsertValue?: VariableTreeInsertValueResolver
 }

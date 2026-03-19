@@ -10,12 +10,11 @@
 ```text
 expression-md-editor/
   README.md
+  demo-variable-tree.ts
   monaco-expression-md-editor/
     MdEditorDemo.vue
-    MdEditorVariablePanel.vue
   codemirror-expression-md-editor/
     CodeMirrorMdEditorDemo.vue
-    CodeMirrorMdEditorVariablePanel.vue
     CodeMirrorLibraryBlockView.vue
 ```
 
