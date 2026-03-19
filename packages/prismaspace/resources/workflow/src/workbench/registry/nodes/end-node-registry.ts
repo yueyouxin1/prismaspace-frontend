@@ -34,40 +34,44 @@ const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
     ]
   },
   createAccordionSection({
-    id: 'end-result-object',
-    title: '输出变量',
-    description: '',
-    defaultOpen: true,
-    children: [
+    id: 'end-config',
+    items: [
       {
-        id: 'end-inputs-editor',
-        type: 'form',
-        control: 'param-schema-editor',
-        modelPath: 'nodeData.inputs',
-        props: {
-          runtimeMode: 'refine',
-          headerTitle: 'RETURN VARIABLES',
-          valueRefTree
-        },
+        id: 'end-result-object',
+        title: '输出变量',
+        description: '',
+        defaultOpen: true,
+        children: [
+          {
+            id: 'end-inputs-editor',
+            type: 'form',
+            control: 'param-schema-editor',
+            modelPath: 'nodeData.inputs',
+            props: {
+              runtimeMode: 'refine',
+              headerTitle: 'RETURN VARIABLES',
+              valueRefTree
+            },
+          },
+        ],
       },
-    ],
-  }),
-  createAccordionSection({
-    id: 'end-result-text',
-    title: '回答内容',
-    description: '',
-    defaultOpen: true,
-    visible: "{{ model.nodeData.config.returnType === 'Text' }}",
-    children: [
       {
-        id: 'end-content-template',
-        type: 'form',
-        control: 'textarea',
-        modelPath: 'nodeData.config.content',
-        props: {
-          placeholder: '例如：工作流结果：\n{{result}}',
-          class: 'px-2',
-        },
+        id: 'end-result-text',
+        title: '回答内容',
+        description: '',
+        defaultOpen: true,
+        visible: "{{ model.nodeData.config.returnType === 'Text' }}",
+        children: [
+          {
+            id: 'end-content-template',
+            type: 'form',
+            control: 'textarea',
+            modelPath: 'nodeData.config.content',
+            props: {
+              placeholder: '例如：工作流结果：\n{{result}}'
+            },
+          },
+        ],
       },
     ],
   }),
