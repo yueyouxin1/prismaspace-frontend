@@ -7,8 +7,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@prismaspace/ui-shadcn/components/ui/card"
+import { Badge } from "@prismaspace/ui-shadcn/components/ui/badge"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
-import { FormGenerator, type FormGeneratorExposed, type FormItem } from "@prismaspace/generator/form-generator"
+import {
+  FormGenerator,
+  type FormComponentCatalog,
+  type FormGeneratorExposed,
+  type FormItem,
+} from "@prismaspace/generator/form-generator"
 import {
   paramSchemaEditorFieldDescriptor,
   formGeneratorValueRefTreeKey,
@@ -30,16 +36,25 @@ type DemoContext = {
   showAdvanced: boolean
   cityOptions: DemoOption[]
   countryOptions: DemoOption[]
+  timezoneOptions: DemoOption[]
   onDebug: (payload: unknown) => void
 }
 
 const formGeneratorRef = ref<FormGeneratorExposed>()
 const formModel = ref<Record<string, unknown>>({
+  account: {
+    email: "",
+    password: "",
+  },
   user: {
     profile: {
       name: "",
+      bio: "",
       city: "",
       country: "",
+      birthDate: "",
+      reminderAt: "",
+      contactTime: "",
       travelWindow: {
         start: "",
         end: "",
@@ -53,16 +68,24 @@ const formModel = ref<Record<string, unknown>>({
     newsletter: false,
   },
   metrics: {
+    teamSize: 6,
     score: 10,
     intensity: 40,
   },
   security: {
     otp: "",
     retryLimit: 3,
+    policyNote: "",
+    backupContactTime: "",
   },
   preferences: {
     deliveryChannel: "email",
     responseFormat: "summary",
+    timezone: "Asia/Shanghai",
+  },
+  ui: {
+    activeSchemaSections: ["response-schema", "metadata-schema"],
+    activePreferenceTab: "delivery",
   },
   schemas: {
     output: createDemoOutputSchemaSeed(),
@@ -72,6 +95,10 @@ const formModel = ref<Record<string, unknown>>({
 })
 
 const logs = ref<string[]>([])
+const componentCatalog = ref<FormComponentCatalog>({
+  fields: [],
+  actions: [],
+})
 
 const context = ref<DemoContext>({
   showAdvanced: false,
@@ -85,12 +112,43 @@ const context = ref<DemoContext>({
     { label: "United States", value: "US" },
     { label: "Japan", value: "JP" },
   ],
+  timezoneOptions: [
+    { label: "Asia/Shanghai", value: "Asia/Shanghai" },
+    { label: "UTC", value: "UTC" },
+    { label: "America/New_York", value: "America/New_York" },
+  ],
   onDebug: (payload: unknown) => {
     logs.value.unshift(`[callback] ${JSON.stringify(payload)}`)
   },
 })
 
 provide(formGeneratorValueRefTreeKey, demoParamSchemaValueRefTree)
+
+function collectControls(items: FormItem[]): { fields: string[], actions: string[] } {
+  const fields = new Set<string>()
+  const actions = new Set<string>()
+
+  const walk = (nodes: FormItem[]) => {
+    for (const item of nodes) {
+      if (item.type === "action") {
+        actions.add(item.actionType)
+        continue
+      }
+
+      fields.add(item.control)
+      if (item.children?.length) {
+        walk(item.children)
+      }
+    }
+  }
+
+  walk(items)
+
+  return {
+    fields: [...fields].sort(),
+    actions: [...actions].sort(),
+  }
+}
 
 const schema = computed(() => ([
   {
@@ -104,6 +162,39 @@ const schema = computed(() => ([
       defaultValue: "{{ ctx.showAdvanced ? '高级用户' : '' }}",
     },
     required: true,
+  },
+  {
+    id: "email",
+    type: "form",
+    control: "email",
+    label: "邮箱",
+    modelPath: "account.email",
+    props: {
+      placeholder: "name@example.com",
+    },
+    required: true,
+  },
+  {
+    id: "password",
+    type: "form",
+    control: "password",
+    label: "密码",
+    modelPath: "account.password",
+    props: {
+      placeholder: "请输入密码",
+    },
+    required: true,
+  },
+  {
+    id: "bio",
+    type: "form",
+    control: "textarea",
+    label: "个人简介",
+    modelPath: "user.profile.bio",
+    props: {
+      placeholder: "介绍你的工作流与使用偏好",
+      rows: 4,
+    },
   },
   {
     id: "city",
@@ -126,6 +217,27 @@ const schema = computed(() => ([
       placeholder: "请选择国家",
       options: "{{ ctx.countryOptions }}",
     },
+  },
+  {
+    id: "birthDate",
+    type: "form",
+    control: "date",
+    label: "生日",
+    modelPath: "user.profile.birthDate",
+  },
+  {
+    id: "reminderAt",
+    type: "form",
+    control: "datetime",
+    label: "提醒时间",
+    modelPath: "user.profile.reminderAt",
+  },
+  {
+    id: "contactTime",
+    type: "form",
+    control: "time",
+    label: "联系时段",
+    modelPath: "user.profile.contactTime",
   },
   {
     id: "vip",
@@ -200,6 +312,18 @@ const schema = computed(() => ([
     },
   },
   {
+    id: "teamSize",
+    type: "form",
+    control: "number",
+    label: "团队人数",
+    modelPath: "metrics.teamSize",
+    props: {
+      min: 1,
+      max: 200,
+      step: 1,
+    },
+  },
+  {
     id: "customCounter",
     type: "form",
     control: "counter",
@@ -240,10 +364,10 @@ const schema = computed(() => ([
     id: "schemaSectionsRoot",
     type: "layout",
     control: "accordion-root",
+    modelPath: "ui.activeSchemaSections",
     props: {
       type: "multiple",
       collapsible: true,
-      defaultValue: ["response-schema", "metadata-schema"],
     },
     children: [
       {
@@ -297,7 +421,7 @@ const schema = computed(() => ([
     ],
   },
   {
-    id: "settingsTabsRoot",
+    id: "verificationTabsRoot",
     type: "layout",
     control: "tabs",
     props: {
@@ -340,12 +464,49 @@ const schema = computed(() => ([
         ],
       },
       {
-        id: "deliveryTab",
+        id: "verificationPolicyTab",
+        type: "layout",
+        control: "tabs-item",
+        props: {
+          value: "policy",
+          title: "验证策略",
+        },
+        children: [
+          {
+            id: "policyNote",
+            type: "form",
+            control: "textarea",
+            label: "策略说明",
+            modelPath: "security.policyNote",
+            props: {
+              placeholder: "记录验证码策略和风险控制说明",
+              rows: 3,
+            },
+          },
+          {
+            id: "backupContactTime",
+            type: "form",
+            control: "time",
+            label: "备用联系时段",
+            modelPath: "security.backupContactTime",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "preferenceTabsRoot",
+    type: "layout",
+    control: "tabs",
+    modelPath: "ui.activePreferenceTab",
+    children: [
+      {
+        id: "deliveryPreferenceTab",
         type: "layout",
         control: "tabs-item",
         props: {
           value: "delivery",
-          title: "交付偏好",
+          title: "交付渠道",
         },
         children: [
           {
@@ -385,6 +546,39 @@ const schema = computed(() => ([
           },
         ],
       },
+      {
+        id: "timezonePreferenceTab",
+        type: "layout",
+        control: "tabs-item",
+        props: {
+          value: "timezone",
+          title: "时区与表达",
+        },
+        children: [
+          {
+            id: "timezone",
+            type: "form",
+            control: "native-select",
+            label: "时区",
+            modelPath: "preferences.timezone",
+            props: {
+              placeholder: "请选择时区",
+              options: "{{ ctx.timezoneOptions }}",
+            },
+          },
+          {
+            id: "deliverySummary",
+            type: "form",
+            control: "textarea",
+            label: "交付说明",
+            modelPath: "user.profile.bio",
+            props: {
+              placeholder: "这里复用 textarea，验证 tabs 受控场景下的嵌套字段",
+              rows: 3,
+            },
+          },
+        ],
+      },
     ],
   },
   {
@@ -411,6 +605,29 @@ const schema = computed(() => ([
   },
 ] satisfies FormItem[]))
 
+const usedControls = computed(() => collectControls(schema.value))
+const missingFieldControls = computed(() => {
+  const registered = new Set(componentCatalog.value.fields.map((item) => item.name))
+  return usedControls.value.fields.filter((name) => !registered.has(name))
+})
+const missingActionControls = computed(() => {
+  const registered = new Set(componentCatalog.value.actions.map((item) => item.name))
+  return usedControls.value.actions.filter((name) => !registered.has(name))
+})
+const unusedRegisteredFields = computed(() => {
+  const used = new Set(usedControls.value.fields)
+  return componentCatalog.value.fields
+    .map((item) => item.name)
+    .filter((name) => !used.has(name))
+})
+
+function refreshComponentCatalog(): void {
+  componentCatalog.value = formGeneratorRef.value?.getComponentCatalog() ?? {
+    fields: [],
+    actions: [],
+  }
+}
+
 onMounted(() => {
   formGeneratorRef.value?.registerField({
     name: "counter",
@@ -435,6 +652,7 @@ onMounted(() => {
     },
   })
   formGeneratorRef.value?.registerField(paramSchemaEditorFieldDescriptor)
+  refreshComponentCatalog()
 })
 
 const prettyModel = computed(() => JSON.stringify(formModel.value, null, 2))
@@ -454,7 +672,7 @@ function toggleAdvanced(): void {
       <CardHeader>
         <CardTitle>Schema-Driven Form Generator Demo</CardTitle>
         <CardDescription>
-          覆盖深层 modelPath、context 表达式联动、条件显示，以及单 item / 多 item 两种 Accordion 组合下的 Param Schema Editor 注册用例。
+          覆盖全部默认字段 / layout 组件、默认 button action、高级 param-schema-editor，以及 layout 的内部状态与 model 映射两类用例。
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
@@ -462,6 +680,30 @@ function toggleAdvanced(): void {
           <Button type="button" variant="outline" @click="toggleAdvanced">
             切换高级模式（当前：{{ context.showAdvanced ? "ON" : "OFF" }}）
           </Button>
+        </div>
+
+        <div class="space-y-2 rounded-md border bg-muted/20 p-3 text-xs">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="font-medium">Field 覆盖</span>
+            <Badge variant="secondary">{{ usedControls.fields.length }} / {{ componentCatalog.fields.length }}</Badge>
+            <Badge v-if="missingFieldControls.length === 0" variant="secondary">无缺失</Badge>
+            <Badge v-else variant="destructive">缺失 {{ missingFieldControls.length }}</Badge>
+          </div>
+          <p class="text-muted-foreground">
+            已用字段：{{ usedControls.fields.join(", ") }}
+          </p>
+          <p v-if="missingFieldControls.length" class="text-destructive">
+            缺失字段：{{ missingFieldControls.join(", ") }}
+          </p>
+          <p v-else class="text-muted-foreground">
+            未覆盖注册字段：{{ unusedRegisteredFields.length ? unusedRegisteredFields.join(", ") : "无" }}
+          </p>
+          <p class="text-muted-foreground">
+            Action 覆盖：{{ usedControls.actions.join(", ") || "无" }}
+          </p>
+          <p v-if="missingActionControls.length" class="text-destructive">
+            缺失 Action：{{ missingActionControls.join(", ") }}
+          </p>
         </div>
 
         <FormGenerator

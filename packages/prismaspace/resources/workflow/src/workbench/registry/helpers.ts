@@ -16,7 +16,7 @@ const ACCORDION_CONTENT_CLASS = ''
 export const createAccordionSection = (options: AccordionSectionOptions): FormItem => ({
   id: options.id,
   type: 'layout',
-  control: 'accordion-container',
+  control: 'accordion',
   state: options.visible === undefined
     ? undefined
     : { visible: options.visible },

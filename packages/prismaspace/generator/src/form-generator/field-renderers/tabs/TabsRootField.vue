@@ -2,7 +2,7 @@
 import type { HTMLAttributes } from "vue"
 import { computed, provide, ref } from "vue"
 import { cn } from "@prismaspace/ui-shadcn/lib/utils"
-import { Tabs, TabsList } from "@prismaspace/ui-shadcn/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@prismaspace/ui-shadcn/components/ui/tabs"
 import { formGeneratorTabsTriggerPortalKey } from "../../injection-keys"
 
 const props = withDefaults(defineProps<{
@@ -22,10 +22,29 @@ const emit = defineEmits<{
 }>()
 
 const internalValue = ref<string | undefined>(props.defaultValue)
-const triggerTarget = ref<HTMLElement | null>(null)
+const tabItems = ref<Array<{
+  id: string
+  title: string
+  value: string
+  disabled: boolean
+  triggerClass?: string
+}>>([])
 
 provide(formGeneratorTabsTriggerPortalKey, {
-  target: triggerTarget,
+  upsertItem(item) {
+    const index = tabItems.value.findIndex((entry) => entry.id === item.id)
+    if (index >= 0) {
+      tabItems.value.splice(index, 1, item)
+      return
+    }
+    tabItems.value.push(item)
+  },
+  removeItem(id) {
+    const index = tabItems.value.findIndex((entry) => entry.id === id)
+    if (index >= 0) {
+      tabItems.value.splice(index, 1)
+    }
+  },
 })
 
 const isControlled = computed(() => typeof props.modelValue === "string")
@@ -47,7 +66,15 @@ function onUpdateModelValue(value: string | number) {
     @update:model-value="onUpdateModelValue"
   >
     <TabsList :class="cn('w-full justify-start', props.listClass)">
-      <div ref="triggerTarget" class="contents" />
+      <TabsTrigger
+        v-for="item in tabItems"
+        :key="item.id"
+        :value="item.value"
+        :disabled="item.disabled"
+        :class="cn(item.triggerClass)"
+      >
+        {{ item.title }}
+      </TabsTrigger>
     </TabsList>
     <slot />
   </Tabs>

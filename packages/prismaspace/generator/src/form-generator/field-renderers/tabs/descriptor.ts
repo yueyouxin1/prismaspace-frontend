@@ -43,6 +43,7 @@ export const tabsFieldDescriptors: FieldRendererDescriptor[] = [
       getProps: (ctx) => {
         const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
         return {
+          itemId: ctx.item.id,
           title: String(resolved.title ?? ctx.item.label ?? "Tab"),
           value: typeof resolved.value === "string" ? resolved.value : ctx.item.id,
           disabled: Boolean(resolved.disabled),

@@ -3,41 +3,35 @@ import type { WorkflowNodeRegistry } from '../types'
 import { createAccordionSection } from '../helpers'
 
 const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
-  createAccordionSection({
-    id: 'end-result-mode',
-    title: '输出方式',
-    description: '定义工作流返回结构或返回文本。',
-    defaultOpen: true,
+  {
+    id: "end-return-type",
+    type: "layout",
+    control: "tabs",
+    modelPath: 'nodeData.config.returnType',
+    props: {
+      defaultValue: "Object",
+    },
     children: [
       {
-        id: 'end-return-type',
-        type: 'form',
-        control: 'radiogroup',
-        label: '输出方式',
-        modelPath: 'nodeData.config.returnType',
-        required: true,
+        id: "object-type",
+        type: "layout",
+        control: "tabs-item",
         props: {
-          options: [
-            { label: '结构化对象', value: 'Object' },
-            { label: '返回文本', value: 'Text' },
-          ],
-        },
+          value: "Object",
+          title: "结构化对象",
+        }
       },
       {
-        id: 'end-stream-switch',
-        type: 'form',
-        control: 'switch',
-        label: '流式输出',
-        modelPath: 'nodeData.config.stream',
-        state: {
-          visible: "{{ model.nodeData.config.returnType === 'Text' }}",
-        },
+        id: "text-type",
+        type: "layout",
+        control: "tabs-item",
         props: {
-          label: '启用流式输出',
-        },
-      },
-    ],
-  }),
+          value: "Text",
+          title: "返回文本",
+        }
+      }
+    ]
+  },
   createAccordionSection({
     id: 'end-result-object',
     title: '输出变量',

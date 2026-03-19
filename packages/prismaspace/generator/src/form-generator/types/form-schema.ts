@@ -111,6 +111,12 @@ export interface FormLayoutItem<P = Record<string, any>, Ctx = any> extends Base
   /** 传给容器组件的 props */
   props?: P;
 
+  /**
+   * 可选：当容器本身也需要把激活状态、展开状态等映射到 model 时使用。
+   * 不填写时由组件自行管理内部状态。
+   */
+  modelPath?: ModelPath;
+
   /** 子项：通常为 form / layout / action 的递归组合 */
   children?: FormItem[];
 }

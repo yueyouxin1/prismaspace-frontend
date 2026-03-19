@@ -122,6 +122,7 @@ export const FormLayoutItemSchema = BaseItemSchema.extend({
   type: z.literal("layout"),
   control: z.string().trim().min(1, "control 不能为空"),
   props: nullOptional(z.record(z.string(), z.any())),
+  modelPath: nullOptional(ModelPathSchema),
   children: nullOptional(z.array(FormItemSchema)),
 });
 

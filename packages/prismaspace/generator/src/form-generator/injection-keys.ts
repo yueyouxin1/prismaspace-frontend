@@ -6,7 +6,14 @@ export type FormGeneratorHeaderActionsPortal = {
 };
 
 export type FormGeneratorTabsTriggerPortal = {
-  target: Readonly<ShallowRef<HTMLElement | null>>;
+  upsertItem: (item: {
+    id: string;
+    title: string;
+    value: string;
+    disabled: boolean;
+    triggerClass?: string;
+  }) => void;
+  removeItem: (id: string) => void;
 };
 
 export const formGeneratorHeaderActionsPortalKey: InjectionKey<FormGeneratorHeaderActionsPortal> = Symbol("form-generator-header-actions-portal");

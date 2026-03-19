@@ -84,6 +84,18 @@ function getFieldItem(): FormFieldItem | undefined {
   return props.item
 }
 
+function getBoundItem(): FormFieldItem | FormLayoutItem | undefined {
+  if (props.item.type === "form") {
+    return props.item
+  }
+
+  if (props.item.type === "layout" && props.item.modelPath) {
+    return props.item
+  }
+
+  return undefined
+}
+
 function getRenderableItem(): FormFieldItem | FormLayoutItem | undefined {
   if (props.item.type === "action") {
     return undefined
@@ -99,16 +111,16 @@ function getActionItem(): FormActionItem | undefined {
 }
 
 function getFieldValue(): unknown {
-  const item = getFieldItem()
-  if (!item) {
+  const item = getBoundItem()
+  if (!item?.modelPath) {
     return undefined
   }
   return getValueByModelPath(props.model, item.modelPath)
 }
 
 function setFieldValue(next: unknown): void {
-  const item = getFieldItem()
-  if (!item) {
+  const item = getBoundItem()
+  if (!item?.modelPath) {
     return
   }
   setValueByModelPath(props.model, item.modelPath, next)
@@ -138,6 +150,7 @@ function normalizeOptions(rawOptions: unknown): FieldOption[] {
   })
 }
 
+const boundItem = computed(() => getBoundItem())
 const renderItem = computed(() => getRenderableItem())
 const fieldItem = computed(() => getFieldItem())
 const actionItem = computed(() => getActionItem())
@@ -318,6 +331,7 @@ function getFieldResolveContext() {
 
 const fieldModelProp = computed(() => fieldRenderer.value?.modelProp ?? "modelValue")
 const fieldModelEvent = computed(() => fieldRenderer.value?.modelEvent ?? "update:modelValue")
+const shouldBindFieldModel = computed(() => Boolean(boundItem.value?.modelPath))
 
 const fieldComponentProps = computed(() => {
   const item = renderItem.value
@@ -336,18 +350,24 @@ const fieldComponentProps = computed(() => {
   const valueForComponent = renderer.transformInput
     ? renderer.transformInput(getFieldValue(), context)
     : getFieldValue()
+  const modelBindingProps = shouldBindFieldModel.value
+    ? {
+        [fieldModelProp.value]: valueForComponent,
+      }
+    : {}
 
   if (item.type === "layout") {
     return {
       ...mappedProps,
       disabled: isDisabled.value,
+      ...modelBindingProps,
     }
   }
 
   return mergeFieldProps({
     ...mappedProps,
     disabled: isDisabled.value,
-    [fieldModelProp.value]: valueForComponent,
+    ...modelBindingProps,
   }, commonFieldProps.value)
 })
 
@@ -372,7 +392,7 @@ function onFieldModelUpdate(nextValue: unknown): void {
 }
 
 const fieldListeners = computed<Record<string, (value: unknown) => void>>(() => {
-  if (!fieldItem.value) {
+  if (!boundItem.value) {
     return {}
   }
 
