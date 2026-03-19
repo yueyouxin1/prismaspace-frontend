@@ -45,6 +45,7 @@ export const accordionFieldDescriptors: FieldRendererDescriptor[] = [
     renderer: {
       component: AccordionRootField,
       rendersChildrenInDefaultSlot: true,
+      wrapDefaultSlotChildren: false,
       getProps: (ctx) => {
         const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
         return {

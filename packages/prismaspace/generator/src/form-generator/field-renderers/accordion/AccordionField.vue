@@ -65,7 +65,7 @@ function onAccordionValueChange(value: string | string[] | undefined) {
   <Accordion type="single" collapsible :class="cn(props.class)" :model-value="accordionValue"
     @update:model-value="onAccordionValueChange">
     <AccordionItem :value="itemValue" :disabled="disabled">
-      <AccordionTrigger :class="cn('items-center px-2 hover:no-underline', props.triggerClass)">
+      <AccordionTrigger :class="cn('items-center py-2 hover:no-underline', props.triggerClass)">
         <div class="min-w-0 flex-1 text-left">
           <div class="truncate text-sm font-semibold text-foreground">
             {{ title }}

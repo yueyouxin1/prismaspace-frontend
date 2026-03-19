@@ -431,7 +431,7 @@ defineExpose<FormGeneratorExposed>({
 </script>
 
 <template>
-  <FieldGroup class="gap-4">
+  <FieldGroup class="gap-2">
     <FormItemRenderer
       v-for="item in normalizedSchema"
       :key="item.id"

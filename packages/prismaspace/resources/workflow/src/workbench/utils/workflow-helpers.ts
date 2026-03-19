@@ -234,13 +234,27 @@ const flattenSchemaPaths = (
   schema: WorkflowParameterSchema,
   prefix = schema.name,
 ): Array<{ schema: WorkflowParameterSchema; path: string }> => {
+  const current = [{ schema, path: prefix }]
+
   if (schema.type === 'object' && Array.isArray(schema.properties) && schema.properties.length) {
-    return schema.properties.flatMap((property: WorkflowParameterSchema) => flattenSchemaPaths(property, `${prefix}.${property.name}`))
+    return [
+      ...current,
+      ...schema.properties.flatMap((property: WorkflowParameterSchema) =>
+        flattenSchemaPaths(property, `${prefix}.${property.name}`),
+      ),
+    ]
   }
-  if (schema.type === 'array' && schema.items) {
-    return [{ schema, path: `${prefix}[]` }]
+
+  if (schema.type === 'array' && schema.items?.type === 'object' && Array.isArray(schema.items.properties) && schema.items.properties.length) {
+    return [
+      ...current,
+      ...schema.items.properties.flatMap((property: WorkflowParameterSchema) =>
+        flattenSchemaPaths(property, `${prefix}.${property.name}`),
+      ),
+    ]
   }
-  return [{ schema, path: prefix }]
+
+  return current
 }
 
 const buildAncestors = (graph: WorkflowGraphRead, nodeId: string | null): Set<string> => {
@@ -307,6 +321,19 @@ export const buildWorkflowVariableEntries = (
 }
 
 export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
+  type WorkflowVariableTreeNode = {
+    id: string
+    key: string
+    name: string
+    label: string
+    blockID?: string
+    path?: string
+    source?: string
+    schemaType?: WorkflowParameterSchema['type']
+    selectable?: boolean
+    children?: WorkflowVariableTreeNode[]
+  }
+
   const nodeMap = new Map<string, {
     id: string
     key: string
@@ -314,44 +341,12 @@ export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
     label: string
     blockID: string
     selectable?: boolean
-    children: Array<{
-      id: string
-      key: string
-      name: string
-      label: string
-      blockID?: string
-      path?: string
-      source?: string
-      schemaType?: WorkflowParameterSchema['type']
-      selectable?: boolean
-      children?: Array<any>
-    }>
+    children: WorkflowVariableTreeNode[]
   }>()
 
   const ensureChildNode = (
-    siblings: Array<{
-      id: string
-      key: string
-      name: string
-      label: string
-      blockID?: string
-      path?: string
-      source?: string
-      schemaType?: WorkflowParameterSchema['type']
-      selectable?: boolean
-      children?: Array<any>
-    }>,
-    payload: {
-      id: string
-      key: string
-      name: string
-      label: string
-      blockID?: string
-      path?: string
-      source?: string
-      schemaType?: WorkflowParameterSchema['type']
-      selectable?: boolean
-    },
+    siblings: WorkflowVariableTreeNode[],
+    payload: WorkflowVariableTreeNode,
   ) => {
     const existing = siblings.find(item => item.key === payload.key)
     if (existing) {
@@ -359,20 +354,26 @@ export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
       if (payload.blockID) existing.blockID = payload.blockID
       if (payload.source) existing.source = payload.source
       if (payload.schemaType) existing.schemaType = payload.schemaType
-      if (typeof payload.selectable === 'boolean') existing.selectable = payload.selectable
+      if (payload.selectable === true || existing.selectable === undefined) {
+        existing.selectable = payload.selectable
+      }
       existing.children ??= []
       return existing
     }
 
     const next = {
       ...payload,
-      children: [] as Array<any>,
+      children: [] as WorkflowVariableTreeNode[],
     }
     siblings.push(next)
     return next
   }
 
-  entries.forEach((entry) => {
+  const sortedEntries = entries
+    .slice()
+    .sort((left, right) => left.path.split('.').length - right.path.split('.').length)
+
+  sortedEntries.forEach((entry) => {
     const group = nodeMap.get(entry.nodeId) ?? {
       id: entry.nodeId,
       key: entry.nodeId,
@@ -407,9 +408,7 @@ export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
               schemaType: entry.schema.type,
               selectable: true,
             }
-          : {
-              selectable: false,
-            }),
+          : {}),
       })
       cursor = node.children ?? []
     })

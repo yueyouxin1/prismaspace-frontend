@@ -61,6 +61,7 @@ export type FieldRendererDefinition = {
   modelProp?: string
   modelEvent?: string
   rendersChildrenInDefaultSlot?: boolean
+  wrapDefaultSlotChildren?: boolean
   getProps?: (ctx: FieldResolveContext) => Record<string, unknown>
   transformInput?: (value: unknown, ctx: FieldResolveContext) => unknown
   transformOutput?: (value: unknown, ctx: FieldResolveContext) => unknown

@@ -10,6 +10,7 @@ const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
     modelPath: 'nodeData.config.returnType',
     props: {
       defaultValue: "Object",
+      class: "border-b pt-2 px-2",
     },
     children: [
       {
@@ -37,7 +38,6 @@ const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
     title: '输出变量',
     description: '',
     defaultOpen: true,
-    visible: "{{ model.nodeData.config.returnType !== 'Text' }}",
     children: [
       {
         id: 'end-inputs-editor',
@@ -55,7 +55,7 @@ const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
   createAccordionSection({
     id: 'end-result-text',
     title: '回答内容',
-    description: '使用模板定义文本输出，可引用已配置的返回变量。',
+    description: '',
     defaultOpen: true,
     visible: "{{ model.nodeData.config.returnType === 'Text' }}",
     children: [
@@ -63,11 +63,10 @@ const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
         id: 'end-content-template',
         type: 'form',
         control: 'textarea',
-        label: '返回文本',
         modelPath: 'nodeData.config.content',
         props: {
           placeholder: '例如：工作流结果：\n{{result}}',
-          class: 'min-h-[180px]',
+          class: 'px-2',
         },
       },
     ],

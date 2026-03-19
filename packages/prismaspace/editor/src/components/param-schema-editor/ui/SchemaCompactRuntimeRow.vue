@@ -633,7 +633,7 @@ watch(
   <div class="relative">
     <div
       ref="rowShellRef"
-      class="relative grid items-stretch shadow-[inset_0_-1px_0_0_#eceaf2] transition-colors"
+      class="param-row relative grid items-stretch shadow-[inset_0_-1px_0_0_#eceaf2] transition-colors"
       :style="{ gridTemplateColumns: layout.gridTemplate }"
       @click="onSelectRow"
     >

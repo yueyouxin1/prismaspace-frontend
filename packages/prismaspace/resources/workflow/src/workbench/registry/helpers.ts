@@ -10,7 +10,7 @@ type AccordionSectionOptions = {
 }
 
 const ACCORDION_SECTION_CLASS = ''
-const ACCORDION_TRIGGER_CLASS = ''
+const ACCORDION_TRIGGER_CLASS = 'px-2'
 const ACCORDION_CONTENT_CLASS = ''
 
 export const createAccordionSection = (options: AccordionSectionOptions): FormItem => ({

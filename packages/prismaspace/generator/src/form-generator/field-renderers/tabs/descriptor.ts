@@ -16,6 +16,7 @@ export const tabsFieldDescriptors: FieldRendererDescriptor[] = [
     renderer: {
       component: TabsRootField,
       rendersChildrenInDefaultSlot: true,
+      wrapDefaultSlotChildren: false,
       getProps: (ctx) => {
         const resolved = ctx.resolveDynamic(ctx.item.props ?? {})
         return {

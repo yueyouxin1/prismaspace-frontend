@@ -8,6 +8,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@prismaspace/ui-shadcn/components/ui/field"
+import { cn } from "@prismaspace/ui-shadcn/lib/utils"
 import type {
   ActionRendererDefinition,
   ExpressionRuntimeScope,
@@ -224,6 +225,8 @@ const renderChildren = computed(() => {
 const fieldOwnsChildrenSlot = computed(() => {
   return Boolean(fieldRenderer.value?.rendersChildrenInDefaultSlot && renderChildren.value.length)
 })
+const shouldWrapDefaultSlotChildren = computed(() => fieldRenderer.value?.wrapDefaultSlotChildren !== false)
+const hasDetachedChildrenGroup = computed(() => renderChildren.value.length > 0 && !fieldOwnsChildrenSlot.value)
 
 const fieldOrientation = computed<"vertical" | "horizontal">(() => {
   const control = fieldItem.value?.control.trim().toLowerCase()
@@ -310,6 +313,28 @@ function mergeFieldProps(
   }
 }
 
+function mergeRootPresentationProps(baseProps: Record<string, unknown>): Record<string, unknown> {
+  const mergedProps = { ...baseProps }
+  const mergedClass = cn(baseProps.class as string | string[] | Record<string, boolean> | undefined, containerClass.value)
+  const existingStyle = baseProps.style && typeof baseProps.style === "object" && !Array.isArray(baseProps.style)
+    ? baseProps.style as Record<string, string | number>
+    : undefined
+  const mergedStyle = {
+    ...(existingStyle ?? {}),
+    ...containerStyle.value,
+  }
+
+  if (mergedClass) {
+    mergedProps.class = mergedClass
+  }
+
+  if (Object.keys(mergedStyle).length > 0) {
+    mergedProps.style = mergedStyle
+  }
+
+  return mergedProps
+}
+
 function getFieldResolveContext() {
   const item = renderItem.value
   if (!item) {
@@ -357,11 +382,11 @@ const fieldComponentProps = computed(() => {
     : {}
 
   if (item.type === "layout") {
-    return {
+    return mergeRootPresentationProps({
       ...mappedProps,
       disabled: isDisabled.value,
       ...modelBindingProps,
-    }
+    })
   }
 
   return mergeFieldProps({
@@ -538,10 +563,13 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
 </script>
 
 <template>
-  <div v-if="isVisible" :class="['space-y-2', containerClass]" :style="containerStyle">
-    <template v-if="renderItem">
+  <template v-if="isVisible">
+    <div
+      v-if="fieldItem"
+      :class="[hasDetachedChildrenGroup ? 'space-y-4' : undefined, containerClass]"
+      :style="containerStyle"
+    >
       <Field
-        v-if="fieldItem"
         :orientation="fieldOrientation"
         :data-invalid="fieldInvalid ? 'true' : undefined"
         :data-disabled="isDisabled ? 'true' : undefined"
@@ -553,7 +581,27 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
             v-on="fieldListeners"
           >
             <template v-if="fieldOwnsChildrenSlot">
-              <div class="space-y-3">
+              <template v-if="shouldWrapDefaultSlotChildren">
+                <div class="space-y-4">
+                  <FormItemRenderer
+                    v-for="child in renderChildren"
+                    :key="child.id"
+                    :item="child"
+                    :model="model"
+                    :context="context"
+                    :field-registry="fieldRegistry"
+                    :action-registry="actionRegistry"
+                    :validation-errors="validationErrors"
+                    :on-field-change="onFieldChange"
+                    :before-action="beforeAction"
+                    @action="emit('action', $event)"
+                    @emit-event="emit('emit-event', $event)"
+                    @model-change="emit('model-change')"
+                    @error="emit('error', $event)"
+                  />
+                </div>
+              </template>
+              <template v-else>
                 <FormItemRenderer
                   v-for="child in renderChildren"
                   :key="child.id"
@@ -570,7 +618,7 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
                   @model-change="emit('model-change')"
                   @error="emit('error', $event)"
                 />
-              </div>
+              </template>
             </template>
           </component>
 
@@ -598,7 +646,27 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
             v-on="fieldListeners"
           >
             <template v-if="fieldOwnsChildrenSlot">
-              <div class="space-y-3">
+              <template v-if="shouldWrapDefaultSlotChildren">
+                <div class="space-y-4">
+                  <FormItemRenderer
+                    v-for="child in renderChildren"
+                    :key="child.id"
+                    :item="child"
+                    :model="model"
+                    :context="context"
+                    :field-registry="fieldRegistry"
+                    :action-registry="actionRegistry"
+                    :validation-errors="validationErrors"
+                    :on-field-change="onFieldChange"
+                    :before-action="beforeAction"
+                    @action="emit('action', $event)"
+                    @emit-event="emit('emit-event', $event)"
+                    @model-change="emit('model-change')"
+                    @error="emit('error', $event)"
+                  />
+                </div>
+              </template>
+              <template v-else>
                 <FormItemRenderer
                   v-for="child in renderChildren"
                   :key="child.id"
@@ -615,7 +683,7 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
                   @model-change="emit('model-change')"
                   @error="emit('error', $event)"
                 />
-              </div>
+              </template>
             </template>
           </component>
 
@@ -626,14 +694,35 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
         </template>
       </Field>
 
-      <template v-else>
-        <component
-          :is="fieldRenderer?.component"
-          v-bind="fieldComponentProps"
-          v-on="fieldListeners"
-        >
-          <template v-if="fieldOwnsChildrenSlot">
-            <div class="space-y-3">
+      <FieldGroup v-if="hasDetachedChildrenGroup" class="gap-2">
+        <FormItemRenderer
+          v-for="child in renderChildren"
+          :key="child.id"
+          :item="child"
+          :model="model"
+          :context="context"
+          :field-registry="fieldRegistry"
+          :action-registry="actionRegistry"
+          :validation-errors="validationErrors"
+          :on-field-change="onFieldChange"
+          :before-action="beforeAction"
+          @action="emit('action', $event)"
+          @emit-event="emit('emit-event', $event)"
+          @model-change="emit('model-change')"
+          @error="emit('error', $event)"
+        />
+      </FieldGroup>
+    </div>
+
+    <template v-else-if="renderItem">
+      <component
+        :is="fieldRenderer?.component"
+        v-bind="fieldComponentProps"
+        v-on="fieldListeners"
+      >
+        <template v-if="fieldOwnsChildrenSlot">
+          <template v-if="shouldWrapDefaultSlotChildren">
+            <div class="space-y-4">
               <FormItemRenderer
                 v-for="child in renderChildren"
                 :key="child.id"
@@ -652,13 +741,28 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
               />
             </div>
           </template>
-        </component>
-      </template>
+          <template v-else>
+            <FormItemRenderer
+              v-for="child in renderChildren"
+              :key="child.id"
+              :item="child"
+              :model="model"
+              :context="context"
+              :field-registry="fieldRegistry"
+              :action-registry="actionRegistry"
+              :validation-errors="validationErrors"
+              :on-field-change="onFieldChange"
+              :before-action="beforeAction"
+              @action="emit('action', $event)"
+              @emit-event="emit('emit-event', $event)"
+              @model-change="emit('model-change')"
+              @error="emit('error', $event)"
+            />
+          </template>
+        </template>
+      </component>
 
-      <FieldGroup
-        v-if="renderChildren.length && !fieldOwnsChildrenSlot"
-        :class="fieldItem ? 'border-l pl-4' : 'gap-3'"
-      >
+      <FieldGroup v-if="hasDetachedChildrenGroup" class="gap-2">
         <FormItemRenderer
           v-for="child in renderChildren"
           :key="child.id"
@@ -678,7 +782,11 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
       </FieldGroup>
     </template>
 
-    <template v-else-if="actionItem">
+    <div
+      v-else-if="actionItem"
+      :class="[actionItem.desc ? 'space-y-2' : undefined, containerClass]"
+      :style="containerStyle"
+    >
       <component
         :is="actionRenderer?.component"
         v-bind="actionComponentProps"
@@ -687,6 +795,6 @@ const actionListeners = computed<Record<string, () => void>>(() => ({
       <p v-if="actionItem.desc" class="text-xs text-muted-foreground">
         {{ actionItem.desc }}
       </p>
-    </template>
-  </div>
+    </div>
+  </template>
 </template>

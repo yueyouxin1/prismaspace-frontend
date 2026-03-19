@@ -1036,8 +1036,7 @@ defineExpose({
     <ScrollArea class="min-h-0 flex-1">
       <div class="min-w-full" :style="{ minWidth: `${contentMinWidth}px` }">
         <div
-          v-if="showHeader"
-          class="sticky top-0 z-10 grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb]/95 px-0.5 py-1 text-[11px] font-semibold text-[#8b8ca0] backdrop-blur"
+          class="param-column sticky top-0 z-10 grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb]/95 px-0.5 py-1 text-[11px] font-semibold text-[#8b8ca0] backdrop-blur"
           :style="{ gridTemplateColumns: layout.gridTemplate }"
         >
           <div

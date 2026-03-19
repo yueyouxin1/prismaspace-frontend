@@ -167,3 +167,14 @@ const panelSchema = computed(() => resolveWorkflowNodePanelSchema({
     </div>
   </aside>
 </template>
+
+<style>
+.param-column {
+  border: none !important;
+  background: none !important;
+}
+
+.param-row {
+  box-shadow: none !important;
+}
+</style>
