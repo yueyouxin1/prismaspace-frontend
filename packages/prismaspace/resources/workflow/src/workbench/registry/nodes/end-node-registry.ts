@@ -5,7 +5,7 @@ import { createAccordionSection } from '../helpers'
 const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
   {
     id: "end-return-type",
-    type: "layout",
+    type: "form",
     control: "tabs",
     modelPath: 'nodeData.config.returnType',
     props: {
