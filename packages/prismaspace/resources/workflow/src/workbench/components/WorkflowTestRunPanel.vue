@@ -106,17 +106,40 @@ const debugButtonLabel = computed(() => {
 })
 
 const statusClass = (status?: string | null): string => {
-  switch (status) {
-    case 'COMPLETED':
+  switch ((status ?? '').toLowerCase()) {
+    case 'succeeded':
+    case 'completed':
       return 'bg-[#edf9f1] text-[#12a150]'
-    case 'FAILED':
+    case 'failed':
       return 'bg-[#fff2f0] text-[#d0534d]'
-    case 'RUNNING':
+    case 'running':
       return 'bg-[#eef2ff] text-[#5b63ff]'
-    case 'CANCELLED':
+    case 'cancelled':
       return 'bg-[#f5f6fb] text-[#697085]'
+    case 'interrupted':
+      return 'bg-[#fff8e8] text-[#c17d00]'
     default:
       return 'bg-[#f5f6fb] text-[#697085]'
+  }
+}
+
+const formatStatusLabel = (status?: string | null): string => {
+  switch ((status ?? '').toLowerCase()) {
+    case 'pending':
+      return '排队中'
+    case 'running':
+      return '运行中'
+    case 'succeeded':
+    case 'completed':
+      return '运行完成'
+    case 'failed':
+      return '运行失败'
+    case 'cancelled':
+      return '已取消'
+    case 'interrupted':
+      return '等待恢复'
+    default:
+      return status || '待运行'
   }
 }
 
@@ -190,7 +213,7 @@ const formatDateTime = (value?: string | null): string => {
               :class="statusClass(selectedRun?.status)"
             >
               <CheckCircle2 class="size-3.5" />
-              {{ selectedRun?.status || '待运行' }}
+              {{ formatStatusLabel(selectedRun?.status) }}
             </span>
           </div>
 
@@ -251,7 +274,7 @@ const formatDateTime = (value?: string | null): string => {
                 <p v-if="run.error_message" class="mt-1 line-clamp-2 text-[11px] text-[#d0534d]">{{ run.error_message }}</p>
               </div>
               <span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium" :class="statusClass(run.status)">
-                {{ run.status }}
+                {{ formatStatusLabel(run.status) }}
               </span>
             </button>
 
@@ -267,7 +290,7 @@ const formatDateTime = (value?: string | null): string => {
                 <p class="mt-1 text-xs text-[#8b91a4]">{{ formatDateTime(selectedRun.started_at) }}</p>
               </div>
               <Button
-                v-if="selectedRun.status === 'RUNNING'"
+                v-if="selectedRun.status?.toLowerCase() === 'running'"
                 size="sm"
                 variant="destructive"
                 class="rounded-xl"
@@ -304,7 +327,7 @@ const formatDateTime = (value?: string | null): string => {
                         <p class="truncate text-sm font-medium text-[#1f2335]">{{ nodeExecution.node_name }}</p>
                         <p class="mt-1 text-[11px] text-[#8b91a4]">{{ nodeExecution.node_type }} · attempt {{ nodeExecution.attempt }}</p>
                       </div>
-                      <Badge variant="outline" class="rounded-full border-[#ececf4] bg-white">{{ nodeExecution.status }}</Badge>
+                      <Badge variant="outline" class="rounded-full border-[#ececf4] bg-white">{{ formatStatusLabel(nodeExecution.status) }}</Badge>
                     </div>
                   </div>
                 </div>

@@ -874,6 +874,12 @@ export interface WorkflowEventRead {
   created_at: string
 }
 
+export interface WorkflowStreamEvent {
+  id?: string | null
+  event: string
+  data: JsonRecord
+}
+
 export type AgUiRole = 'developer' | 'system' | 'assistant' | 'user' | 'tool' | 'activity' | 'reasoning'
 
 export interface AgUiMessageRequest {
