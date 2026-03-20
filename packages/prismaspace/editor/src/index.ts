@@ -1,5 +1,6 @@
 export * from './components/codemirror-editor'
 export * from './components/codemirror-editor/codemirror-md-editor'
+export type { ExpressionSyntax, ExpressionSyntaxDescriptor } from './components/expression-popup-utils'
 export * from './components/monaco-editor'
 export * from './components/monaco-editor/md-editor'
 export * from './components/param-schema-editor'

@@ -3,6 +3,9 @@ import type { EditorView, ViewUpdate } from '@codemirror/view'
 import type { Component } from 'vue'
 import type { CodeMirrorEditorProps } from '../types'
 import type { VariableTreeInsertValueResolver, VariableTreeNode } from '../../variable-tree'
+import type { ExpressionSyntax, ExpressionSyntaxDescriptor } from '../../expression-popup-utils'
+
+export type { ExpressionSyntax, ExpressionSyntaxDescriptor } from '../../expression-popup-utils'
 
 export type CodeMirrorMdEditorRange = {
   from: number
@@ -18,6 +21,7 @@ export type CodeMirrorExpressionPopupContext = {
   triggerText: string
   queryText: string
   defaultReplaceRange: CodeMirrorMdEditorRange
+  syntax?: ExpressionSyntaxDescriptor
   position: {
     offset: number
     lineNumber: number
@@ -57,6 +61,13 @@ export interface CodeMirrorMdEditorProps
   modelValue: string
   readonly?: boolean
   autofocus?: boolean
+  /**
+   * Structured expression syntax definitions used for popup trigger, query parsing, and replacement range resolution.
+   */
+  expressionSyntaxes?: ExpressionSyntax[]
+  /**
+   * @deprecated Use `expressionSyntaxes` for fully supported custom expression syntaxes.
+   */
   triggerPatterns?: RegExp[]
   popupComponent?: Component
   popupProps?: Record<string, unknown>

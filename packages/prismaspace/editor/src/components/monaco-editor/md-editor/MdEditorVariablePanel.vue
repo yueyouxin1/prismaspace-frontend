@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { buildExpressionInsertText } from "../../expression-popup-utils";
 import { DefaultVariableTreePanel } from "../../variable-tree";
 import type { ExpressionPopupSelectPayload, MdEditorVariablePanelProps } from "./types";
 
@@ -17,11 +18,18 @@ const emit = defineEmits<{
 }>();
 
 function handlePick(payload: { insertValue: string }): void {
-  const trigger = props.context?.triggerText ?? "{{";
-  const closeToken = trigger === "${" ? "}" : "}}";
+  const syntax = props.context?.syntax ?? {
+    open: props.context?.triggerText ?? "{{",
+    close:
+      props.context?.triggerText === "{{"
+        ? "}}"
+        : props.context?.triggerText === "${"
+          ? "}"
+          : "",
+  };
 
   emit("select", {
-    insertText: `${trigger}${payload.insertValue}${closeToken}`,
+    insertText: buildExpressionInsertText(syntax, payload.insertValue),
     replaceRange: props.context?.defaultReplaceRange,
   });
 }
@@ -38,4 +46,3 @@ function handlePick(payload: { insertValue: string }): void {
     @close="emit('close')"
   />
 </template>
-

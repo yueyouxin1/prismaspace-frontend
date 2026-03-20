@@ -4,8 +4,13 @@ import type { Component } from 'vue'
 import type * as monaco from 'monaco-editor'
 import MonacoEditor from '../MonacoEditor.vue'
 import type { MonacoEditorExpose } from '../types'
-import { findInlineExpressionMatch } from '../../expression-popup-utils'
+import {
+  DEFAULT_EXPRESSION_SYNTAXES,
+  findInlineExpressionMatch,
+  findLegacyInlineExpressionMatch,
+} from '../../expression-popup-utils'
 import type {
+  ExpressionSyntaxDescriptor,
   ExpressionPopupContext,
   ExpressionPopupSelectPayload,
   MdEditorExpose,
@@ -13,6 +18,7 @@ import type {
 } from './types'
 
 type TriggerMatch = {
+  syntax: ExpressionSyntaxDescriptor
   triggerText: string
   queryText: string
   defaultReplaceRange: monaco.IRange
@@ -38,7 +44,6 @@ const props = withDefaults(defineProps<MdEditorProps>(), {
   readonly: false,
   autofocus: false,
   options: undefined,
-  triggerPatterns: () => [/\{\{[^}\n]*$/, /\$\{[^}\n]*$/],
   popupComponent: undefined,
   popupProps: undefined,
   expressionRules: () => [],
@@ -349,20 +354,28 @@ const handlePopupViewportChange = (): void => {
   updatePopupPosition()
 }
 
-const findTriggerMatch = (): TriggerMatch | null => {
-  const model = editor?.getModel()
-  const position = editor?.getPosition()
-  if (!model || !position) {
+const resolveTriggerMatch = (lineText: string, cursorIndex: number): TriggerMatch | null => {
+  const match = props.expressionSyntaxes !== undefined
+    ? (props.expressionSyntaxes.length
+        ? findInlineExpressionMatch(lineText, cursorIndex, props.expressionSyntaxes)
+        : null)
+    : props.triggerPatterns !== undefined
+      ? (props.triggerPatterns.length
+          ? findLegacyInlineExpressionMatch(lineText, cursorIndex, props.triggerPatterns)
+          : null)
+      : findInlineExpressionMatch(lineText, cursorIndex, DEFAULT_EXPRESSION_SYNTAXES)
+
+  if (!match || !editor) {
     return null
   }
 
-  const lineText = model.getLineContent(position.lineNumber)
-  const match = findInlineExpressionMatch(lineText, position.column - 1, props.triggerPatterns)
-  if (!match) {
+  const position = editor.getPosition()
+  if (!position) {
     return null
   }
 
   return {
+    syntax: match.syntax,
     triggerText: match.triggerText,
     queryText: match.queryText,
     defaultReplaceRange: {
@@ -373,6 +386,17 @@ const findTriggerMatch = (): TriggerMatch | null => {
     },
     position,
   }
+}
+
+const findTriggerMatch = (): TriggerMatch | null => {
+  const model = editor?.getModel()
+  const position = editor?.getPosition()
+  if (!model || !position) {
+    return null
+  }
+
+  const lineText = model.getLineContent(position.lineNumber)
+  return resolveTriggerMatch(lineText, position.column - 1)
 }
 
 const maybeShowPopup = (): void => {
@@ -394,6 +418,7 @@ const maybeShowPopup = (): void => {
   }
 
   currentContext = {
+    syntax: match.syntax,
     position: match.position,
     triggerText: match.triggerText,
     queryText: match.queryText,
@@ -600,6 +625,14 @@ watch(
         updatePopupPosition()
       })
     }
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.expressionSyntaxes,
+  () => {
+    maybeShowPopup()
   },
   { deep: true },
 )

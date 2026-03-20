@@ -2,6 +2,9 @@ import type { Component } from 'vue'
 import type * as monaco from 'monaco-editor'
 import type { MonacoEditorProps } from '../types'
 import type { VariableTreeInsertValueResolver, VariableTreeNode } from '../../variable-tree'
+import type { ExpressionSyntax, ExpressionSyntaxDescriptor } from '../../expression-popup-utils'
+
+export type { ExpressionSyntax, ExpressionSyntaxDescriptor } from '../../expression-popup-utils'
 
 export type ExpressionPopupSelectPayload = {
   insertText: string
@@ -13,6 +16,7 @@ export type ExpressionPopupContext = {
   triggerText: string
   queryText: string
   defaultReplaceRange: monaco.IRange
+  syntax?: ExpressionSyntaxDescriptor
 }
 
 export type MdExpressionRuleMode = 'highlight' | 'none'
@@ -36,6 +40,13 @@ export interface MdEditorProps
   path?: string
   readonly?: boolean
   autofocus?: boolean
+  /**
+   * Structured expression syntax definitions used for popup trigger, query parsing, and replacement range resolution.
+   */
+  expressionSyntaxes?: ExpressionSyntax[]
+  /**
+   * @deprecated Use `expressionSyntaxes` for fully supported custom expression syntaxes.
+   */
   triggerPatterns?: RegExp[]
   popupComponent?: Component
   popupProps?: Record<string, unknown>

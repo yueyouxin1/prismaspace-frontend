@@ -5,6 +5,7 @@ import {
   type CodeMirrorMdEditorExpose,
   type CodeMirrorMdExpressionRule,
   CodeMirrorMdEditorVariablePanel,
+  type ExpressionSyntax,
 } from "@prismaspace/editor"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
@@ -33,6 +34,19 @@ const popupEnabled = ref(true)
 const replaceEnabled = ref(true)
 const highlightEnabled = ref(true)
 const lastEvent = ref("等待触发...")
+
+const expressionSyntaxes: ExpressionSyntax[] = [
+  {
+    key: "mustache",
+    open: "{{",
+    close: "}}",
+  },
+  {
+    key: "template-string",
+    open: "${",
+    close: "}",
+  },
+]
 
 const baseReplaceRule: CodeMirrorMdExpressionRule = {
   key: "library-block",
@@ -137,7 +151,7 @@ function resetContent(): void {
         :readonly="readonly"
         :popup-component="popupEnabled ? CodeMirrorMdEditorVariablePanel : undefined"
         :popup-props="{ tree: demoExpressionVariableTree }"
-        :trigger-patterns="[/\{\{[^}\n]*$/, /\$\{[^}\n]*$/]"
+        :expression-syntaxes="expressionSyntaxes"
         :expression-rules="expressionRules"
         :height="460"
         placeholder="输入 Markdown，使用 {{ 或 ${ 触发表达式弹窗"

@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { MdEditor, MdEditorVariablePanel, type MdEditorExpose, type MdExpressionRule } from "@prismaspace/editor"
+import {
+  MdEditor,
+  MdEditorVariablePanel,
+  type ExpressionSyntax,
+  type MdEditorExpose,
+  type MdExpressionRule,
+} from "@prismaspace/editor"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
   Card,
@@ -31,6 +37,19 @@ const readonly = ref(false)
 const popupEnabled = ref(true)
 const expressionRenderEnabled = ref(true)
 const lastEvent = ref("等待触发...")
+
+const expressionSyntaxes: ExpressionSyntax[] = [
+  {
+    key: "mustache",
+    open: "{{",
+    close: "}}",
+  },
+  {
+    key: "template-string",
+    open: "${",
+    close: "}",
+  },
+]
 
 const expressionRules: MdExpressionRule[] = [
   {
@@ -127,7 +146,7 @@ function resetContent(): void {
         :readonly="readonly"
         :popup-component="popupEnabled ? MdEditorVariablePanel : undefined"
         :popup-props="{ tree: demoExpressionVariableTree }"
-        :trigger-patterns="[/\{\{[^}\n]*$/, /\$\{[^}\n]*$/]"
+        :expression-syntaxes="expressionSyntaxes"
         :expression-rules="expressionRenderEnabled ? expressionRules : []"
         :height="460"
         placeholder="输入 Markdown，使用 {{ 或 ${ 触发表达式弹窗"

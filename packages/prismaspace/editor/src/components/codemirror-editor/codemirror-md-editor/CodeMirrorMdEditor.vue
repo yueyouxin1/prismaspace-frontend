@@ -11,7 +11,11 @@ import {
 } from '@codemirror/view'
 import { createApp, h, nextTick, onBeforeUnmount, onMounted, ref, watch, computed } from 'vue'
 import CodeMirrorEditor from '../CodeMirrorEditor.vue'
-import { findInlineExpressionMatch } from '../../expression-popup-utils'
+import {
+  DEFAULT_EXPRESSION_SYNTAXES,
+  findInlineExpressionMatch,
+  findLegacyInlineExpressionMatch,
+} from '../../expression-popup-utils'
 import type {
   CodeMirrorEditorExpose,
   CodeMirrorEditorReadyPayload,
@@ -25,9 +29,11 @@ import type {
   CodeMirrorMdEditorRange,
   CodeMirrorMdExpressionContext,
   CodeMirrorMdExpressionRule,
+  ExpressionSyntaxDescriptor,
 } from './types'
 
 type TriggerMatch = {
+  syntax: ExpressionSyntaxDescriptor
   triggerText: string
   queryText: string
   replaceRange: CodeMirrorMdEditorRange
@@ -53,7 +59,6 @@ const props = withDefaults(defineProps<CodeMirrorMdEditorProps>(), {
   lineWrapping: false,
   readonly: false,
   autofocus: false,
-  triggerPatterns: () => [/\{\{[^}\n]*$/, /\$\{[^}\n]*$/],
   popupComponent: undefined,
   popupProps: undefined,
   expressionRules: () => [],
@@ -633,6 +638,37 @@ const updatePopupPosition = (offset: number): void => {
   }
 }
 
+const resolveTriggerMatch = (lineText: string, cursorIndex: number, lineFrom: number): TriggerMatch | null => {
+  const match = props.expressionSyntaxes !== undefined
+    ? (props.expressionSyntaxes.length
+        ? findInlineExpressionMatch(lineText, cursorIndex, props.expressionSyntaxes)
+        : null)
+    : props.triggerPatterns !== undefined
+      ? (props.triggerPatterns.length
+          ? findLegacyInlineExpressionMatch(lineText, cursorIndex, props.triggerPatterns)
+          : null)
+      : findInlineExpressionMatch(lineText, cursorIndex, DEFAULT_EXPRESSION_SYNTAXES)
+
+  if (!match) {
+    return null
+  }
+
+  return {
+    syntax: match.syntax,
+    triggerText: match.triggerText,
+    queryText: match.queryText,
+    replaceRange: {
+      from: lineFrom + match.startIndex,
+      to: lineFrom + match.endIndex,
+    },
+    position: {
+      offset: lineFrom + cursorIndex,
+      lineNumber: 0,
+      column: cursorIndex + 1,
+    },
+  }
+}
+
 const findTriggerMatch = (): TriggerMatch | null => {
   const currentView = view ?? editorRef.value?.getView()
   if (!currentView || !currentView.hasFocus) {
@@ -647,18 +683,13 @@ const findTriggerMatch = (): TriggerMatch | null => {
   const head = selection.head
   const line = currentView.state.doc.lineAt(head)
   const cursorIndex = head - line.from
-  const match = findInlineExpressionMatch(line.text, cursorIndex, props.triggerPatterns)
+  const match = resolveTriggerMatch(line.text, cursorIndex, line.from)
   if (!match) {
     return null
   }
 
   return {
-    triggerText: match.triggerText,
-    queryText: match.queryText,
-    replaceRange: {
-      from: line.from + match.startIndex,
-      to: line.from + match.endIndex,
-    },
+    ...match,
     position: {
       offset: head,
       lineNumber: line.number,
@@ -686,6 +717,7 @@ const maybeShowPopup = (): void => {
   }
 
   const context: CodeMirrorExpressionPopupContext = {
+    syntax: match.syntax,
     triggerText: match.triggerText,
     queryText: match.queryText,
     defaultReplaceRange: match.replaceRange,
@@ -794,6 +826,14 @@ watch(
     }
     maybeShowPopup()
   },
+)
+
+watch(
+  () => props.expressionSyntaxes,
+  () => {
+    maybeShowPopup()
+  },
+  { deep: true },
 )
 
 watch(

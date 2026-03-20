@@ -1,6 +1,8 @@
 export { default as CodeMirrorMdEditor } from './CodeMirrorMdEditor.vue'
 export { default as CodeMirrorMdEditorVariablePanel } from './CodeMirrorMdEditorVariablePanel.vue'
 export type {
+  ExpressionSyntax,
+  ExpressionSyntaxDescriptor,
   CodeMirrorExpressionPopupContext,
   CodeMirrorExpressionPopupSelectPayload,
   CodeMirrorMdEditorExpose,
