@@ -8,101 +8,14 @@ import type {
 } from '@prismaspace/contracts'
 import type { PromptInputMessage } from '@prismaspace/ui-ai-elements/components/ai-elements/prompt-input'
 import type { PrismaspaceClient } from '@prismaspace/sdk'
+import type { AttachmentSummary, DisplayMessage, SessionGroup, ToolCallView } from './agent-chat.types'
 import { createClient } from '@prismaspace/sdk'
-import { MessageResponse } from '@prismaspace/ui-ai-elements/components/ai-elements/message'
-import {
-  PromptInput,
-  PromptInputActionAddAttachments,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
-  PromptInputActionMenuTrigger,
-  PromptInputAttachment,
-  PromptInputAttachments,
-  PromptInputBody,
-  PromptInputButton,
-  PromptInputFooter,
-  PromptInputSpeechButton,
-  PromptInputTextarea,
-  PromptInputTools,
-} from '@prismaspace/ui-ai-elements/components/ai-elements/prompt-input'
-import {
-  AlertCircleIcon,
-  ArrowUpIcon,
-  AtSignIcon,
-  BotIcon,
-  BrainCircuitIcon,
-  CheckCheckIcon,
-  ChevronDownIcon,
-  Edit3Icon,
-  GlobeIcon,
-  Loader2Icon,
-  MenuIcon,
-  MessageSquareTextIcon,
-  MicIcon,
-  PlusIcon,
-  SparklesIcon,
-  SquareIcon,
-  TerminalSquareIcon,
-  Trash2Icon,
-  UserIcon,
-  WandSparklesIcon,
-  WrenchIcon,
-  XIcon,
-} from 'lucide-vue-next'
 import { nanoid } from 'nanoid'
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
-
-type MessageRole = 'user' | 'assistant' | 'system'
-type ToolStatus = 'running' | 'success' | 'error'
-
-interface AttachmentSummary {
-  id: string
-  name: string
-  size?: number
-  type?: string
-}
-
-interface SourceSummary {
-  title: string
-  url?: string | null
-}
-
-interface ToolCallView {
-  id: string
-  name: string
-  args: string
-  status: ToolStatus
-  result?: string
-  error?: string
-}
-
-interface DisplayMessage {
-  id: string
-  role: MessageRole
-  content: string
-  reasoning: string
-  createdAt: string
-  streaming: boolean
-  reasoningOpen: boolean
-  sourcesOpen: boolean
-  sources: SourceSummary[]
-  toolCalls: ToolCallView[]
-  attachments: AttachmentSummary[]
-  error?: string | null
-  runId?: string | null
-}
-
-interface UsageSummary {
-  promptTokens?: number
-  completionTokens?: number
-  totalTokens?: number
-}
-
-interface SessionGroup {
-  key: string
-  label: string
-  items: AgentSessionRead[]
-}
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import AgentChatHeader from './components/AgentChatHeader.vue'
+import AgentComposer from './components/AgentComposer.vue'
+import AgentConversationView from './components/AgentConversationView.vue'
+import AgentSessionList from './components/AgentSessionList.vue'
 
 const props = defineProps<{
   client?: PrismaspaceClient | null
@@ -112,6 +25,7 @@ const props = defineProps<{
   baseUrl?: string
   locale?: string
   title?: string
+  starterPrompts?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -130,22 +44,16 @@ const instanceDetail = ref<AnyInstanceRead | null>(null)
 const sessions = ref<AgentSessionRead[]>([])
 const messages = ref<DisplayMessage[]>([])
 const activeThreadId = ref<string | null>(null)
-const loadingInstance = ref(false)
 const loadingSessions = ref(false)
 const loadingMessages = ref(false)
 const creatingSession = ref(false)
 const isStreaming = ref(false)
 const shellError = ref<string | null>(null)
-const usage = ref<UsageSummary | null>(null)
 const useWebSearch = ref(false)
 const mobileSidebarOpen = ref(false)
 const renamingSessionId = ref<string | null>(null)
 const renamingTitle = ref('')
 const shellRef = ref<HTMLElement | null>(null)
-const scrollContainerRef = ref<HTMLElement | null>(null)
-const messageFeedRef = ref<HTMLElement | null>(null)
-const bottomAnchorRef = ref<HTMLElement | null>(null)
-const autoStickToBottom = ref(true)
 const currentRunId = ref<string | null>(null)
 const currentAssistantMessageId = ref<string | null>(null)
 const streamAbortController = shallowRef<AbortController | null>(null)
@@ -154,7 +62,6 @@ const streamingStoppedByUser = ref(false)
 const shellWidth = ref(0)
 
 let initializeTicket = 0
-let codeEnhanceTimer: number | undefined
 let shellResizeObserver: ResizeObserver | null = null
 
 const readHostAccessToken = (): string | null => {
@@ -184,46 +91,32 @@ const isZh = computed(() => resolvedLocale.value.toLowerCase().startsWith('zh'))
 const copy = computed(() => {
   if (isZh.value) {
     return {
-      brand: 'PrismaSpace',
-      workstation: '智能体可视化工作站',
-      newChat: 'New chat',
-      newChatHint: '⌘ K',
-      today: 'Today',
-      previous7Days: 'Previous 7 Days',
-      earlier: 'Earlier',
+      newChat: '新对话',
+      today: '今天',
+      previous7Days: '近 7 天',
+      earlier: '更早',
+      session: '会话',
       untitledSession: '未命名会话',
       loadingSessions: '正在加载会话...',
       loadingMessages: '正在加载消息...',
-      noSessions: '还没有历史会话，先发起一轮新对话。',
-      introTitle: '内容即界面',
-      introSubtitle: '在这里直接和后端 Agent 资源交互，查看思维链、工具链和最终交付内容。',
-      introPinnedSubtitle: '当前是固定 thread 模式，所有消息都会直接发送到这个会话。',
-      openingFallback: '你好，我是你的 Agent 助手。告诉我你的目标，我会直接开始分析。',
-      pinnedMode: '固定线程',
-      sessionMode: '会话工作站',
-      runtime: 'AG-UI Runtime',
-      thread: 'Thread',
-      session: 'Session',
-      connected: '已连接',
-      waiting: '等待连接',
+      noSessions: '还没有历史会话，开始一轮新的对话吧。',
+      openingFallback: '你好，今天想聊什么？',
       missingInstance: '缺少 instanceUuid，无法初始化 AgentChat。',
-      inputPlaceholder: '问 Agent 任何问题，或输入 / 调起命令...',
-      inputHint: 'Shift + Enter 换行',
+      inputPlaceholder: '你有什么想知道的，快来问问我',
       renamePlaceholder: '输入会话标题',
       deleteConfirm: '确认删除这个会话？',
-      directThread: '固定会话',
       attachmentOnlyPrompt: '请结合我附带的文件元信息继续处理。',
       attachmentOnlyLabel: '已附加文件',
       attachmentContext: 'Attached files metadata',
-      webSearch: '联网偏好',
+      attachFile: '添加附件',
+      webSearch: '联网检索',
       webSearchContext: 'User prefers web-enabled retrieval if the agent has access.',
       webSearchEnabled: '优先联网检索',
-      mention: '@ Agent',
       sources: '来源',
       showSources: '展开来源',
       hideSources: '收起来源',
-      thinking: 'Thinking process...',
-      analyzed: '已完成推理',
+      thinking: '已深度思考',
+      analyzed: '已完成思考',
       toolChain: '工具链',
       you: '你',
       agent: 'Agent',
@@ -235,55 +128,40 @@ const copy = computed(() => {
       failedDeleteSession: '删除会话失败。',
       failedExecute: 'Agent 执行失败。',
       noContent: '正在等待 Agent 输出...',
-      suggestions: '可直接试试这些问题',
       authFallback: '未显式传入 accessToken，将尝试使用当前站点登录态。',
-      copy: 'Copy',
-      copied: 'Copied!',
-      startConversation: '开始对话',
+      copy: '复制',
+      copied: '已复制',
+      disclaimer: '内容由 AI 生成，仅供参考',
     }
   }
 
   return {
-    brand: 'PrismaSpace',
-    workstation: 'Agent Workstation',
     newChat: 'New chat',
-    newChatHint: '⌘ K',
     today: 'Today',
     previous7Days: 'Previous 7 Days',
     earlier: 'Earlier',
+    session: 'Sessions',
     untitledSession: 'Untitled session',
     loadingSessions: 'Loading sessions...',
     loadingMessages: 'Loading messages...',
     noSessions: 'No sessions yet. Start a new conversation.',
-    introTitle: 'Content Is Interface',
-    introSubtitle: 'Talk to the backend Agent resource directly and inspect reasoning, tool usage, and final output.',
-    introPinnedSubtitle: 'Pinned thread mode is active. Every message is routed into this exact thread.',
-    openingFallback: 'Hello, I am your Agent assistant. Tell me the goal and I will start from there.',
-    pinnedMode: 'Pinned thread',
-    sessionMode: 'Session workstation',
-    runtime: 'AG-UI Runtime',
-    thread: 'Thread',
-    session: 'Session',
-    connected: 'Connected',
-    waiting: 'Waiting',
+    openingFallback: 'Hello, what would you like to explore?',
     missingInstance: 'Missing instanceUuid. AgentChat cannot initialize.',
-    inputPlaceholder: 'Ask the agent anything, or type / for commands...',
-    inputHint: 'Shift + Enter for a new line',
+    inputPlaceholder: 'What would you like to ask?',
     renamePlaceholder: 'Enter a session title',
     deleteConfirm: 'Delete this session?',
-    directThread: 'Pinned session',
     attachmentOnlyPrompt: 'Please continue with the attached file metadata.',
     attachmentOnlyLabel: 'Attached files',
     attachmentContext: 'Attached files metadata',
-    webSearch: 'Web preference',
+    attachFile: 'Attach file',
+    webSearch: 'Web search',
     webSearchContext: 'User prefers web-enabled retrieval if the agent has access.',
     webSearchEnabled: 'Prefer web search',
-    mention: '@ Agent',
     sources: 'Sources',
     showSources: 'Show sources',
     hideSources: 'Hide sources',
-    thinking: 'Thinking process...',
-    analyzed: 'Reasoning complete',
+    thinking: 'Reasoning',
+    analyzed: 'Reasoned through',
     toolChain: 'Tool chain',
     you: 'You',
     agent: 'Agent',
@@ -295,11 +173,10 @@ const copy = computed(() => {
     failedDeleteSession: 'Failed to delete session.',
     failedExecute: 'Agent execution failed.',
     noContent: 'Waiting for the agent to produce output...',
-    suggestions: 'Try one of these prompts',
     authFallback: 'No explicit accessToken was passed, falling back to the host session if available.',
     copy: 'Copy',
     copied: 'Copied!',
-    startConversation: 'Start conversation',
+    disclaimer: 'AI generated content, for reference only',
   }
 })
 
@@ -346,17 +223,6 @@ function readBoolean(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
-function readNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-  if (typeof value === 'string') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
-}
-
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return []
@@ -382,28 +248,6 @@ function ensureArray<T>(value: T | T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [value]
 }
 
-function shortenId(value: string | null | undefined, head = 8, tail = 6): string {
-  const raw = value?.trim()
-  if (!raw) {
-    return ''
-  }
-  if (raw.length <= head + tail + 3) {
-    return raw
-  }
-  return `${raw.slice(0, head)}...${raw.slice(-tail)}`
-}
-
-function formatTime(value: string): string {
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) {
-    return ''
-  }
-  return new Intl.DateTimeFormat(resolvedLocale.value, {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
-
 function deriveSessionTitle(text: string, attachments: AttachmentSummary[]): string {
   const normalized = text.trim().replace(/\s+/g, ' ')
   if (normalized) {
@@ -415,7 +259,7 @@ function deriveSessionTitle(text: string, attachments: AttachmentSummary[]): str
   return copy.value.untitledSession
 }
 
-function mergeSources(target: SourceSummary[], additions: SourceSummary[]): SourceSummary[] {
+function mergeSources(target: DisplayMessage['sources'], additions: DisplayMessage['sources']): DisplayMessage['sources'] {
   const next = [...target]
   additions.forEach((source) => {
     const key = `${source.title}::${source.url || ''}`
@@ -444,16 +288,19 @@ function upsertToolCall(target: ToolCallView[], addition: ToolCallView): ToolCal
 }
 
 const instanceName = computed(() => {
+  const instanceLabel = readString(instanceDetail.value?.name)
+  if (instanceLabel) {
+    return instanceLabel
+  }
+  const config = toRecord(instanceDetail.value?.agent_config)
+  const configName = readString(config.name) || readString(config.title)
+  if (configName) {
+    return configName
+  }
   if (props.title?.trim()) {
     return props.title.trim()
   }
-  const name = instanceDetail.value?.name
-  return typeof name === 'string' && name.trim() ? name.trim() : copy.value.agent
-})
-
-const instanceVersionTag = computed(() => {
-  const tag = instanceDetail.value?.version_tag
-  return typeof tag === 'string' && tag.trim() ? tag.trim() : ''
+  return copy.value.agent
 })
 
 const conversationConfig = computed(() => {
@@ -465,12 +312,14 @@ const conversationConfig = computed(() => {
   }
 })
 
-const currentSession = computed(() => {
-  return sessions.value.find(session => session.uuid === activeThreadId.value) ?? null
-})
-
 const visibleSuggestions = computed(() => {
-  const items = conversationConfig.value.presetQuestions
+  const overrideItems = Array.isArray(props.starterPrompts)
+    ? props.starterPrompts.map(item => item.trim()).filter(Boolean)
+    : []
+  const items = overrideItems.length > 0 ? overrideItems : conversationConfig.value.presetQuestions
+  if (overrideItems.length > 0) {
+    return items
+  }
   return conversationConfig.value.showAllPresetQuestions ? items : items.slice(0, 4)
 })
 
@@ -479,6 +328,16 @@ const showDesktopSidebar = computed(() => showSidebar.value && shellWidth.value 
 const showSidebarToggle = computed(() => showSidebar.value && !showDesktopSidebar.value)
 const showIntro = computed(() => !loadingMessages.value && messages.value.length === 0)
 const showAuthFallbackNotice = computed(() => !props.client && !props.accessToken && !!instanceUuid.value)
+const conversationViewKey = computed(() => activeThreadId.value || (showIntro.value ? 'empty-state' : 'chat-view'))
+
+const emptyStateText = computed(() => {
+  const opening = conversationConfig.value.openingMessage.trim() || copy.value.openingFallback
+  const parts = opening.split(/(?<=[。！？.!?])/).map(item => item.trim()).filter(Boolean)
+  return {
+    title: parts[0] || opening,
+    subtitle: parts.slice(1).join(' ').trim(),
+  }
+})
 
 const sessionGroups = computed<SessionGroup[]>(() => {
   const sorted = [...sessions.value].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
@@ -530,9 +389,9 @@ function resolveMessageText(message: AgentMessageRead): string {
   ].find(Boolean) || ''
 }
 
-function extractSources(message: AgentMessageRead): SourceSummary[] {
+function extractSources(message: AgentMessageRead): DisplayMessage['sources'] {
   const meta = toRecord(message.meta)
-  const next: SourceSummary[] = []
+  const next: DisplayMessage['sources'] = []
   const buckets = [meta.sources, meta.references, meta.citations, message.content_parts]
 
   buckets.forEach((bucket) => {
@@ -569,7 +428,7 @@ function extractToolCalls(message: AgentMessageRead): ToolCallView[] {
         || safeStringify(record.parameters || record.input || '')
     const result = readString(record.result) || readString(record.output)
     const statusRaw = readString(record.status)
-    const status: ToolStatus = statusRaw === 'error' ? 'error' : result ? 'success' : 'running'
+    const status: ToolCallView['status'] = statusRaw === 'error' ? 'error' : result ? 'success' : 'running'
     return {
       id,
       name,
@@ -603,7 +462,7 @@ function extractToolCalls(message: AgentMessageRead): ToolCallView[] {
   return fromToolCalls
 }
 
-function createDisplayMessage(role: MessageRole, content = ''): DisplayMessage {
+function createDisplayMessage(role: DisplayMessage['role'], content = ''): DisplayMessage {
   return {
     id: nanoid(),
     role,
@@ -708,7 +567,6 @@ async function loadInstance(currentTicket: number): Promise<void> {
   if (!resolvedClient.value || !instanceUuid.value) {
     return
   }
-  loadingInstance.value = true
   try {
     const data = await resolvedClient.value.resource.getInstance(instanceUuid.value)
     if (currentTicket !== initializeTicket) {
@@ -718,10 +576,6 @@ async function loadInstance(currentTicket: number): Promise<void> {
   } catch (error) {
     if (currentTicket === initializeTicket) {
       setShellError(copy.value.failedLoadInstance, error)
-    }
-  } finally {
-    if (currentTicket === initializeTicket) {
-      loadingInstance.value = false
     }
   }
 }
@@ -761,9 +615,6 @@ async function loadMessages(threadId: string, currentTicket = initializeTicket):
       return
     }
     messages.value = foldPersistedMessages(history)
-    await nextTick()
-    queueEnhancements()
-    scrollToBottom('auto')
   } catch (error) {
     if (currentTicket === initializeTicket) {
       messages.value = []
@@ -780,6 +631,7 @@ async function activateThread(nextThreadId: string | null, options?: { loadHisto
   activeThreadId.value = nextThreadId
   emitThreadChange(nextThreadId)
   emitSessionChange(nextThreadId)
+  renamingSessionId.value = null
   if (options?.closeSidebar) {
     mobileSidebarOpen.value = false
   }
@@ -788,6 +640,7 @@ async function activateThread(nextThreadId: string | null, options?: { loadHisto
     return
   }
   if (options?.loadHistory !== false) {
+    messages.value = []
     await loadMessages(nextThreadId)
   }
 }
@@ -889,7 +742,7 @@ function createAttachmentSummaries(input: PromptInputMessage['files']): Attachme
     const maybeFile = raw.file instanceof File ? raw.file : null
     return {
       id: readString(raw.id) || `file-${index}-${nanoid(6)}`,
-      name: readString(raw.filename) || 'Attachment',
+      name: readString(raw.filename) || copy.value.attachFile,
       size: maybeFile?.size,
       type: readString(raw.mediaType) || undefined,
     }
@@ -928,7 +781,7 @@ function markStreamingFinished(options?: { error?: string | null }): void {
     if (options?.error) {
       target.error = options.error
     }
-    if (target.reasoning && !options?.error) {
+    if (target.reasoning && !options?.error && typeof window !== 'undefined') {
       window.setTimeout(() => {
         const latest = messages.value.find(message => message.id === target.id)
         if (!latest || latest.streaming) {
@@ -941,22 +794,6 @@ function markStreamingFinished(options?: { error?: string | null }): void {
   }
   currentAssistantMessageId.value = null
   currentRunId.value = null
-  queueEnhancements()
-}
-
-function normalizeUsage(raw: unknown): UsageSummary | null {
-  const data = toRecord(raw)
-  const promptTokens = readNumber(data.promptTokens ?? data.prompt_tokens)
-  const completionTokens = readNumber(data.completionTokens ?? data.completion_tokens)
-  const totalTokens = readNumber(data.totalTokens ?? data.total_tokens)
-  if (promptTokens === null && completionTokens === null && totalTokens === null) {
-    return null
-  }
-  return {
-    promptTokens: promptTokens ?? undefined,
-    completionTokens: completionTokens ?? undefined,
-    totalTokens: totalTokens ?? undefined,
-  }
 }
 
 function buildRunPayload(threadId: string, userMessage: DisplayMessage): RunAgentInputExtRequest {
@@ -1004,7 +841,6 @@ async function submitToAgent(payload: RunAgentInputExtRequest): Promise<void> {
     return
   }
 
-  usage.value = null
   shellError.value = null
   currentRunId.value = payload.runId
   ensureCurrentAssistantMessage(payload.runId)
@@ -1087,10 +923,6 @@ async function submitToAgent(payload: RunAgentInputExtRequest): Promise<void> {
           }
         })
       },
-      onUsage: (event) => {
-        const data = toRecord(event.data)
-        usage.value = normalizeUsage(data.value)
-      },
       onServerError: (event) => {
         const data = toRecord(event.data)
         const errorMessage = readString(data.message) || copy.value.failedExecute
@@ -1147,8 +979,6 @@ async function handleSubmit(input: PromptInputMessage): Promise<void> {
   userMessage.attachments = attachments
   messages.value = [...messages.value, userMessage]
   touchSession(threadId)
-  await nextTick()
-  scrollToBottom('smooth')
   await submitToAgent(buildRunPayload(threadId, userMessage))
 }
 
@@ -1171,95 +1001,6 @@ function handleSuggestionClick(suggestion: string): void {
   void handleSubmit({ text: suggestion, files: [] })
 }
 
-function handleScroll(): void {
-  const container = scrollContainerRef.value
-  if (!container) {
-    return
-  }
-  autoStickToBottom.value = container.scrollHeight - container.scrollTop - container.clientHeight < 120
-}
-
-function scrollToBottom(behavior: ScrollBehavior = 'smooth'): void {
-  if (!bottomAnchorRef.value) {
-    return
-  }
-  if (!autoStickToBottom.value && behavior === 'smooth') {
-    return
-  }
-  bottomAnchorRef.value.scrollIntoView({ block: 'end', behavior })
-}
-
-function detectToolIcon(name: string) {
-  const value = name.toLowerCase()
-  if (value.includes('search') || value.includes('web')) {
-    return GlobeIcon
-  }
-  if (value.includes('code') || value.includes('terminal') || value.includes('exec')) {
-    return TerminalSquareIcon
-  }
-  if (value.includes('agent') || value.includes('workflow')) {
-    return WandSparklesIcon
-  }
-  return WrenchIcon
-}
-
-function queueEnhancements(): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-  if (codeEnhanceTimer) {
-    window.clearTimeout(codeEnhanceTimer)
-  }
-  codeEnhanceTimer = window.setTimeout(() => {
-    enhanceCodeBlocks()
-  }, 0)
-}
-
-function enhanceCodeBlocks(): void {
-  const root = messageFeedRef.value
-  if (!root || typeof document === 'undefined') {
-    return
-  }
-  const blocks = root.querySelectorAll<HTMLElement>('.agent-chat-markdown pre')
-  blocks.forEach((pre) => {
-    if (pre.parentElement?.classList.contains('agent-code-shell')) {
-      return
-    }
-    const wrapper = document.createElement('div')
-    wrapper.className = 'agent-code-shell'
-
-    const toolbar = document.createElement('div')
-    toolbar.className = 'agent-code-toolbar'
-
-    const language = document.createElement('span')
-    language.className = 'agent-code-language'
-    const code = pre.querySelector('code')
-    const className = code?.className || ''
-    const match = className.match(/language-([\w-]+)/)
-    language.textContent = (match?.[1] || 'text').toUpperCase()
-
-    const copyButton = document.createElement('button')
-    copyButton.type = 'button'
-    copyButton.className = 'agent-code-copy'
-    copyButton.textContent = copy.value.copy
-    copyButton.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(code?.textContent || pre.textContent || '')
-        copyButton.textContent = copy.value.copied
-        window.setTimeout(() => {
-          copyButton.textContent = copy.value.copy
-        }, 1500)
-      } catch {
-        copyButton.textContent = copy.value.copy
-      }
-    })
-
-    toolbar.append(language, copyButton)
-    pre.parentElement?.insertBefore(wrapper, pre)
-    wrapper.append(toolbar, pre)
-  })
-}
-
 function syncShellWidth(element: HTMLElement | null): void {
   shellWidth.value = element ? Math.round(element.getBoundingClientRect().width) : 0
 }
@@ -1278,11 +1019,6 @@ watch(shellRef, (next) => {
   shellResizeObserver.observe(next)
 })
 
-watch(scrollContainerRef, (next, prev) => {
-  prev?.removeEventListener('scroll', handleScroll)
-  next?.addEventListener('scroll', handleScroll, { passive: true })
-})
-
 watch(showSidebarToggle, (value) => {
   if (!value) {
     mobileSidebarOpen.value = false
@@ -1297,9 +1033,9 @@ watch(
 
     stopStreaming()
     shellError.value = null
-    usage.value = null
     mobileSidebarOpen.value = false
     renamingSessionId.value = null
+    renamingTitle.value = ''
     messages.value = []
     sessions.value = []
     instanceDetail.value = null
@@ -1342,872 +1078,94 @@ watch(
   { immediate: true },
 )
 
-watch(
-  () => messages.value.map(message => `${message.id}:${message.content.length}:${message.reasoning.length}:${message.toolCalls.length}:${message.streaming ? 1 : 0}`).join('|'),
-  async () => {
-    await nextTick()
-    queueEnhancements()
-    scrollToBottom(isStreaming.value ? 'auto' : 'smooth')
-  },
-)
-
 onBeforeUnmount(() => {
-  scrollContainerRef.value?.removeEventListener('scroll', handleScroll)
   streamAbortController.value?.abort()
   streamConnection.value?.close?.()
   shellResizeObserver?.disconnect()
   shellResizeObserver = null
-  if (codeEnhanceTimer && typeof window !== 'undefined') {
-    window.clearTimeout(codeEnhanceTimer)
-  }
 })
 </script>
 
 <template>
-  <div ref="shellRef" class="agent-chat-shell relative flex h-full min-h-0 w-full overflow-hidden bg-[#fcfcfc] font-['Geist','Inter','Segoe_UI',sans-serif] text-slate-900">
-    <div class="pointer-events-none absolute inset-0">
-      <div class="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.10),_transparent_52%)]" />
-      <div class="absolute bottom-0 right-0 h-64 w-64 bg-[radial-gradient(circle_at_center,_rgba(15,23,42,0.06),_transparent_58%)]" />
-    </div>
-
-    <aside
+  <div
+    ref="shellRef"
+    class="relative flex h-full min-h-0 w-full overflow-hidden bg-[#fafafa] font-['Geist','Inter','Segoe_UI',sans-serif] text-slate-900"
+  >
+    <AgentSessionList
       v-if="showDesktopSidebar"
-      class="agent-chat-sidebar relative z-10 flex h-full w-[280px] shrink-0 flex-col bg-[#f9fafb]/92 px-4 pb-4 pt-5 backdrop-blur-xl"
-    >
-      <div class="flex items-center gap-3 px-2">
-        <div class="flex size-10 items-center justify-center rounded-2xl bg-white shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80">
-          <BotIcon class="size-4.5 text-slate-900" />
-        </div>
-        <div class="min-w-0">
-          <p class="truncate text-sm font-semibold text-slate-900">{{ copy.brand }}</p>
-          <p class="truncate text-xs text-slate-500">{{ copy.workstation }}</p>
-        </div>
-      </div>
+      :loading="loadingSessions"
+      :creating="creatingSession"
+      :session-groups="sessionGroups"
+      :active-thread-id="activeThreadId"
+      :renaming-session-id="renamingSessionId"
+      :renaming-title="renamingTitle"
+      :copy="copy"
+      @create="handleNewSession"
+      @select="activateThread($event, { closeSidebar: true })"
+      @begin-rename="beginRename"
+      @submit-rename="submitRename"
+      @cancel-rename="cancelRename"
+      @delete="deleteSession"
+      @update:renaming-title="renamingTitle = $event"
+    />
 
-      <button
-        type="button"
-        class="mt-6 flex w-full items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-left text-white transition-all duration-150 hover:bg-black active:scale-[0.99]"
-        :disabled="creatingSession"
-        @click="handleNewSession"
-      >
-        <span class="flex items-center gap-2 text-sm font-medium">
-          <PlusIcon class="size-4" />
-          {{ copy.newChat }}
-        </span>
-        <span class="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70">{{ copy.newChatHint }}</span>
-      </button>
+    <div class="flex min-w-0 flex-1 flex-col bg-[#fafafa]">
+      <AgentChatHeader
+        :title="instanceName"
+        :show-sidebar-toggle="showSidebarToggle"
+        :can-create-session="showSidebar"
+        :creating-session="creatingSession"
+        :sidebar-label="copy.session"
+        :new-chat-label="copy.newChat"
+        @toggle-sidebar="mobileSidebarOpen = true"
+        @new-session="handleNewSession"
+      />
 
-      <div class="agent-chat-scroll mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
-        <div v-if="loadingSessions" class="px-2 py-3 text-sm text-slate-500">
-          {{ copy.loadingSessions }}
-        </div>
+      <AgentConversationView
+        :conversation-key="conversationViewKey"
+        :messages="messages"
+        :shell-error="shellError"
+        :show-auth-fallback-notice="showAuthFallbackNotice"
+        :show-intro="showIntro"
+        :empty-title="emptyStateText.title"
+        :empty-subtitle="emptyStateText.subtitle"
+        :loading-messages="loadingMessages"
+        :copy="copy"
+      />
 
-        <div v-else-if="sessionGroups.length === 0" class="px-2 py-4 text-sm leading-6 text-slate-500">
-          {{ copy.noSessions }}
-        </div>
-
-        <div v-else class="space-y-6">
-          <section v-for="group in sessionGroups" :key="group.key" class="space-y-2">
-            <div class="px-2 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
-              {{ group.label }}
-            </div>
-
-            <button
-              v-for="session in group.items"
-              :key="session.uuid"
-              type="button"
-              class="group flex h-10 w-full items-center gap-2 rounded-lg px-2 text-left transition-all duration-150 hover:bg-slate-100"
-              :class="session.uuid === activeThreadId ? 'bg-white text-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80' : 'text-slate-700'"
-              @click="activateThread(session.uuid, { closeSidebar: true })"
-            >
-              <MessageSquareTextIcon class="size-3.5 shrink-0 text-slate-400" />
-              <div class="min-w-0 flex-1">
-                <template v-if="renamingSessionId === session.uuid">
-                  <input
-                    v-model="renamingTitle"
-                    :placeholder="copy.renamePlaceholder"
-                    class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[13px] font-medium outline-none ring-0 transition-colors focus:border-slate-300"
-                    @blur="submitRename(session)"
-                    @keydown.enter.prevent="submitRename(session)"
-                    @keydown.esc.prevent="cancelRename"
-                  >
-                </template>
-                <template v-else>
-                  <p class="truncate text-[13px]" :class="session.uuid === activeThreadId ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'">
-                    {{ session.title || copy.untitledSession }}
-                  </p>
-                </template>
-              </div>
-
-              <div class="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                <button
-                  type="button"
-                  class="flex size-8 items-center justify-center rounded-full text-slate-400 transition-all duration-150 hover:bg-slate-200 hover:text-slate-900 active:scale-95"
-                  @click.stop="beginRename(session)"
-                >
-                  <Edit3Icon class="size-3.5" />
-                </button>
-                <button
-                  type="button"
-                  class="flex size-8 items-center justify-center rounded-full text-slate-400 transition-all duration-150 hover:bg-slate-200 hover:text-rose-600 active:scale-95"
-                  @click.stop="deleteSession(session)"
-                >
-                  <Trash2Icon class="size-3.5" />
-                </button>
-              </div>
-            </button>
-          </section>
-        </div>
-      </div>
-    </aside>
-
-    <div class="relative z-10 flex min-w-0 flex-1 flex-col">
-      <header class="sticky top-0 z-20 border-b border-white/50 bg-white/80 px-4 py-3 backdrop-blur-xl md:px-8">
-        <div class="agent-chat-header-shell mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <div class="flex min-w-0 items-center gap-3">
-            <button
-              v-if="showSidebarToggle"
-              type="button"
-              class="agent-chat-menu-button flex size-10 items-center justify-center rounded-full text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
-              @click="mobileSidebarOpen = true"
-            >
-              <MenuIcon class="size-4.5" />
-            </button>
-
-            <div class="agent-chat-header-card flex min-w-0 items-center gap-3 rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
-              <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
-                <BotIcon class="size-4" />
-              </div>
-              <div class="min-w-0">
-                <p class="truncate text-sm font-semibold text-slate-900">{{ instanceName }}</p>
-                <p class="truncate text-xs text-slate-500">
-                  {{ isPinnedThreadMode ? copy.directThread : copy.sessionMode }}
-                  <template v-if="activeThreadId">
-                    · {{ shortenId(activeThreadId) }}
-                  </template>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="agent-chat-header-actions flex items-center gap-2">
-            <div class="agent-chat-runtime-pill hidden rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 text-xs text-slate-500 shadow-[0_8px_30px_rgba(15,23,42,0.04)] sm:flex sm:items-center sm:gap-2">
-              <SparklesIcon class="size-3.5 text-indigo-500" />
-              <span>{{ copy.runtime }}</span>
-            </div>
-
-            <button type="button" class="agent-chat-version-pill flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 text-left shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
-              <div class="min-w-0">
-                <p class="truncate text-xs uppercase tracking-[0.14em] text-slate-400">{{ copy.runtime }}</p>
-                <p class="truncate text-sm font-medium text-slate-900">{{ instanceVersionTag || copy.connected }}</p>
-              </div>
-              <ChevronDownIcon class="size-4 shrink-0 text-slate-400" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div ref="scrollContainerRef" class="agent-chat-feed agent-chat-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-32 md:px-8">
-        <div ref="messageFeedRef" class="agent-chat-message-feed mx-auto flex max-w-3xl flex-col gap-8 py-8">
-          <div
-            v-if="shellError"
-            class="rounded-[24px] border border-rose-200 bg-rose-50/90 px-5 py-4 text-sm text-rose-700 shadow-[0_12px_30px_rgba(244,63,94,0.08)]"
-          >
-            <div class="flex items-start gap-3">
-              <AlertCircleIcon class="mt-0.5 size-4 shrink-0" />
-              <div class="min-w-0">
-                <p class="font-semibold">{{ shellError }}</p>
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-if="showAuthFallbackNotice"
-            class="rounded-[20px] border border-slate-200/80 bg-white/85 px-4 py-3 text-xs leading-6 text-slate-500 shadow-[0_12px_30px_rgba(15,23,42,0.04)]"
-          >
-            {{ copy.authFallback }}
-          </div>
-
-          <section
-            v-if="showIntro"
-            class="agent-chat-intro overflow-hidden rounded-[32px] border border-slate-200/70 bg-white/92 shadow-[0_20px_60px_rgba(15,23,42,0.06)]"
-          >
-            <div class="agent-chat-intro-body border-b border-slate-100 px-6 py-6 md:px-8">
-              <div class="flex flex-wrap items-center gap-3">
-                <div class="flex size-12 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-[0_16px_36px_rgba(15,23,42,0.18)]">
-                  <WandSparklesIcon class="size-5" />
-                </div>
-                <div class="min-w-0">
-                  <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{{ copy.workstation }}</p>
-                  <h2 class="text-xl font-semibold tracking-tight text-slate-950">{{ copy.introTitle }}</h2>
-                </div>
-              </div>
-
-              <p class="mt-5 max-w-2xl text-[15px] leading-7 text-slate-600">
-                {{ isPinnedThreadMode ? copy.introPinnedSubtitle : copy.introSubtitle }}
-              </p>
-
-              <div class="mt-6 rounded-[24px] bg-[#fcfcfc] px-5 py-4 ring-1 ring-slate-200/70">
-                <div class="flex items-start gap-3">
-                  <div class="mt-0.5 flex size-8 items-center justify-center rounded-full bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70">
-                    <BotIcon class="size-4 text-slate-900" />
-                  </div>
-                  <div class="min-w-0">
-                    <p class="text-sm font-semibold text-slate-900">{{ instanceName }}</p>
-                    <p class="mt-1 text-[15px] leading-7 text-slate-700">{{ conversationConfig.openingMessage }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="agent-chat-intro-footer px-6 py-6 md:px-8">
-              <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                <BrainCircuitIcon class="size-3.5" />
-                {{ copy.suggestions }}
-              </div>
-
-              <div class="mt-4 flex flex-wrap gap-3">
-                <button
-                  v-for="suggestion in visibleSuggestions"
-                  :key="suggestion"
-                  type="button"
-                  class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 active:scale-95"
-                  @click="handleSuggestionClick(suggestion)"
-                >
-                  {{ suggestion }}
-                </button>
-                <button
-                  v-if="!visibleSuggestions.length && showSidebar"
-                  type="button"
-                  class="rounded-full border border-slate-200 bg-slate-950 px-4 py-2 text-sm text-white transition-all duration-150 hover:bg-black active:scale-95"
-                  @click="handleNewSession"
-                >
-                  {{ copy.startConversation }}
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <div
-            v-if="loadingMessages"
-            class="rounded-[24px] border border-slate-200/70 bg-white/85 px-5 py-4 text-sm text-slate-500 shadow-[0_12px_30px_rgba(15,23,42,0.04)]"
-          >
-            {{ copy.loadingMessages }}
-          </div>
-
-          <template v-for="message in messages" :key="message.id">
-            <div class="agent-chat-message-row flex items-start gap-4 md:gap-5" :class="message.role === 'assistant' ? 'agent-stream-in' : ''">
-              <div
-                class="mt-1 flex size-9 shrink-0 items-center justify-center rounded-full shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1"
-                :class="message.role === 'user' ? 'bg-white text-slate-900 ring-slate-200/80' : 'bg-slate-950 text-white ring-slate-900/10'"
-              >
-                <UserIcon v-if="message.role === 'user'" class="size-4" />
-                <BotIcon v-else class="size-4" />
-              </div>
-
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-sm font-semibold text-slate-900">{{ message.role === 'user' ? copy.you : instanceName }}</span>
-                  <span class="text-xs text-slate-400">{{ formatTime(message.createdAt) }}</span>
-                  <span
-                    v-if="message.streaming"
-                    class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500"
-                  >
-                    <span class="agent-chat-dots" aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                    </span>
-                    {{ copy.waiting }}
-                  </span>
-                </div>
-
-                <div v-if="message.role === 'user'" class="pt-3">
-                  <p v-if="message.content" class="whitespace-pre-wrap text-[15px] leading-7 text-slate-900">
-                    {{ message.content }}
-                  </p>
-                  <p v-else class="text-[15px] leading-7 text-slate-500">
-                    {{ copy.attachmentOnlyLabel }}
-                  </p>
-
-                  <div v-if="message.attachments.length" class="mt-4 flex flex-wrap gap-2">
-                    <span
-                      v-for="attachment in message.attachments"
-                      :key="attachment.id"
-                      class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
-                    >
-                      <span class="truncate max-w-[180px]">{{ attachment.name }}</span>
-                    </span>
-                  </div>
-                </div>
-
-                <div v-else class="agent-chat-assistant-stack space-y-3 pt-3">
-                  <button
-                    v-if="message.reasoning"
-                    type="button"
-                    class="flex w-full items-center justify-between rounded-full border border-slate-200 bg-white px-4 py-2 text-left shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition-all duration-150 hover:border-slate-300 hover:bg-slate-50"
-                    @click="message.reasoningOpen = !message.reasoningOpen"
-                  >
-                    <span class="flex min-w-0 items-center gap-2">
-                      <span
-                        class="flex size-6 items-center justify-center rounded-full"
-                        :class="message.streaming ? 'bg-indigo-50 text-indigo-500' : 'bg-emerald-50 text-emerald-600'"
-                      >
-                        <Loader2Icon v-if="message.streaming" class="size-3.5 animate-spin" />
-                        <CheckCheckIcon v-else class="size-3.5" />
-                      </span>
-                      <span class="truncate text-xs font-medium text-slate-500">
-                        {{ message.streaming ? copy.thinking : copy.analyzed }}
-                      </span>
-                    </span>
-                    <ChevronDownIcon class="size-4 shrink-0 text-slate-400 transition-transform duration-300" :class="message.reasoningOpen ? 'rotate-180' : ''" />
-                  </button>
-
-                  <transition
-                    enter-active-class="transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]"
-                    enter-from-class="translate-y-1 opacity-0"
-                    enter-to-class="translate-y-0 opacity-100"
-                    leave-active-class="transition-all duration-200 ease-out"
-                    leave-from-class="translate-y-0 opacity-100"
-                    leave-to-class="-translate-y-1 opacity-0"
-                  >
-                    <div
-                      v-if="message.reasoning && message.reasoningOpen"
-                      class="rounded-[24px] border border-indigo-100 bg-white/90 px-5 py-4 shadow-[0_12px_30px_rgba(99,102,241,0.08)]"
-                    >
-                      <div class="border-l-2 border-indigo-100 pl-4 font-mono text-[12px] leading-6 text-slate-600 whitespace-pre-wrap">
-                        {{ message.reasoning }}
-                      </div>
-                    </div>
-                  </transition>
-
-                  <div v-if="message.toolCalls.length" class="flex flex-wrap gap-2">
-                    <div
-                      v-for="tool in message.toolCalls"
-                      :key="tool.id"
-                      class="agent-chat-tool-card rounded-full border bg-white px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.04)]"
-                      :class="tool.status === 'error'
-                        ? 'border-rose-200 text-rose-600'
-                        : tool.status === 'success'
-                          ? 'border-emerald-200 text-emerald-700'
-                          : 'border-slate-200 text-slate-600'"
-                    >
-                      <div class="flex items-center gap-2 text-xs font-medium">
-                        <component
-                          :is="detectToolIcon(tool.name)"
-                          class="size-3.5"
-                          :class="tool.status === 'running' ? 'animate-pulse' : ''"
-                        />
-                        <span class="truncate max-w-[180px]">{{ tool.name }}</span>
-                      </div>
-                      <p v-if="tool.args" class="mt-1 max-w-[260px] truncate font-mono text-[11px] opacity-70">
-                        {{ tool.args }}
-                      </p>
-                      <p v-if="tool.result" class="mt-1 max-w-[260px] truncate text-[11px] opacity-80">
-                        {{ tool.result }}
-                      </p>
-                      <p v-if="tool.error" class="mt-1 max-w-[260px] truncate text-[11px] text-rose-600">
-                        {{ tool.error }}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="agent-chat-message-card rounded-[28px] bg-white/92 px-6 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/70 backdrop-blur-md">
-                    <div
-                      v-if="message.error"
-                      class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-                    >
-                      {{ message.error }}
-                    </div>
-
-                    <MessageResponse
-                      v-if="message.content"
-                      :content="message.content"
-                      class="agent-chat-markdown"
-                    />
-
-                    <div v-else class="flex items-center gap-3 text-sm text-slate-500">
-                      <span class="agent-chat-dots" aria-hidden="true">
-                        <span />
-                        <span />
-                        <span />
-                      </span>
-                      {{ copy.noContent }}
-                    </div>
-                  </div>
-
-                  <div
-                    v-if="message.sources.length"
-                    class="overflow-hidden rounded-[22px] border border-slate-200 bg-white/90 shadow-[0_12px_30px_rgba(15,23,42,0.04)]"
-                  >
-                    <button
-                      type="button"
-                      class="flex w-full items-center justify-between px-4 py-3 text-left"
-                      @click="message.sourcesOpen = !message.sourcesOpen"
-                    >
-                      <span class="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">{{ copy.sources }}</span>
-                      <span class="flex items-center gap-2 text-xs text-slate-500">
-                        {{ message.sourcesOpen ? copy.hideSources : copy.showSources }}
-                        <ChevronDownIcon class="size-4 transition-transform duration-300" :class="message.sourcesOpen ? 'rotate-180' : ''" />
-                      </span>
-                    </button>
-
-                    <div v-if="message.sourcesOpen" class="grid gap-2 px-4 pb-4">
-                      <a
-                        v-for="source in message.sources"
-                        :key="`${source.title}-${source.url || ''}`"
-                        :href="source.url || '#'"
-                        :target="source.url ? '_blank' : undefined"
-                        :rel="source.url ? 'noreferrer' : undefined"
-                        class="rounded-2xl border border-slate-200 bg-[#fcfcfc] px-4 py-3 text-sm transition-all duration-150 hover:border-slate-300 hover:bg-white"
-                      >
-                        <p class="truncate font-medium text-slate-800">{{ source.title }}</p>
-                        <p v-if="source.url" class="mt-1 truncate text-xs text-slate-500">{{ source.url }}</p>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <div ref="bottomAnchorRef" class="h-px" />
-        </div>
-      </div>
-
-      <div class="agent-chat-composer-shell sticky bottom-0 z-20 mt-auto px-4 pb-4 md:px-8 md:pb-6">
-        <div class="pointer-events-none absolute inset-x-0 bottom-full h-24 bg-gradient-to-t from-[#fcfcfc] via-[#fcfcfc]/88 to-transparent" />
-
-        <div class="mx-auto max-w-3xl">
-          <div v-if="usage" class="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span class="rounded-full bg-white px-3 py-1 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/80">
-              Prompt {{ usage.promptTokens ?? '-' }}
-            </span>
-            <span class="rounded-full bg-white px-3 py-1 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/80">
-              Completion {{ usage.completionTokens ?? '-' }}
-            </span>
-            <span class="rounded-full bg-white px-3 py-1 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/80">
-              Total {{ usage.totalTokens ?? '-' }}
-            </span>
-          </div>
-
-          <PromptInput
-            class="agent-chat-composer w-full rounded-[24px] border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]"
-            multiple
-            global-drop
-            @submit="handleSubmit"
-            @error="handlePromptInputError"
-          >
-            <PromptInputAttachments class="w-full border-b border-slate-100 px-4 py-3">
-              <template #default="{ file }">
-                <PromptInputAttachment :file="file" class="rounded-full border-slate-200 bg-slate-50" />
-              </template>
-            </PromptInputAttachments>
-
-            <PromptInputBody>
-              <PromptInputTextarea
-                :placeholder="copy.inputPlaceholder"
-                class="min-h-[96px] max-h-[220px] resize-none border-0 bg-transparent px-4 pt-4 text-[15px] leading-7 text-slate-900 shadow-none outline-none focus-visible:ring-0"
-              />
-            </PromptInputBody>
-
-            <PromptInputFooter class="agent-chat-input-footer border-t border-slate-100 px-3 py-3">
-              <PromptInputTools class="gap-1">
-                <PromptInputActionMenu>
-                  <PromptInputActionMenuTrigger />
-                  <PromptInputActionMenuContent>
-                    <PromptInputActionAddAttachments />
-                  </PromptInputActionMenuContent>
-                </PromptInputActionMenu>
-
-                <PromptInputButton :title="copy.webSearchEnabled" :variant="useWebSearch ? 'default' : 'ghost'" @click="toggleWebSearch">
-                  <GlobeIcon class="size-4" />
-                  <span class="agent-chat-web-label hidden sm:inline">{{ copy.webSearch }}</span>
-                </PromptInputButton>
-
-                <PromptInputSpeechButton class="[&>svg]:size-4">
-                  <MicIcon class="size-4" />
-                </PromptInputSpeechButton>
-
-                <PromptInputButton :title="copy.mention" disabled>
-                  <AtSignIcon class="size-4" />
-                </PromptInputButton>
-              </PromptInputTools>
-
-              <div class="agent-chat-input-actions flex items-center gap-2">
-                <span class="agent-chat-input-hint hidden text-[11px] text-slate-400 sm:block">{{ copy.inputHint }}</span>
-
-                <button
-                  v-if="isStreaming"
-                  type="button"
-                  class="flex size-11 items-center justify-center rounded-full bg-slate-950 text-white transition-all duration-150 hover:bg-black active:scale-95"
-                  @click="stopStreaming"
-                >
-                  <SquareIcon class="size-4" />
-                </button>
-
-                <button
-                  v-else
-                  type="submit"
-                  class="flex size-11 items-center justify-center rounded-full bg-slate-950 text-white transition-all duration-150 hover:bg-black active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-                >
-                  <ArrowUpIcon class="size-4" />
-                </button>
-              </div>
-            </PromptInputFooter>
-          </PromptInput>
-        </div>
-      </div>
+      <AgentComposer
+        :copy="copy"
+        :placeholder="copy.inputPlaceholder"
+        :suggestions="visibleSuggestions"
+        :show-suggestions="showIntro"
+        :use-web-search="useWebSearch"
+        :is-streaming="isStreaming"
+        @submit="handleSubmit"
+        @error="handlePromptInputError"
+        @toggle-web-search="toggleWebSearch"
+        @stop-streaming="stopStreaming"
+        @suggestion-click="handleSuggestionClick"
+      />
     </div>
 
-    <div v-if="mobileSidebarOpen && showSidebarToggle" class="agent-chat-sidebar-overlay fixed inset-0 z-40">
-      <button type="button" class="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" @click="mobileSidebarOpen = false" />
-
-      <aside class="agent-chat-drawer relative z-10 flex h-full w-[86vw] max-w-[320px] flex-col bg-[#f9fafb] px-4 pb-4 pt-5 shadow-[0_16px_60px_rgba(15,23,42,0.18)]">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="flex size-10 items-center justify-center rounded-2xl bg-white shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80">
-              <BotIcon class="size-4.5 text-slate-900" />
-            </div>
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-slate-900">{{ copy.brand }}</p>
-              <p class="truncate text-xs text-slate-500">{{ copy.workstation }}</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            class="flex size-10 items-center justify-center rounded-full text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
-            @click="mobileSidebarOpen = false"
-          >
-            <XIcon class="size-4.5" />
-          </button>
-        </div>
-
-        <button
-          type="button"
-          class="mt-6 flex w-full items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-left text-white transition-all duration-150 hover:bg-black active:scale-[0.99]"
-          :disabled="creatingSession"
-          @click="handleNewSession"
-        >
-          <span class="flex items-center gap-2 text-sm font-medium">
-            <PlusIcon class="size-4" />
-            {{ copy.newChat }}
-          </span>
-          <span class="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70">{{ copy.newChatHint }}</span>
-        </button>
-
-        <div class="agent-chat-scroll mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
-          <div v-if="loadingSessions" class="px-2 py-3 text-sm text-slate-500">
-            {{ copy.loadingSessions }}
-          </div>
-
-          <div v-else-if="sessionGroups.length === 0" class="px-2 py-4 text-sm leading-6 text-slate-500">
-            {{ copy.noSessions }}
-          </div>
-
-          <div v-else class="space-y-6">
-            <section v-for="group in sessionGroups" :key="group.key" class="space-y-2">
-              <div class="px-2 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
-                {{ group.label }}
-              </div>
-
-              <button
-                v-for="session in group.items"
-                :key="session.uuid"
-                type="button"
-                class="flex h-10 w-full items-center gap-2 rounded-lg px-2 text-left transition-all duration-150 hover:bg-slate-100"
-                :class="session.uuid === activeThreadId ? 'bg-white text-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80' : 'text-slate-700'"
-                @click="activateThread(session.uuid, { closeSidebar: true })"
-              >
-                <MessageSquareTextIcon class="size-3.5 shrink-0 text-slate-400" />
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-[13px]" :class="session.uuid === activeThreadId ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'">
-                    {{ session.title || copy.untitledSession }}
-                  </p>
-                </div>
-              </button>
-            </section>
-          </div>
-        </div>
-      </aside>
-    </div>
+    <AgentSessionList
+      drawer
+      :visible="mobileSidebarOpen && showSidebarToggle"
+      :loading="loadingSessions"
+      :creating="creatingSession"
+      :session-groups="sessionGroups"
+      :active-thread-id="activeThreadId"
+      :renaming-session-id="renamingSessionId"
+      :renaming-title="renamingTitle"
+      :copy="copy"
+      @close="mobileSidebarOpen = false"
+      @create="handleNewSession"
+      @select="activateThread($event, { closeSidebar: true })"
+      @begin-rename="beginRename"
+      @submit-rename="submitRename"
+      @cancel-rename="cancelRename"
+      @delete="deleteSession"
+      @update:renaming-title="renamingTitle = $event"
+    />
   </div>
 </template>
-
-<style scoped>
-.agent-chat-shell {
-  container-type: inline-size;
-  container-name: agent-chat-shell;
-}
-
-.agent-chat-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
-}
-
-.agent-chat-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.agent-chat-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.agent-chat-scroll::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.4);
-}
-
-@container agent-chat-shell (max-width: 760px) {
-  .agent-chat-header-shell {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .agent-chat-header-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .agent-chat-runtime-pill,
-  .agent-chat-input-hint,
-  .agent-chat-web-label {
-    display: none !important;
-  }
-
-  .agent-chat-version-pill {
-    flex: 1 1 auto;
-    justify-content: space-between;
-  }
-
-  .agent-chat-feed {
-    padding-right: 1rem;
-    padding-bottom: 7.5rem;
-    padding-left: 1rem;
-  }
-
-  .agent-chat-message-feed {
-    gap: 1.5rem;
-    padding-top: 1.25rem;
-    padding-bottom: 1.25rem;
-  }
-
-  .agent-chat-composer-shell {
-    padding-right: 1rem;
-    padding-bottom: 1rem;
-    padding-left: 1rem;
-  }
-
-  .agent-chat-input-footer {
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-
-  .agent-chat-input-actions {
-    margin-left: auto;
-  }
-}
-
-@container agent-chat-shell (max-width: 560px) {
-  .agent-chat-header-card,
-  .agent-chat-version-pill {
-    width: 100%;
-  }
-
-  .agent-chat-message-row {
-    gap: 0.75rem;
-  }
-
-  .agent-chat-tool-card {
-    width: 100%;
-    border-radius: 1rem;
-  }
-
-  .agent-chat-message-card {
-    padding: 1rem;
-    border-radius: 1.5rem;
-  }
-
-  .agent-chat-intro-body,
-  .agent-chat-intro-footer {
-    padding-right: 1rem;
-    padding-left: 1rem;
-  }
-}
-
-.agent-stream-in {
-  animation: agent-stream-in 120ms ease-out;
-}
-
-.agent-chat-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.agent-chat-dots span {
-  display: block;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: 0.35;
-  animation: agent-dot-breathe 1.2s ease-in-out infinite;
-}
-
-.agent-chat-dots span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.agent-chat-dots span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes agent-stream-in {
-  from {
-    opacity: 0;
-    transform: translateY(2px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes agent-dot-breathe {
-  0%,
-  80%,
-  100% {
-    opacity: 0.35;
-    transform: translateY(0);
-  }
-
-  40% {
-    opacity: 1;
-    transform: translateY(-3px);
-  }
-}
-
-:deep(.agent-chat-markdown) {
-  font-size: 15px;
-  line-height: 1.75;
-  color: #0f172a;
-}
-
-:deep(.agent-chat-markdown > *:first-child) {
-  margin-top: 0;
-}
-
-:deep(.agent-chat-markdown > *:last-child) {
-  margin-bottom: 0;
-}
-
-:deep(.agent-chat-markdown h1),
-:deep(.agent-chat-markdown h2),
-:deep(.agent-chat-markdown h3),
-:deep(.agent-chat-markdown h4) {
-  margin-top: 1.4em;
-  margin-bottom: 0.6em;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: #0f172a;
-}
-
-:deep(.agent-chat-markdown p + p),
-:deep(.agent-chat-markdown ul + p),
-:deep(.agent-chat-markdown ol + p),
-:deep(.agent-chat-markdown p + ul),
-:deep(.agent-chat-markdown p + ol),
-:deep(.agent-chat-markdown pre + p) {
-  margin-top: 1rem;
-}
-
-:deep(.agent-chat-markdown ul),
-:deep(.agent-chat-markdown ol) {
-  padding-left: 1.25rem;
-}
-
-:deep(.agent-chat-markdown li + li) {
-  margin-top: 0.35rem;
-}
-
-:deep(.agent-chat-markdown p code),
-:deep(.agent-chat-markdown li code) {
-  border-radius: 10px;
-  background: #f1f5f9;
-  padding: 0.18rem 0.45rem;
-  font-size: 0.92em;
-  color: #0f172a;
-}
-
-:deep(.agent-chat-markdown a) {
-  color: #334155;
-  text-decoration: underline;
-  text-decoration-color: rgba(100, 116, 139, 0.35);
-  text-underline-offset: 3px;
-}
-
-:deep(.agent-chat-markdown blockquote) {
-  margin-top: 1rem;
-  border-left: 2px solid #e2e8f0;
-  padding-left: 1rem;
-  color: #475569;
-}
-
-:deep(.agent-chat-markdown pre) {
-  margin-top: 1.15rem;
-  overflow-x: auto;
-  background: transparent !important;
-  padding: 1rem;
-  color: #e2e8f0;
-}
-
-:deep(.agent-code-shell) {
-  overflow: hidden;
-  border-radius: 20px;
-  background: #0f172a;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
-}
-
-:deep(.agent-code-toolbar) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.96);
-  padding: 0.8rem 1rem;
-}
-
-:deep(.agent-code-language) {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  color: rgba(226, 232, 240, 0.78);
-}
-
-:deep(.agent-code-copy) {
-  border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 0.42rem 0.8rem;
-  font-size: 0.72rem;
-  color: #e2e8f0;
-  opacity: 0.65;
-  transition: opacity 150ms ease, background-color 150ms ease, transform 150ms ease;
-}
-
-:deep(.agent-code-shell:hover .agent-code-copy) {
-  opacity: 1;
-}
-
-:deep(.agent-code-copy:hover) {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-:deep(.agent-code-copy:active) {
-  transform: scale(0.95);
-}
-</style>
