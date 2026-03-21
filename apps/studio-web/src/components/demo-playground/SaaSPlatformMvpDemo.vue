@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import DemoPlaygroundPanel from "@app/components/demo-playground/DemoPlaygroundPanel.vue"
 </script>
 
 <template>
-  <div></div>
+  <div class="relative h-full w-full overflow-hidden bg-background">
+    <DemoPlaygroundPanel
+      title="SaaS Platform MVP"
+      description="本次 SaaS 清单新增组件的组合示例：定价卡、账单状态条、模板筛选与模板卡。"
+    />
+  </div>
 </template>

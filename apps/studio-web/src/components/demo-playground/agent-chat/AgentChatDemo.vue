@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { AgentChat } from '@prismaspace/agent'
-import { prismaspaceClient } from '@app/core/client/prismaspace-client'
-import { usePlatformStore } from '@app/stores/platform'
-import { Alert, AlertDescription, AlertTitle } from '@prismaspace/ui-shadcn/components/ui/alert'
-import { Badge } from '@prismaspace/ui-shadcn/components/ui/badge'
-import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@prismaspace/ui-shadcn/components/ui/card'
-import { Input } from '@prismaspace/ui-shadcn/components/ui/input'
-import { Label } from '@prismaspace/ui-shadcn/components/ui/label'
-import { Switch } from '@prismaspace/ui-shadcn/components/ui/switch'
+import { computed, ref } from "vue"
+import { AgentChat } from "@prismaspace/agent"
+import { prismaspaceClient } from "@app/core/client/prismaspace-client"
+import { usePlatformStore } from "@app/stores/platform"
+import { Alert, AlertDescription, AlertTitle } from "@prismaspace/ui-shadcn/components/ui/alert"
+import { Badge } from "@prismaspace/ui-shadcn/components/ui/badge"
+import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
+import { Input } from "@prismaspace/ui-shadcn/components/ui/input"
+import { Label } from "@prismaspace/ui-shadcn/components/ui/label"
+import { Switch } from "@prismaspace/ui-shadcn/components/ui/switch"
+import DemoPlaygroundPanel from "@app/components/demo-playground/DemoPlaygroundPanel.vue"
 
 const platform = usePlatformStore()
 
-const instanceUuid = ref('')
+const instanceUuid = ref("")
 const pinnedThread = ref(false)
-const draftThreadId = ref('')
+const draftThreadId = ref("")
 const liveThreadId = ref<string | null>(null)
 
 const normalizedInstanceUuid = computed(() => instanceUuid.value.trim())
@@ -25,7 +25,7 @@ const agentChatProps = computed(() => {
   const props: Record<string, unknown> = {
     client: prismaspaceClient,
     instanceUuid: normalizedInstanceUuid.value || undefined,
-    title: 'Agent Chat Demo',
+    title: "Agent Chat Demo",
   }
 
   if (pinnedThread.value && normalizedDraftThreadId.value) {
@@ -52,7 +52,7 @@ function useSelectedThreadAsPinned(): void {
 }
 
 function clearPinnedThread(): void {
-  draftThreadId.value = ''
+  draftThreadId.value = ""
   pinnedThread.value = false
 }
 
@@ -62,95 +62,94 @@ function handleThreadChange(value: string | null): void {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <Card>
-      <CardHeader class="space-y-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <CardTitle>AgentChat Demo</CardTitle>
-          <Badge variant="outline">Shared Client</Badge>
-          <Badge variant="secondary">AG-UI</Badge>
-        </div>
-        <CardDescription>
-          Demo 直接复用 studio-web 的统一 `prismaspaceClient`。填写 `instanceUuid` 后即可验证两种模式：
-          不传 `threadId` 为会话工作站模式，传入 `threadId` 为固定线程模式。
-        </CardDescription>
-      </CardHeader>
+  <div class="relative h-full w-full overflow-hidden bg-background">
+    <DemoPlaygroundPanel
+      title="Agent Chat"
+      description="基于统一 PrismaspaceClient 的 AG-UI AgentChat Demo，支持会话工作站与固定线程两种模式。"
+    >
+      <div class="space-y-4">
+        <section class="space-y-2">
+          <Label for="agent-instance-uuid">Agent Instance UUID</Label>
+          <Input
+            id="agent-instance-uuid"
+            v-model="instanceUuid"
+            placeholder="请输入后端 Agent 实例 UUID"
+          />
+        </section>
 
-      <CardContent class="space-y-4">
-        <div class="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <div class="space-y-2">
-            <Label for="agent-instance-uuid">Agent Instance UUID</Label>
-            <Input
-              id="agent-instance-uuid"
-              v-model="instanceUuid"
-              placeholder="请输入后端 Agent 实例 UUID"
-            />
+        <section class="rounded-xl border bg-muted/20 px-3 py-3 text-xs">
+          <p class="font-medium">宿主上下文</p>
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-muted-foreground">
+            <Badge :variant="authSummary.authenticated ? 'default' : 'destructive'">
+              {{ authSummary.authenticated ? "Authenticated" : "Unauthenticated" }}
+            </Badge>
+            <span v-if="authSummary.workspaceName">{{ authSummary.workspaceName }}</span>
+            <span v-if="authSummary.workspaceUuid" class="font-mono">
+              {{ authSummary.workspaceUuid }}
+            </span>
           </div>
+        </section>
 
-          <div class="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
-            <p class="font-medium">宿主上下文</p>
-            <div class="mt-2 flex flex-wrap items-center gap-2 text-muted-foreground">
-              <Badge :variant="authSummary.authenticated ? 'default' : 'destructive'">
-                {{ authSummary.authenticated ? 'Authenticated' : 'Unauthenticated' }}
-              </Badge>
-              <span v-if="authSummary.workspaceName">{{ authSummary.workspaceName }}</span>
-              <span v-if="authSummary.workspaceUuid" class="font-mono text-xs">{{ authSummary.workspaceUuid }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="rounded-xl border bg-background px-4 py-4">
-          <div class="flex flex-wrap items-start justify-between gap-4">
+        <section class="space-y-3 rounded-xl border bg-muted/20 p-3">
+          <div class="flex items-start justify-between gap-3">
             <div class="space-y-1">
               <p class="text-sm font-medium">固定线程模式</p>
-              <p class="text-sm text-muted-foreground">
-                开启后直接把 `threadId` 传给 `AgentChat`，组件不会展示会话列表。
+              <p class="text-xs text-muted-foreground">
+                开启后直接把 <code>threadId</code> 传给 <code>AgentChat</code>，组件不会展示会话列表。
               </p>
             </div>
             <Switch :model-value="pinnedThread" @update:model-value="pinnedThread = !!$event" />
           </div>
 
-          <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <Input
-              v-model="draftThreadId"
-              :disabled="!pinnedThread"
-              placeholder="可选：输入已存在的 threadId"
-            />
-            <Button variant="outline" :disabled="!liveThreadId" @click="useSelectedThreadAsPinned">
+          <Input
+            v-model="draftThreadId"
+            :disabled="!pinnedThread"
+            placeholder="可选：输入已存在的 threadId"
+          />
+
+          <div class="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" :disabled="!liveThreadId" @click="useSelectedThreadAsPinned">
               使用当前线程
             </Button>
-            <Button variant="ghost" :disabled="!draftThreadId" @click="clearPinnedThread">
+            <Button variant="ghost" size="sm" :disabled="!draftThreadId" @click="clearPinnedThread">
               清空
             </Button>
           </div>
 
-          <div class="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>当前线程：</span>
-            <Badge variant="outline">{{ liveThreadId || '未建立' }}</Badge>
+            <Badge variant="outline">{{ liveThreadId || "未建立" }}</Badge>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </section>
+      </div>
+    </DemoPlaygroundPanel>
 
-    <Alert v-if="!authSummary.authenticated" variant="destructive">
-      <AlertTitle>需要登录</AlertTitle>
-      <AlertDescription>
-        这个 Demo 走统一 `prismaspaceClient`，请先登录并进入一个工作区，否则无法访问 Agent 接口。
-      </AlertDescription>
-    </Alert>
+    <div class="h-full w-full">
+      <div v-if="!authSummary.authenticated" class="flex h-full items-center justify-center p-6">
+        <Alert variant="destructive" class="max-w-lg">
+          <AlertTitle>需要登录</AlertTitle>
+          <AlertDescription>
+            这个 Demo 走统一 <code>prismaspaceClient</code>，请先登录并进入一个工作区，否则无法访问 Agent 接口。
+          </AlertDescription>
+        </Alert>
+      </div>
 
-    <Alert v-else-if="!canMountChat">
-      <AlertTitle>等待实例 UUID</AlertTitle>
-      <AlertDescription>
-        填入一个有效的 Agent `instanceUuid` 后，下面的 AgentChat 会直接挂载真实后端接口。
-      </AlertDescription>
-    </Alert>
+      <div v-else-if="!canMountChat" class="flex h-full items-center justify-center p-6">
+        <Alert class="max-w-lg">
+          <AlertTitle>等待实例 UUID</AlertTitle>
+          <AlertDescription>
+            填入一个有效的 Agent <code>instanceUuid</code> 后，下面的 AgentChat 会直接挂载真实后端接口。
+          </AlertDescription>
+        </Alert>
+      </div>
 
-    <div v-if="canMountChat" class="h-[calc(100vh-14rem)] min-h-[760px] overflow-hidden rounded-xl border bg-background">
-      <AgentChat
-        v-bind="agentChatProps"
-        @thread-change="handleThreadChange"
-      />
+      <div v-else class="h-full w-full overflow-hidden">
+        <AgentChat
+          v-bind="agentChatProps"
+          class="h-full w-full"
+          @thread-change="handleThreadChange"
+        />
+      </div>
     </div>
   </div>
 </template>

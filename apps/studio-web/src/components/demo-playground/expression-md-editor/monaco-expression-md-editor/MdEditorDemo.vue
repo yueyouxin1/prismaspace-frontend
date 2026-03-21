@@ -8,13 +8,7 @@ import {
   type MdExpressionRule,
 } from "@prismaspace/editor"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@prismaspace/ui-shadcn/components/ui/card"
+import DemoPlaygroundPanel from "@app/components/demo-playground/DemoPlaygroundPanel.vue"
 import { demoExpressionVariableTree } from "../demo-variable-tree"
 
 const DEMO_CONTENT = `# Monaco Markdown Edit
@@ -104,38 +98,44 @@ function resetContent(): void {
 </script>
 
 <template>
-  <Card>
-    <CardHeader>
-      <CardTitle>MdEditor</CardTitle>
-      <CardDescription>
-        Monaco Markdown 编辑器，支持表达式触发弹窗与背景色高亮。
-      </CardDescription>
-    </CardHeader>
-    <CardContent class="space-y-4">
-      <div class="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" @click="resetContent">
-          重置内容
-        </Button>
-        <Button type="button" variant="outline" size="sm" @click="insertTemplate">
-          插入模板
-        </Button>
-        <Button type="button" variant="outline" size="sm" @click="toggleReadonly">
-          Readonly: {{ readonly ? "ON" : "OFF" }}
-        </Button>
-        <Button type="button" variant="outline" size="sm" @click="togglePopup">
-          Popup: {{ popupEnabled ? "ON" : "OFF" }}
-        </Button>
-        <Button type="button" variant="outline" size="sm" @click="toggleExpressionRenderer">
-          Highlight: {{ expressionRenderEnabled ? "ON" : "OFF" }}
-        </Button>
-      </div>
+  <div class="relative h-full w-full overflow-hidden bg-background">
+    <DemoPlaygroundPanel
+      title="Monaco Expression Md Editor"
+      description="Monaco Markdown 编辑器，支持表达式触发弹窗与背景色高亮。"
+    >
+      <div class="space-y-4">
+        <section class="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" @click="resetContent">
+            重置内容
+          </Button>
+          <Button type="button" variant="outline" size="sm" @click="insertTemplate">
+            插入模板
+          </Button>
+          <Button type="button" variant="outline" size="sm" @click="toggleReadonly">
+            Readonly: {{ readonly ? "ON" : "OFF" }}
+          </Button>
+          <Button type="button" variant="outline" size="sm" @click="togglePopup">
+            Popup: {{ popupEnabled ? "ON" : "OFF" }}
+          </Button>
+          <Button type="button" variant="outline" size="sm" @click="toggleExpressionRenderer">
+            Highlight: {{ expressionRenderEnabled ? "ON" : "OFF" }}
+          </Button>
+        </section>
 
-      <div class="rounded-md border bg-muted/30 p-3 text-xs leading-6">
-        <p class="font-medium">检查点</p>
-        <p>1. 输入 <code>{{ "{{" }}</code> 或 <code>{{ "${" }}</code> 时可打开变量弹窗并插入文本。</p>
-        <p>2. 关键字高亮仅影响展示，不影响编辑与光标行为。</p>
-      </div>
+        <section class="rounded-xl border bg-muted/20 p-3 text-xs leading-6">
+          <p class="font-medium">检查点</p>
+          <p>1. 输入 <code>{{ "{{" }}</code> 或 <code>{{ "${" }}</code> 时可打开变量弹窗并插入文本。</p>
+          <p>2. 关键字高亮仅影响展示，不影响编辑与光标行为。</p>
+        </section>
 
+        <section class="rounded-xl border bg-muted/20 p-3 text-xs">
+          <p class="mb-1 font-medium">Last Event</p>
+          <p>{{ lastEvent }}</p>
+        </section>
+      </div>
+    </DemoPlaygroundPanel>
+
+    <div class="h-full w-full p-3 md:p-4">
       <MdEditor
         ref="editorRef"
         v-model="value"
@@ -148,17 +148,12 @@ function resetContent(): void {
         :popup-props="{ tree: demoExpressionVariableTree }"
         :expression-syntaxes="expressionSyntaxes"
         :expression-rules="expressionRenderEnabled ? expressionRules : []"
-        :height="460"
+        height="100%"
         placeholder="输入 Markdown，使用 {{ 或 ${ 触发表达式弹窗"
         @popup-show="lastEvent = `popup-show: ${$event.triggerText}${$event.queryText}`"
         @popup-hide="lastEvent = 'popup-hide'"
         @popup-select="lastEvent = `popup-select: ${$event.insertText}`"
       />
-
-      <div class="rounded-md border bg-muted/40 p-3 text-xs">
-        <p class="mb-1 font-medium">Last Event</p>
-        <p>{{ lastEvent }}</p>
-      </div>
-    </CardContent>
-  </Card>
+    </div>
+  </div>
 </template>

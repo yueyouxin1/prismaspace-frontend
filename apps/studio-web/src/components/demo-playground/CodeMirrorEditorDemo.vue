@@ -6,13 +6,7 @@ import {
   type CodeMirrorEditorLanguage,
 } from "@prismaspace/editor"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@prismaspace/ui-shadcn/components/ui/card"
+import DemoPlaygroundPanel from "@app/components/demo-playground/DemoPlaygroundPanel.vue"
 
 const editorRef = ref<CodeMirrorEditorExpose>()
 const readonly = ref(false)
@@ -109,53 +103,78 @@ function focusEditor(): void {
 </script>
 
 <template>
-  <Card>
-    <CardHeader>
-      <CardTitle>CodeMirror Editor</CardTitle>
-      <CardDescription>
-        通用 CodeMirror 代码编辑器：作为 CodeMirrorMdEditor 的基础实现。
-      </CardDescription>
-    </CardHeader>
-    <CardContent class="space-y-4">
-      <div class="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="secondary" @click="applyPreset('typescript')">
-          TS 预设
-        </Button>
-        <Button type="button" size="sm" variant="secondary" @click="applyPreset('javascript')">
-          JS 预设
-        </Button>
-        <Button type="button" size="sm" variant="secondary" @click="applyPreset('json')">
-          JSON 预设
-        </Button>
-        <Button type="button" size="sm" variant="secondary" @click="applyPreset('html')">
-          HTML 预设
-        </Button>
-        <Button type="button" size="sm" variant="secondary" @click="applyPreset('css')">
-          CSS 预设
-        </Button>
-        <Button type="button" size="sm" variant="secondary" @click="applyPreset('markdown')">
-          Markdown 预设
-        </Button>
-      </div>
+  <div class="relative h-full w-full overflow-hidden bg-background">
+    <DemoPlaygroundPanel
+      title="CodeMirror Editor"
+      description="通用 CodeMirror 代码编辑器：作为 CodeMirrorMdEditor 的基础实现。"
+    >
+      <div class="space-y-4">
+        <section class="space-y-2">
+          <p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            预设
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="secondary" @click="applyPreset('typescript')">
+              TS 预设
+            </Button>
+            <Button type="button" size="sm" variant="secondary" @click="applyPreset('javascript')">
+              JS 预设
+            </Button>
+            <Button type="button" size="sm" variant="secondary" @click="applyPreset('json')">
+              JSON 预设
+            </Button>
+            <Button type="button" size="sm" variant="secondary" @click="applyPreset('html')">
+              HTML 预设
+            </Button>
+            <Button type="button" size="sm" variant="secondary" @click="applyPreset('css')">
+              CSS 预设
+            </Button>
+            <Button type="button" size="sm" variant="secondary" @click="applyPreset('markdown')">
+              Markdown 预设
+            </Button>
+          </div>
+        </section>
 
-      <div class="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" @click="toggleReadonly">
-          Readonly: {{ readonly ? "ON" : "OFF" }}
-        </Button>
-        <Button type="button" variant="outline" size="sm" @click="toggleLineNumbers">
-          Line Numbers: {{ lineNumbers }}
-        </Button>
-        <Button type="button" variant="outline" size="sm" @click="toggleLineWrapping">
-          Wrap: {{ lineWrapping ? "ON" : "OFF" }}
-        </Button>
-        <Button type="button" variant="outline" size="sm" @click="toggleTheme">
-          Theme: {{ theme }}
-        </Button>
-        <Button type="button" variant="outline" size="sm" @click="focusEditor">
-          Focus
-        </Button>
-      </div>
+        <section class="space-y-2">
+          <p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            交互
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" @click="toggleReadonly">
+              Readonly: {{ readonly ? "ON" : "OFF" }}
+            </Button>
+            <Button type="button" variant="outline" size="sm" @click="toggleLineNumbers">
+              Line Numbers: {{ lineNumbers }}
+            </Button>
+            <Button type="button" variant="outline" size="sm" @click="toggleLineWrapping">
+              Wrap: {{ lineWrapping ? "ON" : "OFF" }}
+            </Button>
+            <Button type="button" variant="outline" size="sm" @click="toggleTheme">
+              Theme: {{ theme }}
+            </Button>
+            <Button type="button" variant="outline" size="sm" @click="focusEditor">
+              Focus
+            </Button>
+          </div>
+        </section>
 
+        <section class="rounded-xl border bg-muted/20 p-3 text-xs">
+          <p class="mb-1 font-medium">Editor State</p>
+          <p>Language: {{ language }}</p>
+          <p>Theme: {{ theme }}</p>
+          <p>Readonly: {{ readonly ? "true" : "false" }}</p>
+          <p>Line Numbers: {{ lineNumbers }}</p>
+          <p>Word Wrap: {{ lineWrapping ? "on" : "off" }}</p>
+        </section>
+
+        <section class="rounded-xl border bg-muted/20 p-3 text-xs">
+          <p class="mb-1 font-medium">Current Value</p>
+          <pre class="max-h-40 overflow-auto whitespace-pre-wrap">{{ content }}</pre>
+        </section>
+      </div>
+    </DemoPlaygroundPanel>
+
+    <div class="h-full w-full p-3 md:p-4">
       <CodeMirrorEditor
         ref="editorRef"
         v-model="content"
@@ -164,23 +183,9 @@ function focusEditor(): void {
         :line-wrapping="lineWrapping"
         :readonly="readonly"
         :language="language"
-        :height="360"
+        height="100%"
         placeholder="Type code..."
       />
-
-      <div class="rounded-md border bg-muted/40 p-3 text-xs">
-        <p class="mb-1 font-medium">Editor State</p>
-        <p>Language: {{ language }}</p>
-        <p>Theme: {{ theme }}</p>
-        <p>Readonly: {{ readonly ? "true" : "false" }}</p>
-        <p>Line Numbers: {{ lineNumbers }}</p>
-        <p>Word Wrap: {{ lineWrapping ? "on" : "off" }}</p>
-      </div>
-
-      <div class="rounded-md border bg-muted/40 p-3 text-xs">
-        <p class="mb-1 font-medium">Current Value</p>
-        <pre class="max-h-40 overflow-auto whitespace-pre-wrap">{{ content }}</pre>
-      </div>
-    </CardContent>
-  </Card>
+    </div>
+  </div>
 </template>

@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import {
-  KnowledgeBaseIdeWorkbench,
-} from '@prismaspace/knowledge/workbench'
-import {
-  createKnowledgeWorkbenchStore,
-} from '@prismaspace/knowledge/runtime'
+import { computed, ref, watch } from "vue"
+import { useRouter } from "vue-router"
+import { KnowledgeBaseIdeWorkbench } from "@prismaspace/knowledge/workbench"
+import { createKnowledgeWorkbenchStore } from "@prismaspace/knowledge/runtime"
 import type {
   KnowledgeChunkItem,
   KnowledgeChunkUpdatePayload,
@@ -16,11 +13,13 @@ import type {
   KnowledgeSearchRequest,
   KnowledgeSearchResult,
   KnowledgeTaskProgress,
-} from '@prismaspace/knowledge/types'
+} from "@prismaspace/knowledge/types"
+import DemoPlaygroundPanel from "@app/components/demo-playground/DemoPlaygroundPanel.vue"
 
+const router = useRouter()
 const store = createKnowledgeWorkbenchStore({
-  statusFilter: 'all',
-  viewMode: 'list',
+  statusFilter: "all",
+  viewMode: "list",
 })
 
 const statusFilter = computed({
@@ -37,23 +36,23 @@ const limit = ref(20)
 const selectedDocumentUuid = ref<string | null>(null)
 const documents = ref<KnowledgeDocumentItem[]>([
   {
-    uuid: 'doc-guideline',
-    file_name: '产品知识库接入规范.md',
-    source_uri: 'https://example.com/docs/product-guideline',
-    file_type: 'text/markdown',
+    uuid: "doc-guideline",
+    file_name: "产品知识库接入规范.md",
+    source_uri: "https://example.com/docs/product-guideline",
+    file_type: "text/markdown",
     file_size: 18240,
-    status: 'completed',
+    status: "completed",
     error_message: null,
     chunk_count: 3,
     created_at: new Date(Date.now() - 86400000).toISOString(),
   },
   {
-    uuid: 'doc-faq',
-    file_name: '客服 FAQ.txt',
-    source_uri: 'https://example.com/docs/faq.txt',
-    file_type: 'text/plain',
+    uuid: "doc-faq",
+    file_name: "客服 FAQ.txt",
+    source_uri: "https://example.com/docs/faq.txt",
+    file_type: "text/plain",
     file_size: 9630,
-    status: 'completed',
+    status: "completed",
     error_message: null,
     chunk_count: 2,
     created_at: new Date(Date.now() - 43200000).toISOString(),
@@ -61,14 +60,14 @@ const documents = ref<KnowledgeDocumentItem[]>([
 ])
 
 const chunkMap = ref<Record<string, KnowledgeChunkItem[]>>({
-  'doc-guideline': [
-    { uuid: 'chunk-a1', content: '接入前需先创建 workspace 与 resource。', token_count: 17, status: 'completed', context: null, payload: null, error_message: null },
-    { uuid: 'chunk-a2', content: '文档上传后由解析服务异步切块，支持 markdown、pdf 与纯文本。', token_count: 37, status: 'completed', context: null, payload: null, error_message: null },
-    { uuid: 'chunk-a3', content: '检索测试建议使用 hybrid 策略并设置合理阈值。', token_count: 24, status: 'completed', context: null, payload: null, error_message: null },
+  "doc-guideline": [
+    { uuid: "chunk-a1", content: "接入前需先创建 workspace 与 resource。", token_count: 17, status: "completed", context: null, payload: null, error_message: null },
+    { uuid: "chunk-a2", content: "文档上传后由解析服务异步切块，支持 markdown、pdf 与纯文本。", token_count: 37, status: "completed", context: null, payload: null, error_message: null },
+    { uuid: "chunk-a3", content: "检索测试建议使用 hybrid 策略并设置合理阈值。", token_count: 24, status: "completed", context: null, payload: null, error_message: null },
   ],
-  'doc-faq': [
-    { uuid: 'chunk-b1', content: 'Q: 上传失败怎么办？ A: 请检查链接是否可访问。', token_count: 26, status: 'completed', context: null, payload: null, error_message: null },
-    { uuid: 'chunk-b2', content: 'Q: 如何提高召回质量？ A: 调整 top-k 和最低匹配分数。', token_count: 31, status: 'completed', context: null, payload: null, error_message: null },
+  "doc-faq": [
+    { uuid: "chunk-b1", content: "Q: 上传失败怎么办？ A: 请检查链接是否可访问。", token_count: 26, status: "completed", context: null, payload: null, error_message: null },
+    { uuid: "chunk-b2", content: "Q: 如何提高召回质量？ A: 调整 top-k 和最低匹配分数。", token_count: 31, status: "completed", context: null, payload: null, error_message: null },
   ],
 })
 
@@ -86,15 +85,15 @@ const savingConfig = ref(false)
 
 const instanceConfig = ref<KnowledgeInstanceConfig>({
   parser_policy: {
-    parser_name: 'simple_parser_v1',
-    allowed_mime_types: ['text/plain', 'application/pdf', 'text/markdown'],
+    parser_name: "simple_parser_v1",
+    allowed_mime_types: ["text/plain", "application/pdf", "text/markdown"],
     params: {
-      tika_url: 'http://localhost:9998',
+      tika_url: "http://localhost:9998",
     },
   },
   chunker_policies: [
     {
-      chunker_name: 'simple_chunker_v1',
+      chunker_name: "simple_chunker_v1",
       params: {
         chunk_size: 500,
       },
@@ -105,7 +104,7 @@ const instanceConfig = ref<KnowledgeInstanceConfig>({
 const filteredDocuments = computed(() => {
   const normalizedKeyword = keyword.value.trim().toLowerCase()
   return documents.value.filter((item) => {
-    if (statusFilter.value !== 'all' && item.status !== statusFilter.value) {
+    if (statusFilter.value !== "all" && item.status !== statusFilter.value) {
       return false
     }
     if (!normalizedKeyword) {
@@ -129,8 +128,8 @@ const selectedChunks = computed(() => {
 
 const summary = computed(() => ({
   total: filteredDocuments.value.length,
-  processing: filteredDocuments.value.filter(item => item.status === 'processing' || item.status === 'uploading' || item.status === 'pending').length,
-  failed: filteredDocuments.value.filter(item => item.status === 'failed').length,
+  processing: filteredDocuments.value.filter(item => item.status === "processing" || item.status === "uploading" || item.status === "pending").length,
+  failed: filteredDocuments.value.filter(item => item.status === "failed").length,
 }))
 
 watch(
@@ -158,19 +157,19 @@ const generateId = (prefix: string): string => `${prefix}-${Math.random().toStri
 
 const buildDefaultChunks = (name: string): KnowledgeChunkItem[] => [
   {
-    uuid: generateId('chunk'),
+    uuid: generateId("chunk"),
     content: `文档《${name}》的自动解析分块 1。`,
     token_count: 18,
-    status: 'completed',
+    status: "completed",
     error_message: null,
     context: null,
     payload: null,
   },
   {
-    uuid: generateId('chunk'),
+    uuid: generateId("chunk"),
     content: `文档《${name}》的自动解析分块 2。`,
     token_count: 18,
-    status: 'completed',
+    status: "completed",
     error_message: null,
     context: null,
     payload: null,
@@ -195,15 +194,15 @@ const handleRefreshChunks = async (): Promise<void> => {
 }
 
 const createProcessingDocument = (payload: KnowledgeDocumentSourcePayload): KnowledgeDocumentItem => {
-  const documentUuid = generateId('doc')
-  const displayName = payload.fileName || payload.sourceUri.split('/').pop() || 'untitled'
+  const documentUuid = generateId("doc")
+  const displayName = payload.fileName || payload.sourceUri.split("/").pop() || "untitled"
   return {
     uuid: documentUuid,
     file_name: displayName,
     source_uri: payload.sourceUri,
-    file_type: displayName.endsWith('.md') ? 'text/markdown' : 'text/plain',
+    file_type: displayName.endsWith(".md") ? "text/markdown" : "text/plain",
     file_size: Math.max(1024, displayName.length * 512),
-    status: 'processing',
+    status: "processing",
     error_message: null,
     chunk_count: 0,
     created_at: new Date().toISOString(),
@@ -214,8 +213,8 @@ const enqueueDocumentSimulation = (document: KnowledgeDocumentItem): void => {
   taskProgressMap.value = {
     ...taskProgressMap.value,
     [document.uuid]: {
-      status: 'processing',
-      message: 'Parsing...',
+      status: "processing",
+      message: "Parsing...",
       progress: 1,
       total: 3,
     },
@@ -224,8 +223,8 @@ const enqueueDocumentSimulation = (document: KnowledgeDocumentItem): void => {
     taskProgressMap.value = {
       ...taskProgressMap.value,
       [document.uuid]: {
-        status: 'processing',
-        message: 'Chunking...',
+        status: "processing",
+        message: "Chunking...",
         progress: 2,
         total: 3,
       },
@@ -238,13 +237,13 @@ const enqueueDocumentSimulation = (document: KnowledgeDocumentItem): void => {
       [document.uuid]: chunks,
     }
     documents.value = documents.value.map(item => (item.uuid === document.uuid
-      ? { ...item, status: 'completed', chunk_count: chunks.length }
+      ? { ...item, status: "completed", chunk_count: chunks.length }
       : item))
     taskProgressMap.value = {
       ...taskProgressMap.value,
       [document.uuid]: {
-        status: 'completed',
-        message: 'Completed',
+        status: "completed",
+        message: "Completed",
         progress: 3,
         total: 3,
       },
@@ -264,7 +263,7 @@ const handleAddDocument = async (payload: KnowledgeDocumentSourcePayload): Promi
 
 const handleAddDocumentFromLocal = async (): Promise<void> => {
   await handleAddDocument({
-    sourceUri: `https://cdn.example.com/upload/${generateId('file')}.md`,
+    sourceUri: `https://cdn.example.com/upload/${generateId("file")}.md`,
     fileName: `本地上传-${new Date().toLocaleTimeString()}.md`,
   })
 }
@@ -280,24 +279,24 @@ const handleRenameDocument = async (payload: { documentUuid: string; fileName: s
 const handleReplaceDocumentFromLocal = async (payload: { documentUuid: string }): Promise<void> => {
   const name = `替换本地-${new Date().toLocaleTimeString()}.txt`
   documents.value = documents.value.map(item => (item.uuid === payload.documentUuid
-    ? { ...item, source_uri: `https://cdn.example.com/upload/${generateId('file')}.txt`, file_name: name, status: 'processing', chunk_count: 0 }
+    ? { ...item, source_uri: `https://cdn.example.com/upload/${generateId("file")}.txt`, file_name: name, status: "processing", chunk_count: 0 }
     : item))
-  setDocumentStatus(payload.documentUuid, 'processing')
+  setDocumentStatus(payload.documentUuid, "processing")
   chunkMap.value[payload.documentUuid] = buildDefaultChunks(name)
   setTimeout(() => {
-    setDocumentStatus(payload.documentUuid, 'completed')
+    setDocumentStatus(payload.documentUuid, "completed")
     documents.value = documents.value.map(item => (item.uuid === payload.documentUuid ? { ...item, chunk_count: chunkMap.value[payload.documentUuid]?.length || 0 } : item))
   }, 600)
 }
 
 const handleReplaceDocumentFromUrl = async (payload: { documentUuid: string; sourceUri: string; fileName?: string }): Promise<void> => {
-  const nextName = payload.fileName || payload.sourceUri.split('/').pop() || 'replaced-doc'
+  const nextName = payload.fileName || payload.sourceUri.split("/").pop() || "replaced-doc"
   documents.value = documents.value.map(item => (item.uuid === payload.documentUuid
-    ? { ...item, source_uri: payload.sourceUri, file_name: nextName, status: 'processing', chunk_count: 0 }
+    ? { ...item, source_uri: payload.sourceUri, file_name: nextName, status: "processing", chunk_count: 0 }
     : item))
   chunkMap.value[payload.documentUuid] = buildDefaultChunks(nextName)
   setTimeout(() => {
-    setDocumentStatus(payload.documentUuid, 'completed')
+    setDocumentStatus(payload.documentUuid, "completed")
     documents.value = documents.value.map(item => (item.uuid === payload.documentUuid ? { ...item, chunk_count: chunkMap.value[payload.documentUuid]?.length || 0 } : item))
   }, 700)
 }
@@ -331,7 +330,7 @@ const handleRunSearch = async (payload: KnowledgeSearchRequest): Promise<void> =
   const candidates = Object.values(chunkMap.value).flat()
   if (!candidates.length) {
     searchResult.value = {
-      instance_uuid: 'demo-instance',
+      instance_uuid: "demo-instance",
       chunks: [],
     }
     runningSearch.value = false
@@ -353,7 +352,7 @@ const handleRunSearch = async (payload: KnowledgeSearchRequest): Promise<void> =
     .slice(0, payload.config.max_recall_num)
 
   searchResult.value = {
-    instance_uuid: 'demo-instance',
+    instance_uuid: "demo-instance",
     chunks,
   }
   runningSearch.value = false
@@ -380,58 +379,66 @@ const handlePublish = async (): Promise<void> => {
 }
 
 const handleBack = (): void => {
+  router.push("/components")
 }
 </script>
 
 <template>
-  <div class="h-[calc(100vh-8rem)] min-h-[760px] w-full overflow-hidden rounded-lg border">
-    <KnowledgeBaseIdeWorkbench
-      resource-name="Knowledge Workbench Demo"
-      resource-description="Demo: 知识库文档解析与分块管理工作台"
-      :updated-at="new Date().toISOString()"
-      workspace-instance-uuid="demo-workspace-instance"
-      latest-published-instance-uuid="demo-published-instance"
-      :summary="summary"
-      :status-filter="statusFilter"
-      :keyword="keyword"
-      :documents="pagedDocuments"
-      :total="filteredDocuments.length"
-      :page="page"
-      :limit="limit"
-      :loading-documents="loadingDocuments"
-      :document-mutating="documentMutating"
-      :selected-document-uuid="selectedDocumentUuid"
-      :task-progress-map="taskProgressMap"
-      :chunks="selectedChunks"
-      :loading-chunks="loadingChunks"
-      :chunks-error-message="chunksErrorMessage"
-      :config="instanceConfig"
-      :loading-config="false"
-      :saving-config="savingConfig"
-      :publishing="publishing"
-      :running-search="runningSearch"
-      :updating-chunk="updatingChunk"
-      :search-result="searchResult"
-      :search-error-message="searchErrorMessage"
-      @refresh-documents="handleRefreshDocuments"
-      @refresh-chunks="handleRefreshChunks"
-      @add-document-from-local="handleAddDocumentFromLocal"
-      @add-document-from-url="handleAddDocumentFromUrl"
-      @update:status-filter="statusFilter = $event"
-      @update:keyword="keyword = $event"
-      @select-document="selectedDocumentUuid = $event"
-      @rename-document="handleRenameDocument"
-      @replace-document-from-local="handleReplaceDocumentFromLocal"
-      @replace-document-from-url="handleReplaceDocumentFromUrl"
-      @remove-document="handleRemoveDocument"
-      @remove-documents="handleRemoveDocuments"
-      @update:page="page = $event"
-      @update:limit="limit = $event"
-      @save-config="handleSaveConfig"
-      @run-search="handleRunSearch"
-      @update-chunk="handleUpdateChunk"
-      @publish="handlePublish"
-      @back="handleBack"
+  <div class="relative h-full w-full overflow-hidden bg-background">
+    <DemoPlaygroundPanel
+      title="Knowledge Workbench"
+      description="知识库文档解析与分块管理工作台。"
     />
+
+    <div class="h-full w-full overflow-hidden">
+      <KnowledgeBaseIdeWorkbench
+        resource-name="Knowledge Workbench Demo"
+        resource-description="Demo: 知识库文档解析与分块管理工作台"
+        :updated-at="new Date().toISOString()"
+        workspace-instance-uuid="demo-workspace-instance"
+        latest-published-instance-uuid="demo-published-instance"
+        :summary="summary"
+        :status-filter="statusFilter"
+        :keyword="keyword"
+        :documents="pagedDocuments"
+        :total="filteredDocuments.length"
+        :page="page"
+        :limit="limit"
+        :loading-documents="loadingDocuments"
+        :document-mutating="documentMutating"
+        :selected-document-uuid="selectedDocumentUuid"
+        :task-progress-map="taskProgressMap"
+        :chunks="selectedChunks"
+        :loading-chunks="loadingChunks"
+        :chunks-error-message="chunksErrorMessage"
+        :config="instanceConfig"
+        :loading-config="false"
+        :saving-config="savingConfig"
+        :publishing="publishing"
+        :running-search="runningSearch"
+        :updating-chunk="updatingChunk"
+        :search-result="searchResult"
+        :search-error-message="searchErrorMessage"
+        @refresh-documents="handleRefreshDocuments"
+        @refresh-chunks="handleRefreshChunks"
+        @add-document-from-local="handleAddDocumentFromLocal"
+        @add-document-from-url="handleAddDocumentFromUrl"
+        @update:status-filter="statusFilter = $event"
+        @update:keyword="keyword = $event"
+        @select-document="selectedDocumentUuid = $event"
+        @rename-document="handleRenameDocument"
+        @replace-document-from-local="handleReplaceDocumentFromLocal"
+        @replace-document-from-url="handleReplaceDocumentFromUrl"
+        @remove-document="handleRemoveDocument"
+        @remove-documents="handleRemoveDocuments"
+        @update:page="page = $event"
+        @update:limit="limit = $event"
+        @save-config="handleSaveConfig"
+        @run-search="handleRunSearch"
+        @update-chunk="handleUpdateChunk"
+        @publish="handlePublish"
+        @back="handleBack"
+      />
+    </div>
   </div>
 </template>

@@ -1,12 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, provide, ref } from "vue"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@prismaspace/ui-shadcn/components/ui/card"
 import { Badge } from "@prismaspace/ui-shadcn/components/ui/badge"
 import { Button } from "@prismaspace/ui-shadcn/components/ui/button"
 import {
@@ -16,9 +9,10 @@ import {
   type FormItem,
 } from "@prismaspace/generator/form-generator"
 import {
-  paramSchemaEditorFieldDescriptor,
   formGeneratorValueRefTreeKey,
+  paramSchemaEditorFieldDescriptor,
 } from "@prismaspace/generator/form-generator/advanced-components"
+import DemoPlaygroundPanel from "@app/components/demo-playground/DemoPlaygroundPanel.vue"
 import CounterField from "./CounterField.vue"
 import {
   createDemoMetadataSchemaSeed,
@@ -667,22 +661,17 @@ function toggleAdvanced(): void {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <Card>
-      <CardHeader>
-        <CardTitle>Schema-Driven Form Generator Demo</CardTitle>
-        <CardDescription>
-          覆盖全部默认字段 / layout 组件、默认 button action、高级 param-schema-editor，以及 layout 的内部状态与 model 映射两类用例。
-        </CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <div class="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" @click="toggleAdvanced">
-            切换高级模式（当前：{{ context.showAdvanced ? "ON" : "OFF" }}）
-          </Button>
-        </div>
+  <div class="relative h-full w-full overflow-hidden bg-background">
+    <DemoPlaygroundPanel
+      title="Form Generator"
+      description="覆盖默认字段、layout 组件、button action、高级 param-schema-editor，以及 layout 状态与 model 映射用例。"
+    >
+      <div class="space-y-4">
+        <Button type="button" size="sm" variant="outline" @click="toggleAdvanced">
+          切换高级模式（当前：{{ context.showAdvanced ? "ON" : "OFF" }}）
+        </Button>
 
-        <div class="space-y-2 rounded-md border bg-muted/20 p-3 text-xs">
+        <section class="space-y-2 rounded-xl border bg-muted/20 p-3 text-xs">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-medium">Field 覆盖</span>
             <Badge variant="secondary">{{ usedControls.fields.length }} / {{ componentCatalog.fields.length }}</Badge>
@@ -704,8 +693,29 @@ function toggleAdvanced(): void {
           <p v-if="missingActionControls.length" class="text-destructive">
             缺失 Action：{{ missingActionControls.join(", ") }}
           </p>
-        </div>
+        </section>
 
+        <section class="rounded-xl border bg-muted/20 p-3 text-xs">
+          <p class="mb-2 font-medium">Current Form Model</p>
+          <pre class="max-h-48 overflow-auto whitespace-pre-wrap">{{ prettyModel }}</pre>
+        </section>
+
+        <section class="rounded-xl border bg-muted/20 p-3 text-xs">
+          <p class="mb-2 font-medium">Event Logs</p>
+          <ul class="space-y-2">
+            <li v-for="(item, index) in logs" :key="index" class="rounded-md bg-background px-2 py-2">
+              {{ item }}
+            </li>
+            <li v-if="logs.length === 0" class="text-muted-foreground">
+              暂无事件
+            </li>
+          </ul>
+        </section>
+      </div>
+    </DemoPlaygroundPanel>
+
+    <div class="h-full overflow-auto p-4 md:p-6">
+      <div class="mx-auto max-w-6xl">
         <FormGenerator
           ref="formGeneratorRef"
           v-model="formModel"
@@ -713,32 +723,7 @@ function toggleAdvanced(): void {
           :context="context"
           @submit="handleSubmit"
         />
-      </CardContent>
-    </Card>
-
-    <Card>
-      <CardHeader>
-        <CardTitle>Current Form Model</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <pre class="overflow-auto rounded-md bg-muted p-4 text-xs">{{ prettyModel }}</pre>
-      </CardContent>
-    </Card>
-
-    <Card>
-      <CardHeader>
-        <CardTitle>Event Logs</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ul class="space-y-2 text-xs">
-          <li v-for="(item, index) in logs" :key="index" class="rounded-md bg-muted p-2">
-            {{ item }}
-          </li>
-          <li v-if="logs.length === 0" class="text-muted-foreground">
-            暂无事件
-          </li>
-        </ul>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   </div>
 </template>
