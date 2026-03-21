@@ -10,6 +10,7 @@ import type { PromptInputMessage } from '@prismaspace/ui-ai-elements/components/
 import type { PrismaspaceClient } from '@prismaspace/sdk'
 import type { AttachmentSummary, DisplayMessage, SessionGroup, ToolCallView } from './agent-chat.types'
 import { createClient } from '@prismaspace/sdk'
+import { SidebarInset, SidebarProvider } from '@prismaspace/ui-shadcn/components/ui/sidebar'
 import { nanoid } from 'nanoid'
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import AgentChatHeader from './components/AgentChatHeader.vue'
@@ -38,7 +39,6 @@ const emit = defineEmits<{
 const HOST_ACCESS_TOKEN_KEY = 'prismaspace.session.access_token'
 const MAX_SESSIONS = 100
 const MAX_MESSAGES = 100
-const SIDEBAR_LAYOUT_MIN_WIDTH = 980
 
 const instanceDetail = ref<AnyInstanceRead | null>(null)
 const sessions = ref<AgentSessionRead[]>([])
@@ -50,19 +50,15 @@ const creatingSession = ref(false)
 const isStreaming = ref(false)
 const shellError = ref<string | null>(null)
 const useWebSearch = ref(false)
-const mobileSidebarOpen = ref(false)
 const renamingSessionId = ref<string | null>(null)
 const renamingTitle = ref('')
-const shellRef = ref<HTMLElement | null>(null)
 const currentRunId = ref<string | null>(null)
 const currentAssistantMessageId = ref<string | null>(null)
 const streamAbortController = shallowRef<AbortController | null>(null)
 const streamConnection = shallowRef<{ close?: () => void } | null>(null)
 const streamingStoppedByUser = ref(false)
-const shellWidth = ref(0)
 
 let initializeTicket = 0
-let shellResizeObserver: ResizeObserver | null = null
 
 const readHostAccessToken = (): string | null => {
   if (typeof window === 'undefined') {
@@ -324,8 +320,6 @@ const visibleSuggestions = computed(() => {
 })
 
 const showSidebar = computed(() => !isPinnedThreadMode.value)
-const showDesktopSidebar = computed(() => showSidebar.value && shellWidth.value >= SIDEBAR_LAYOUT_MIN_WIDTH)
-const showSidebarToggle = computed(() => showSidebar.value && !showDesktopSidebar.value)
 const showIntro = computed(() => !loadingMessages.value && messages.value.length === 0)
 const showAuthFallbackNotice = computed(() => !props.client && !props.accessToken && !!instanceUuid.value)
 const conversationViewKey = computed(() => activeThreadId.value || (showIntro.value ? 'empty-state' : 'chat-view'))
@@ -632,9 +626,6 @@ async function activateThread(nextThreadId: string | null, options?: { loadHisto
   emitThreadChange(nextThreadId)
   emitSessionChange(nextThreadId)
   renamingSessionId.value = null
-  if (options?.closeSidebar) {
-    mobileSidebarOpen.value = false
-  }
   if (!nextThreadId) {
     messages.value = []
     return
@@ -1001,30 +992,6 @@ function handleSuggestionClick(suggestion: string): void {
   void handleSubmit({ text: suggestion, files: [] })
 }
 
-function syncShellWidth(element: HTMLElement | null): void {
-  shellWidth.value = element ? Math.round(element.getBoundingClientRect().width) : 0
-}
-
-watch(shellRef, (next) => {
-  shellResizeObserver?.disconnect()
-  shellResizeObserver = null
-  syncShellWidth(next)
-  if (!next || typeof ResizeObserver === 'undefined') {
-    return
-  }
-  shellResizeObserver = new ResizeObserver((entries) => {
-    const entry = entries[0]
-    shellWidth.value = Math.round(entry?.contentRect.width || next.getBoundingClientRect().width)
-  })
-  shellResizeObserver.observe(next)
-})
-
-watch(showSidebarToggle, (value) => {
-  if (!value) {
-    mobileSidebarOpen.value = false
-  }
-}, { immediate: true })
-
 watch(
   [instanceUuid, explicitThreadId, () => props.client, () => props.accessToken, baseUrl, resolvedLocale],
   async () => {
@@ -1033,7 +1000,6 @@ watch(
 
     stopStreaming()
     shellError.value = null
-    mobileSidebarOpen.value = false
     renamingSessionId.value = null
     renamingTitle.value = ''
     messages.value = []
@@ -1081,18 +1047,18 @@ watch(
 onBeforeUnmount(() => {
   streamAbortController.value?.abort()
   streamConnection.value?.close?.()
-  shellResizeObserver?.disconnect()
-  shellResizeObserver = null
 })
 </script>
 
 <template>
-  <div
-    ref="shellRef"
-    class="relative flex h-full min-h-0 w-full overflow-hidden bg-[#fafafa] font-['Geist','Inter','Segoe_UI',sans-serif] text-slate-900"
+  <SidebarProvider
+    class="h-full min-h-0 w-full font-['Geist','Inter','Segoe_UI',sans-serif]"
+    :style="{
+      '--sidebar-width': 'calc(var(--spacing) * 72)',
+    }"
   >
     <AgentSessionList
-      v-if="showDesktopSidebar"
+      v-if="showSidebar"
       :loading="loadingSessions"
       :creating="creatingSession"
       :session-groups="sessionGroups"
@@ -1109,15 +1075,15 @@ onBeforeUnmount(() => {
       @update:renaming-title="renamingTitle = $event"
     />
 
-    <div class="flex min-w-0 flex-1 flex-col bg-[#fafafa]">
+    <SidebarInset class="min-h-0">
+      <div class="flex min-h-0 flex-1 flex-col">
       <AgentChatHeader
         :title="instanceName"
-        :show-sidebar-toggle="showSidebarToggle"
+        :show-sidebar-trigger="showSidebar"
         :can-create-session="showSidebar"
         :creating-session="creatingSession"
         :sidebar-label="copy.session"
         :new-chat-label="copy.newChat"
-        @toggle-sidebar="mobileSidebarOpen = true"
         @new-session="handleNewSession"
       />
 
@@ -1146,26 +1112,7 @@ onBeforeUnmount(() => {
         @stop-streaming="stopStreaming"
         @suggestion-click="handleSuggestionClick"
       />
-    </div>
-
-    <AgentSessionList
-      drawer
-      :visible="mobileSidebarOpen && showSidebarToggle"
-      :loading="loadingSessions"
-      :creating="creatingSession"
-      :session-groups="sessionGroups"
-      :active-thread-id="activeThreadId"
-      :renaming-session-id="renamingSessionId"
-      :renaming-title="renamingTitle"
-      :copy="copy"
-      @close="mobileSidebarOpen = false"
-      @create="handleNewSession"
-      @select="activateThread($event, { closeSidebar: true })"
-      @begin-rename="beginRename"
-      @submit-rename="submitRename"
-      @cancel-rename="cancelRename"
-      @delete="deleteSession"
-      @update:renaming-title="renamingTitle = $event"
-    />
-  </div>
+      </div>
+    </SidebarInset>
+  </SidebarProvider>
 </template>

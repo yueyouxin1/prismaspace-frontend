@@ -132,8 +132,8 @@ onBeforeUnmount(() => {
     initial="instant"
     :resize="{ damping: 0.72, stiffness: 0.08, mass: 1.02 }"
   >
-    <ConversationContent class="gap-0 px-4 pb-28 pt-0 md:px-8 md:pb-32">
-      <div ref="messageFeedRef" class="mx-auto flex w-full max-w-4xl flex-col gap-8 py-4 md:py-6">
+    <ConversationContent :class="showIntro ? 'gap-0 px-4 pb-4 pt-0 md:px-8 md:pb-4' : 'gap-0 px-4 pb-18 pt-0 md:px-8 md:pb-20'">
+      <div ref="messageFeedRef" class="mx-auto flex w-full max-w-4xl flex-col gap-6 py-3 md:py-4">
         <div
           v-if="shellError"
           class="rounded-[20px] bg-rose-50 px-5 py-4 text-sm text-rose-700 shadow-[0_10px_24px_rgba(244,63,94,0.06)]"
@@ -153,9 +153,9 @@ onBeforeUnmount(() => {
 
         <section
           v-if="showIntro"
-          class="flex min-h-[40vh] flex-col items-center justify-center px-4 text-center md:min-h-[48vh]"
+          class="flex min-h-[26vh] flex-col items-center justify-center px-4 text-center md:min-h-[32vh]"
         >
-          <h2 class="max-w-3xl text-[28px] font-semibold tracking-[-0.045em] text-slate-900 md:text-[44px]">
+          <h2 class="max-w-3xl text-[24px] font-semibold tracking-[-0.04em] text-slate-900 md:text-[34px]">
             {{ emptyTitle }}
           </h2>
           <p v-if="emptySubtitle" class="mt-4 max-w-2xl text-sm leading-7 text-slate-500 md:text-[15px]">
@@ -319,7 +319,10 @@ onBeforeUnmount(() => {
       </div>
     </ConversationContent>
 
-    <ConversationScrollButton class="bottom-6 border-slate-200 bg-white/95 text-slate-600 shadow-[0_10px_28px_rgba(15,23,42,0.1)] hover:bg-white" />
+    <ConversationScrollButton
+      v-if="messages.length > 0 && !showIntro"
+      class="z-30 bottom-4 border-slate-200 bg-white/95 text-slate-600 shadow-[0_10px_28px_rgba(15,23,42,0.1)] hover:bg-white"
+    />
   </Conversation>
 </template>
 

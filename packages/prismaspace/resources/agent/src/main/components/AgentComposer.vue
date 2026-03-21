@@ -79,9 +79,9 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
 
 <template>
   <div class="agent-chat-composer-shell sticky bottom-0 z-20 mt-auto px-4 pb-4 md:px-8 md:pb-6">
-    <div class="pointer-events-none absolute inset-x-0 bottom-full h-16 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/95 to-transparent" />
+    <div class="pointer-events-none absolute inset-x-0 bottom-full z-0 h-10 bg-gradient-to-t from-background via-background/92 to-transparent" />
 
-    <div class="mx-auto flex max-w-[760px] flex-col gap-4">
+    <div class="mx-auto flex w-full max-w-4xl flex-col gap-3">
       <div v-if="showSuggestions && suggestionCards.length" class="space-y-2">
         <div class="hidden gap-3 md:grid md:grid-cols-3">
           <button
@@ -114,7 +114,7 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
         </div>
       </div>
 
-      <div class="rounded-[26px] bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)] ring-1 ring-slate-200">
+      <div class="relative z-10 rounded-[24px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.07)] ring-1 ring-slate-200">
         <input
           :ref="prompt.fileInputRef"
           type="file"
@@ -123,7 +123,7 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
           @change="handleFileChange"
         >
 
-        <PromptInputAttachments class="w-full px-4 pt-4">
+        <PromptInputAttachments class="w-full px-4 pt-3">
           <template #default="{ file }">
             <PromptInputAttachment :file="file" class="rounded-full border-slate-200 bg-slate-50" />
           </template>
@@ -133,60 +133,60 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
           <PromptInputTextarea
             :placeholder="placeholder"
             rows="1"
-            class="min-h-[56px] max-h-[144px] resize-none border-0 bg-transparent px-5 pt-4 text-[15px] leading-7 text-slate-900 shadow-none outline-none focus-visible:ring-0 md:text-[16px]"
+            class="min-h-[44px] max-h-[112px] resize-none border-0 bg-transparent px-5 pt-3 text-[15px] leading-7 text-slate-900 shadow-none outline-none focus-visible:ring-0 md:text-[15px]"
           />
 
-          <div class="flex items-center justify-between px-4 pb-4 pt-2">
+          <div class="flex items-center justify-between px-4 pb-3 pt-1">
             <div class="flex items-center gap-2">
               <button
                 type="button"
-                class="flex size-10 items-center justify-center rounded-full transition-all duration-150 active:scale-95"
+                class="flex size-9 items-center justify-center rounded-full transition-all duration-150 active:scale-95"
                 :class="useWebSearch
                   ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
                   : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'"
                 :title="copy.webSearchEnabled"
                 @click="emit('toggle-web-search')"
               >
-                <GlobeIcon class="size-4.5" />
+                <GlobeIcon class="size-4" />
               </button>
             </div>
 
             <div class="flex items-center gap-2">
               <button
                 type="button"
-                class="flex size-10 items-center justify-center rounded-full text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
+                class="flex size-9 items-center justify-center rounded-full text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
                 :title="copy.attachFile"
                 @click="prompt.openFileDialog"
               >
-                <PlusIcon class="size-5" />
+                <PlusIcon class="size-4" />
               </button>
 
               <button
                 v-if="isStreaming"
                 type="button"
-                class="flex size-11 items-center justify-center rounded-full bg-slate-900 text-white transition-all duration-150 hover:bg-slate-950 active:scale-95"
+                class="flex size-10 items-center justify-center rounded-full bg-slate-900 text-white transition-all duration-150 hover:bg-slate-950 active:scale-95"
                 @click="emit('stop-streaming')"
               >
-                <SquareIcon class="size-4" />
+                <SquareIcon class="size-3.5" />
               </button>
 
               <button
                 v-else
                 type="submit"
-                class="flex size-11 items-center justify-center rounded-full transition-all duration-150 active:scale-95 disabled:cursor-not-allowed"
+                class="flex size-10 items-center justify-center rounded-full transition-all duration-150 active:scale-95 disabled:cursor-not-allowed"
                 :class="canSubmit
                   ? 'bg-slate-900 text-white hover:bg-slate-950'
                   : 'bg-slate-100 text-slate-300'"
                 :disabled="!canSubmit"
               >
-                <ArrowUpIcon class="size-4" />
+                <ArrowUpIcon class="size-3.5" />
               </button>
             </div>
           </div>
         </form>
       </div>
 
-      <p class="text-center text-xs text-slate-400">
+      <p class="pt-1 text-center text-xs text-slate-400">
         {{ copy.disclaimer }}
       </p>
     </div>
