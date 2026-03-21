@@ -124,6 +124,7 @@ const emit = defineEmits<{
 const HOST_ACCESS_TOKEN_KEY = 'prismaspace.session.access_token'
 const MAX_SESSIONS = 100
 const MAX_MESSAGES = 100
+const SIDEBAR_LAYOUT_MIN_WIDTH = 980
 
 const instanceDetail = ref<AnyInstanceRead | null>(null)
 const sessions = ref<AgentSessionRead[]>([])
@@ -140,6 +141,7 @@ const useWebSearch = ref(false)
 const mobileSidebarOpen = ref(false)
 const renamingSessionId = ref<string | null>(null)
 const renamingTitle = ref('')
+const shellRef = ref<HTMLElement | null>(null)
 const scrollContainerRef = ref<HTMLElement | null>(null)
 const messageFeedRef = ref<HTMLElement | null>(null)
 const bottomAnchorRef = ref<HTMLElement | null>(null)
@@ -149,9 +151,11 @@ const currentAssistantMessageId = ref<string | null>(null)
 const streamAbortController = shallowRef<AbortController | null>(null)
 const streamConnection = shallowRef<{ close?: () => void } | null>(null)
 const streamingStoppedByUser = ref(false)
+const shellWidth = ref(0)
 
 let initializeTicket = 0
 let codeEnhanceTimer: number | undefined
+let shellResizeObserver: ResizeObserver | null = null
 
 const readHostAccessToken = (): string | null => {
   if (typeof window === 'undefined') {
@@ -471,6 +475,8 @@ const visibleSuggestions = computed(() => {
 })
 
 const showSidebar = computed(() => !isPinnedThreadMode.value)
+const showDesktopSidebar = computed(() => showSidebar.value && shellWidth.value >= SIDEBAR_LAYOUT_MIN_WIDTH)
+const showSidebarToggle = computed(() => showSidebar.value && !showDesktopSidebar.value)
 const showIntro = computed(() => !loadingMessages.value && messages.value.length === 0)
 const showAuthFallbackNotice = computed(() => !props.client && !props.accessToken && !!instanceUuid.value)
 
@@ -807,6 +813,24 @@ async function createSession(title = copy.value.untitledSession): Promise<AgentS
   }
 }
 
+function touchSession(threadId: string): void {
+  if (isPinnedThreadMode.value || !threadId) {
+    return
+  }
+  const current = sessions.value.find(item => item.uuid === threadId)
+  if (!current) {
+    return
+  }
+  const updated = {
+    ...current,
+    updated_at: new Date().toISOString(),
+  }
+  sessions.value = [updated, ...sessions.value.filter(item => item.uuid !== threadId)]
+  if (activeThreadId.value === threadId) {
+    emitSessionChange(threadId)
+  }
+}
+
 async function handleNewSession(): Promise<void> {
   const session = await createSession(copy.value.untitledSession)
   if (!session) {
@@ -918,28 +942,6 @@ function markStreamingFinished(options?: { error?: string | null }): void {
   currentAssistantMessageId.value = null
   currentRunId.value = null
   queueEnhancements()
-}
-
-async function refreshAfterStream(threadId: string): Promise<void> {
-  if (!resolvedClient.value || !threadId) {
-    return
-  }
-  try {
-    const [sessionList, history] = await Promise.all([
-      isPinnedThreadMode.value ? Promise.resolve(null) : resolvedClient.value.agentSession.listSessions(instanceUuid.value, 1, MAX_SESSIONS),
-      resolvedClient.value.agentSession.listMessages(threadId, 0, MAX_MESSAGES),
-    ])
-    if (sessionList) {
-      sessions.value = [...sessionList].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-    }
-    messages.value = foldPersistedMessages(history)
-  } catch {
-    // Keep optimistic UI when sync fails.
-  } finally {
-    await nextTick()
-    queueEnhancements()
-    scrollToBottom('smooth')
-  }
 }
 
 function normalizeUsage(raw: unknown): UsageSummary | null {
@@ -1097,7 +1099,6 @@ async function submitToAgent(payload: RunAgentInputExtRequest): Promise<void> {
       },
       onDone: async () => {
         markStreamingFinished()
-        await refreshAfterStream(payload.threadId)
       },
       onError: (error) => {
         if (streamingStoppedByUser.value) {
@@ -1145,6 +1146,7 @@ async function handleSubmit(input: PromptInputMessage): Promise<void> {
   const userMessage = createDisplayMessage('user', text)
   userMessage.attachments = attachments
   messages.value = [...messages.value, userMessage]
+  touchSession(threadId)
   await nextTick()
   scrollToBottom('smooth')
   await submitToAgent(buildRunPayload(threadId, userMessage))
@@ -1258,10 +1260,34 @@ function enhanceCodeBlocks(): void {
   })
 }
 
+function syncShellWidth(element: HTMLElement | null): void {
+  shellWidth.value = element ? Math.round(element.getBoundingClientRect().width) : 0
+}
+
+watch(shellRef, (next) => {
+  shellResizeObserver?.disconnect()
+  shellResizeObserver = null
+  syncShellWidth(next)
+  if (!next || typeof ResizeObserver === 'undefined') {
+    return
+  }
+  shellResizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    shellWidth.value = Math.round(entry?.contentRect.width || next.getBoundingClientRect().width)
+  })
+  shellResizeObserver.observe(next)
+})
+
 watch(scrollContainerRef, (next, prev) => {
   prev?.removeEventListener('scroll', handleScroll)
   next?.addEventListener('scroll', handleScroll, { passive: true })
 })
+
+watch(showSidebarToggle, (value) => {
+  if (!value) {
+    mobileSidebarOpen.value = false
+  }
+}, { immediate: true })
 
 watch(
   [instanceUuid, explicitThreadId, () => props.client, () => props.accessToken, baseUrl, resolvedLocale],
@@ -1329,6 +1355,8 @@ onBeforeUnmount(() => {
   scrollContainerRef.value?.removeEventListener('scroll', handleScroll)
   streamAbortController.value?.abort()
   streamConnection.value?.close?.()
+  shellResizeObserver?.disconnect()
+  shellResizeObserver = null
   if (codeEnhanceTimer && typeof window !== 'undefined') {
     window.clearTimeout(codeEnhanceTimer)
   }
@@ -1336,15 +1364,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative flex h-full min-h-0 w-full overflow-hidden bg-[#fcfcfc] font-['Geist','Inter','Segoe_UI',sans-serif] text-slate-900">
+  <div ref="shellRef" class="agent-chat-shell relative flex h-full min-h-0 w-full overflow-hidden bg-[#fcfcfc] font-['Geist','Inter','Segoe_UI',sans-serif] text-slate-900">
     <div class="pointer-events-none absolute inset-0">
       <div class="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.10),_transparent_52%)]" />
       <div class="absolute bottom-0 right-0 h-64 w-64 bg-[radial-gradient(circle_at_center,_rgba(15,23,42,0.06),_transparent_58%)]" />
     </div>
 
     <aside
-      v-if="showSidebar"
-      class="relative z-10 hidden h-full w-[280px] shrink-0 flex-col bg-[#f9fafb]/92 px-4 pb-4 pt-5 backdrop-blur-xl md:flex"
+      v-if="showDesktopSidebar"
+      class="agent-chat-sidebar relative z-10 flex h-full w-[280px] shrink-0 flex-col bg-[#f9fafb]/92 px-4 pb-4 pt-5 backdrop-blur-xl"
     >
       <div class="flex items-center gap-3 px-2">
         <div class="flex size-10 items-center justify-center rounded-2xl bg-white shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80">
@@ -1435,18 +1463,18 @@ onBeforeUnmount(() => {
 
     <div class="relative z-10 flex min-w-0 flex-1 flex-col">
       <header class="sticky top-0 z-20 border-b border-white/50 bg-white/80 px-4 py-3 backdrop-blur-xl md:px-8">
-        <div class="mx-auto flex max-w-5xl items-center justify-between gap-3">
+        <div class="agent-chat-header-shell mx-auto flex max-w-5xl items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-3">
             <button
-              v-if="showSidebar"
+              v-if="showSidebarToggle"
               type="button"
-              class="flex size-10 items-center justify-center rounded-full text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95 md:hidden"
+              class="agent-chat-menu-button flex size-10 items-center justify-center rounded-full text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
               @click="mobileSidebarOpen = true"
             >
               <MenuIcon class="size-4.5" />
             </button>
 
-            <div class="flex min-w-0 items-center gap-3 rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
+            <div class="agent-chat-header-card flex min-w-0 items-center gap-3 rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
               <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
                 <BotIcon class="size-4" />
               </div>
@@ -1462,13 +1490,13 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="flex items-center gap-2">
-            <div class="hidden rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 text-xs text-slate-500 shadow-[0_8px_30px_rgba(15,23,42,0.04)] sm:flex sm:items-center sm:gap-2">
+          <div class="agent-chat-header-actions flex items-center gap-2">
+            <div class="agent-chat-runtime-pill hidden rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 text-xs text-slate-500 shadow-[0_8px_30px_rgba(15,23,42,0.04)] sm:flex sm:items-center sm:gap-2">
               <SparklesIcon class="size-3.5 text-indigo-500" />
               <span>{{ copy.runtime }}</span>
             </div>
 
-            <button type="button" class="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 text-left shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
+            <button type="button" class="agent-chat-version-pill flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 text-left shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
               <div class="min-w-0">
                 <p class="truncate text-xs uppercase tracking-[0.14em] text-slate-400">{{ copy.runtime }}</p>
                 <p class="truncate text-sm font-medium text-slate-900">{{ instanceVersionTag || copy.connected }}</p>
@@ -1479,8 +1507,8 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <div ref="scrollContainerRef" class="agent-chat-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-32 md:px-8">
-        <div ref="messageFeedRef" class="mx-auto flex max-w-3xl flex-col gap-8 py-8">
+      <div ref="scrollContainerRef" class="agent-chat-feed agent-chat-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-32 md:px-8">
+        <div ref="messageFeedRef" class="agent-chat-message-feed mx-auto flex max-w-3xl flex-col gap-8 py-8">
           <div
             v-if="shellError"
             class="rounded-[24px] border border-rose-200 bg-rose-50/90 px-5 py-4 text-sm text-rose-700 shadow-[0_12px_30px_rgba(244,63,94,0.08)]"
@@ -1502,9 +1530,9 @@ onBeforeUnmount(() => {
 
           <section
             v-if="showIntro"
-            class="overflow-hidden rounded-[32px] border border-slate-200/70 bg-white/92 shadow-[0_20px_60px_rgba(15,23,42,0.06)]"
+            class="agent-chat-intro overflow-hidden rounded-[32px] border border-slate-200/70 bg-white/92 shadow-[0_20px_60px_rgba(15,23,42,0.06)]"
           >
-            <div class="border-b border-slate-100 px-6 py-6 md:px-8">
+            <div class="agent-chat-intro-body border-b border-slate-100 px-6 py-6 md:px-8">
               <div class="flex flex-wrap items-center gap-3">
                 <div class="flex size-12 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-[0_16px_36px_rgba(15,23,42,0.18)]">
                   <WandSparklesIcon class="size-5" />
@@ -1532,7 +1560,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="px-6 py-6 md:px-8">
+            <div class="agent-chat-intro-footer px-6 py-6 md:px-8">
               <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
                 <BrainCircuitIcon class="size-3.5" />
                 {{ copy.suggestions }}
@@ -1568,7 +1596,7 @@ onBeforeUnmount(() => {
           </div>
 
           <template v-for="message in messages" :key="message.id">
-            <div class="flex items-start gap-4 md:gap-5" :class="message.role === 'assistant' ? 'agent-stream-in' : ''">
+            <div class="agent-chat-message-row flex items-start gap-4 md:gap-5" :class="message.role === 'assistant' ? 'agent-stream-in' : ''">
               <div
                 class="mt-1 flex size-9 shrink-0 items-center justify-center rounded-full shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1"
                 :class="message.role === 'user' ? 'bg-white text-slate-900 ring-slate-200/80' : 'bg-slate-950 text-white ring-slate-900/10'"
@@ -1613,7 +1641,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
 
-                <div v-else class="space-y-3 pt-3">
+                <div v-else class="agent-chat-assistant-stack space-y-3 pt-3">
                   <button
                     v-if="message.reasoning"
                     type="button"
@@ -1657,7 +1685,7 @@ onBeforeUnmount(() => {
                     <div
                       v-for="tool in message.toolCalls"
                       :key="tool.id"
-                      class="rounded-full border bg-white px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.04)]"
+                      class="agent-chat-tool-card rounded-full border bg-white px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.04)]"
                       :class="tool.status === 'error'
                         ? 'border-rose-200 text-rose-600'
                         : tool.status === 'success'
@@ -1684,7 +1712,7 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
 
-                  <div class="rounded-[28px] bg-white/92 px-6 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/70 backdrop-blur-md">
+                  <div class="agent-chat-message-card rounded-[28px] bg-white/92 px-6 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/70 backdrop-blur-md">
                     <div
                       v-if="message.error"
                       class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
@@ -1747,7 +1775,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="sticky bottom-0 z-20 mt-auto px-4 pb-4 md:px-8 md:pb-6">
+      <div class="agent-chat-composer-shell sticky bottom-0 z-20 mt-auto px-4 pb-4 md:px-8 md:pb-6">
         <div class="pointer-events-none absolute inset-x-0 bottom-full h-24 bg-gradient-to-t from-[#fcfcfc] via-[#fcfcfc]/88 to-transparent" />
 
         <div class="mx-auto max-w-3xl">
@@ -1764,7 +1792,7 @@ onBeforeUnmount(() => {
           </div>
 
           <PromptInput
-            class="w-full rounded-[24px] border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]"
+            class="agent-chat-composer w-full rounded-[24px] border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]"
             multiple
             global-drop
             @submit="handleSubmit"
@@ -1783,7 +1811,7 @@ onBeforeUnmount(() => {
               />
             </PromptInputBody>
 
-            <PromptInputFooter class="border-t border-slate-100 px-3 py-3">
+            <PromptInputFooter class="agent-chat-input-footer border-t border-slate-100 px-3 py-3">
               <PromptInputTools class="gap-1">
                 <PromptInputActionMenu>
                   <PromptInputActionMenuTrigger />
@@ -1794,7 +1822,7 @@ onBeforeUnmount(() => {
 
                 <PromptInputButton :title="copy.webSearchEnabled" :variant="useWebSearch ? 'default' : 'ghost'" @click="toggleWebSearch">
                   <GlobeIcon class="size-4" />
-                  <span class="hidden sm:inline">{{ copy.webSearch }}</span>
+                  <span class="agent-chat-web-label hidden sm:inline">{{ copy.webSearch }}</span>
                 </PromptInputButton>
 
                 <PromptInputSpeechButton class="[&>svg]:size-4">
@@ -1806,8 +1834,8 @@ onBeforeUnmount(() => {
                 </PromptInputButton>
               </PromptInputTools>
 
-              <div class="flex items-center gap-2">
-                <span class="hidden text-[11px] text-slate-400 sm:block">{{ copy.inputHint }}</span>
+              <div class="agent-chat-input-actions flex items-center gap-2">
+                <span class="agent-chat-input-hint hidden text-[11px] text-slate-400 sm:block">{{ copy.inputHint }}</span>
 
                 <button
                   v-if="isStreaming"
@@ -1832,10 +1860,10 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-if="mobileSidebarOpen && showSidebar" class="fixed inset-0 z-40 md:hidden">
+    <div v-if="mobileSidebarOpen && showSidebarToggle" class="agent-chat-sidebar-overlay fixed inset-0 z-40">
       <button type="button" class="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" @click="mobileSidebarOpen = false" />
 
-      <aside class="relative z-10 flex h-full w-[86vw] max-w-[320px] flex-col bg-[#f9fafb] px-4 pb-4 pt-5 shadow-[0_16px_60px_rgba(15,23,42,0.18)]">
+      <aside class="agent-chat-drawer relative z-10 flex h-full w-[86vw] max-w-[320px] flex-col bg-[#f9fafb] px-4 pb-4 pt-5 shadow-[0_16px_60px_rgba(15,23,42,0.18)]">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="flex size-10 items-center justify-center rounded-2xl bg-white shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80">
@@ -1908,6 +1936,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.agent-chat-shell {
+  container-type: inline-size;
+  container-name: agent-chat-shell;
+}
+
 .agent-chat-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
@@ -1924,6 +1957,83 @@ onBeforeUnmount(() => {
 .agent-chat-scroll::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.4);
+}
+
+@container agent-chat-shell (max-width: 760px) {
+  .agent-chat-header-shell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .agent-chat-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .agent-chat-runtime-pill,
+  .agent-chat-input-hint,
+  .agent-chat-web-label {
+    display: none !important;
+  }
+
+  .agent-chat-version-pill {
+    flex: 1 1 auto;
+    justify-content: space-between;
+  }
+
+  .agent-chat-feed {
+    padding-right: 1rem;
+    padding-bottom: 7.5rem;
+    padding-left: 1rem;
+  }
+
+  .agent-chat-message-feed {
+    gap: 1.5rem;
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .agent-chat-composer-shell {
+    padding-right: 1rem;
+    padding-bottom: 1rem;
+    padding-left: 1rem;
+  }
+
+  .agent-chat-input-footer {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .agent-chat-input-actions {
+    margin-left: auto;
+  }
+}
+
+@container agent-chat-shell (max-width: 560px) {
+  .agent-chat-header-card,
+  .agent-chat-version-pill {
+    width: 100%;
+  }
+
+  .agent-chat-message-row {
+    gap: 0.75rem;
+  }
+
+  .agent-chat-tool-card {
+    width: 100%;
+    border-radius: 1rem;
+  }
+
+  .agent-chat-message-card {
+    padding: 1rem;
+    border-radius: 1.5rem;
+  }
+
+  .agent-chat-intro-body,
+  .agent-chat-intro-footer {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
 }
 
 .agent-stream-in {

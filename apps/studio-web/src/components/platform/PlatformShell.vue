@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useColorMode, useStorage } from '@vueuse/core'
+import {ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { usePlatformTheme } from "@app/core/theme"
 import AppSidebar from '@app/components/platform/AppSidebar.vue'
 import SiteHeader from '@app/components/platform/SiteHeader.vue'
 import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
@@ -15,20 +15,6 @@ import {
 import { Label } from '@prismaspace/ui-shadcn/components/ui/label'
 import { SidebarInset, SidebarProvider } from '@prismaspace/ui-shadcn/components/ui/sidebar'
 import { Switch } from '@prismaspace/ui-shadcn/components/ui/switch'
-
-type ThemeName =
-  | 'default'
-  | 'stone'
-  | 'zinc'
-  | 'gray'
-  | 'slate'
-  | 'red'
-  | 'rose'
-  | 'orange'
-  | 'green'
-  | 'blue'
-  | 'yellow'
-  | 'violet'
 
 const props = withDefaults(
   defineProps<{
@@ -48,42 +34,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const isSettingsOpen = ref(false)
-const selectedTheme = useStorage<ThemeName>('dashboard-theme', 'default')
-const colorMode = useColorMode()
-
-const themes: Array<{ value: ThemeName; label: string; description: string }> = [
-  { value: 'default', label: 'Neutral', description: 'Official default palette.' },
-  { value: 'stone', label: 'Stone', description: 'Stone base color.' },
-  { value: 'zinc', label: 'Zinc', description: 'Zinc base color.' },
-  { value: 'gray', label: 'Gray', description: 'Gray base color.' },
-  { value: 'slate', label: 'Slate', description: 'Slate base color.' },
-  { value: 'red', label: 'Red', description: 'Red base color.' },
-  { value: 'rose', label: 'Rose', description: 'Rose base color.' },
-  { value: 'orange', label: 'Orange', description: 'Orange base color.' },
-  { value: 'green', label: 'Green', description: 'Green base color.' },
-  { value: 'blue', label: 'Blue', description: 'Blue base color.' },
-  { value: 'yellow', label: 'Yellow', description: 'Yellow base color.' },
-  { value: 'violet', label: 'Violet', description: 'Violet base color.' },
-]
-
-const isDarkMode = computed({
-  get: () => colorMode.value === 'dark',
-  set: (value: boolean) => {
-    colorMode.value = value ? 'dark' : 'light'
-  },
-})
-
-watch(
-  selectedTheme,
-  (theme) => {
-    if (theme === 'default') {
-      delete document.documentElement.dataset.theme
-      return
-    }
-    document.documentElement.dataset.theme = theme
-  },
-  { immediate: true },
-)
+const { themes, selectedTheme, isDarkMode, setTheme } = usePlatformTheme()
 </script>
 
 <template>

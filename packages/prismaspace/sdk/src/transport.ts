@@ -35,6 +35,7 @@ export interface ClientTransport {
   }
   request: <T>(path: string, options?: ApiRequestOptions) => Promise<T>
   buildUrl: (path: string, query?: ApiRequestOptions['query']) => string
+  buildWebSocketUrl: (path: string, query?: ApiRequestOptions['query']) => string
   buildHeaders: (headers?: Record<string, string>) => Record<string, string>
 }
 
@@ -146,6 +147,25 @@ export const createTransport = (options: ClientOptions): ClientTransport => {
     return `${baseUrl}${withQuery(normalizePath(path), query)}`
   }
 
+  const buildWebSocketUrl = (path: string, query?: ApiRequestOptions['query']): string => {
+    const mergedQuery: ApiRequestOptions['query'] = {
+      ...query,
+    }
+    const accessToken = options.getAccessToken?.()
+    if (accessToken) {
+      mergedQuery.token = accessToken
+    }
+
+    const httpUrl = buildUrl(path, mergedQuery)
+    if (httpUrl.startsWith('https://')) {
+      return `wss://${httpUrl.slice('https://'.length)}`
+    }
+    if (httpUrl.startsWith('http://')) {
+      return `ws://${httpUrl.slice('http://'.length)}`
+    }
+    return httpUrl
+  }
+
   const request = async <T>(path: string, requestOptions: ApiRequestOptions = {}): Promise<T> => {
     const headers = buildHeaders(requestOptions.headers)
     if (requestOptions.body !== undefined) {
@@ -195,6 +215,7 @@ export const createTransport = (options: ClientOptions): ClientTransport => {
     },
     request,
     buildUrl,
+    buildWebSocketUrl,
     buildHeaders,
   }
 }

@@ -437,7 +437,7 @@ const selectedRunText = computed(() => formatJson(props.selectedRun))
               <div class="flex items-center justify-between gap-3">
                 <p class="text-sm font-medium">Selected Run</p>
                 <Button
-                  v-if="selectedRun.status === 'RUNNING'"
+                  v-if="selectedRun.status === 'running'"
                   size="sm"
                   variant="destructive"
                   @click="emit('cancel-run', selectedRun.run_id)"

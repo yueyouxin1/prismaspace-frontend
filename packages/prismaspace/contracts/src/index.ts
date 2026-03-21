@@ -795,6 +795,19 @@ export interface WorkflowInterruptRead {
   reason: string
   message?: string | null
   payload: JsonRecord
+  resumeToken?: WorkflowResumeToken | null
+}
+
+export interface WorkflowResumeToken {
+  runId: string
+  threadId: string
+  nodeId: string
+}
+
+export interface WorkflowResumeRequest {
+  token?: WorkflowResumeToken | null
+  output?: unknown
+  meta?: JsonRecord
 }
 
 export interface WorkflowExecutionResultData extends JsonRecord {
@@ -809,12 +822,14 @@ export interface WorkflowExecutionResultData extends JsonRecord {
 }
 
 export interface WorkflowExecutionRequest {
+  protocol?: WorkflowRuntimeProtocol
   inputs?: JsonRecord
   context?: JsonRecord
   metadata?: JsonRecord
   thread_id?: string
   parent_run_id?: string
   resume_from_run_id?: string
+  resume?: WorkflowResumeRequest | null
 }
 
 export interface WorkflowExecutionResponse {
@@ -851,7 +866,7 @@ export interface WorkflowRunSummaryRead {
   run_id: string
   thread_id: string
   parent_run_id?: string | null
-  status: string
+  status: WorkflowRunStatus
   trace_id?: string | null
   error_code?: string | null
   error_message?: string | null
@@ -865,20 +880,153 @@ export interface WorkflowRunRead extends WorkflowRunSummaryRead {
   workflow_name: string
   node_executions: WorkflowRunNodeRead[]
   can_resume: boolean
+  interrupt?: WorkflowInterruptRead | null
 }
 
 export interface WorkflowEventRead {
   sequence_no: number
-  event_type: string
+  event_type: WorkflowRuntimeEventType | string
   payload: JsonRecord
   created_at: string
 }
 
-export interface WorkflowStreamEvent {
-  id?: string | null
-  event: string
-  data: JsonRecord
+export interface WorkflowRuntimeScope {
+  kind: string
+  id: string
 }
+
+export interface WorkflowUiMountPayload {
+  interactionId: string
+  uiappInstanceUuid?: string | null
+  pageKey?: string | null
+  dsl?: JsonRecord | null
+  props?: JsonRecord
+  state?: JsonRecord
+}
+
+export interface WorkflowUiPatchPayload {
+  interactionId: string
+  patch: JsonRecord
+}
+
+export interface WorkflowUiUnmountPayload {
+  interactionId: string
+  reason?: string | null
+}
+
+export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted'
+export type WorkflowRuntimeProtocol = 'wrp' | 'chatflow-ag-ui' | 'uiapp-interactive'
+
+export type WorkflowRuntimeEventType =
+  | 'session.ready'
+  | 'run.started'
+  | 'run.finished'
+  | 'run.failed'
+  | 'run.cancelled'
+  | 'run.interrupted'
+  | 'run.attached'
+  | 'run.replay.completed'
+  | 'node.started'
+  | 'node.completed'
+  | 'node.failed'
+  | 'node.skipped'
+  | 'stream.started'
+  | 'stream.delta'
+  | 'stream.finished'
+  | 'checkpoint.created'
+  | 'ui.mount'
+  | 'ui.patch'
+  | 'ui.unmount'
+  | 'agent.event'
+  | 'chat.event'
+  | 'system.error'
+
+export interface WorkflowRuntimeNodeRef {
+  id: string
+  registryId?: string | null
+  name?: string | null
+}
+
+export interface WorkflowStreamEvent {
+  type: WorkflowRuntimeEventType | string
+  seq?: number | null
+  ts: string
+  runId: string
+  threadId?: string | null
+  parentRunId?: string | null
+  traceId?: string | null
+  scope?: WorkflowRuntimeScope | null
+  node?: WorkflowRuntimeNodeRef | null
+  payload: JsonRecord
+}
+
+export interface WorkflowRuntimeRunStartMessage {
+  protocol?: WorkflowRuntimeProtocol
+  type: 'run.start'
+  requestId?: string | null
+  instanceUuid: string
+  input: WorkflowExecutionRequest
+}
+
+export interface WorkflowRuntimeRunAttachMessage {
+  protocol?: WorkflowRuntimeProtocol
+  type: 'run.attach'
+  requestId?: string | null
+  runId: string
+  afterSeq?: number
+}
+
+export interface WorkflowRuntimeRunCancelMessage {
+  protocol?: WorkflowRuntimeProtocol
+  type: 'run.cancel'
+  requestId?: string | null
+  runId: string
+}
+
+export interface WorkflowRuntimeRunResumeMessage {
+  protocol?: WorkflowRuntimeProtocol
+  type: 'run.resume'
+  requestId?: string | null
+  instanceUuid: string
+  runId: string
+  resume: WorkflowResumeRequest
+}
+
+export interface WorkflowRuntimeUiEventSubmitMessage {
+  protocol?: WorkflowRuntimeProtocol
+  type: 'ui.event.submit'
+  requestId?: string | null
+  runId: string
+  interactionId: string
+  payload?: JsonRecord
+}
+
+export interface WorkflowRuntimeUiEventAbortMessage {
+  protocol?: WorkflowRuntimeProtocol
+  type: 'ui.event.abort'
+  requestId?: string | null
+  runId: string
+  interactionId: string
+}
+
+export type WorkflowRuntimeScopedProfile = 'chat-thread' | 'uiapp-session' | 'client-session'
+
+export interface WorkflowRuntimeActiveRunResolveMessage {
+  protocol?: WorkflowRuntimeProtocol
+  type: 'active-run.resolve'
+  requestId?: string | null
+  scope: WorkflowRuntimeScope
+  profile: WorkflowRuntimeScopedProfile
+}
+
+export type WorkflowRuntimeControlMessage =
+  | WorkflowRuntimeRunStartMessage
+  | WorkflowRuntimeRunAttachMessage
+  | WorkflowRuntimeRunCancelMessage
+  | WorkflowRuntimeRunResumeMessage
+  | WorkflowRuntimeUiEventSubmitMessage
+  | WorkflowRuntimeUiEventAbortMessage
+  | WorkflowRuntimeActiveRunResolveMessage
 
 export type AgUiRole = 'developer' | 'system' | 'assistant' | 'user' | 'tool' | 'activity' | 'reasoning'
 

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import type { SseConnection } from '@prismaspace/common'
 import { prismaspaceQueryKeys } from '@prismaspace/resources-core'
 import type {
   AnyInstanceRead,
@@ -10,7 +9,7 @@ import type {
   WorkflowNodeDefRead,
   WorkflowNodeRead,
   WorkflowRunRead,
-  WorkflowStreamEvent,
+  WorkflowRunStatus,
 } from '@prismaspace/contracts'
 import type { PrismaspaceClient } from '@prismaspace/sdk'
 import { Alert, AlertDescription, AlertTitle } from '@prismaspace/ui-shadcn/components/ui/alert'
@@ -25,6 +24,8 @@ import WorkflowHeaderBar from './components/WorkflowHeaderBar.vue'
 import WorkflowNodeSidePanel from './components/WorkflowNodeSidePanel.vue'
 import WorkflowProblemPanel from './components/WorkflowProblemPanel.vue'
 import WorkflowTestRunPanel from './components/WorkflowTestRunPanel.vue'
+import { useWorkflowRunSession } from './composables/useWorkflowRunSession'
+import { useWorkflowRunStreams } from './composables/useWorkflowRunStreams'
 import type { WorkflowValidationResult } from './types/workflow-ide'
 import {
   buildWorkflowModelOptions,
@@ -52,7 +53,7 @@ const props = defineProps<{
 const queryClient = useQueryClient()
 
 const runInputText = ref('{\n  "input": "你好"\n}')
-const debugInputText = ref('{\n}')
+const debugInputText = ref('{}')
 const draftGraph = ref<WorkflowGraphRead>(ensureWorkflowGraph())
 const baselineGraphSnapshot = ref('')
 const canvasRef = ref<WorkflowCanvasExposed | null>(null)
@@ -65,16 +66,25 @@ const hasAppliedSeed = ref(false)
 const addNodeDialogOpen = ref(false)
 const testRunPanelOpen = ref(false)
 const problemsPanelOpen = ref(false)
-const liveConnection = ref<SseConnection | null>(null)
-const liveRunId = ref<string | null>(null)
-const liveThreadId = ref<string | null>(null)
-const liveRunStatus = ref<string | null>(null)
-const liveRunEvents = ref<WorkflowEventRead[]>([])
-const liveLastSeq = ref(0)
+const hasAttemptedRunRestore = ref(false)
 
 const resourceUuid = computed(() => props.resourceUuid)
 const workspaceUuid = computed(() => props.workspaceUuid)
 const instanceUuid = computed(() => props.workspaceInstanceUuid ?? null)
+const liveRunStorageKey = computed(() => instanceUuid.value ? `prismaspace.workflow.live-run.${instanceUuid.value}` : null)
+const runSession = useWorkflowRunSession(liveRunStorageKey)
+const {
+  currentRunId: liveRunId,
+  currentThreadId: liveThreadId,
+  currentStatus: liveRunStatus,
+  attachState: runAttachState,
+  interrupt: liveInterrupt,
+  resumeInputText: resumePayloadText,
+} = runSession
+
+const setWorkbenchError = (message: string | null): void => {
+  workbenchError.value = message
+}
 
 const resourceDetailQuery = useQuery({
   queryKey: computed(() => prismaspaceQueryKeys.resourceDetail(resourceUuid.value)),
@@ -138,7 +148,7 @@ const selectedRunForPanel = computed<WorkflowRunRead | null>(() => {
     run_id: liveRunId.value,
     thread_id: liveThreadId.value ?? '',
     parent_run_id: null,
-    status: liveRunStatus.value ?? 'running',
+    status: (liveRunStatus.value ?? 'running') as WorkflowRunStatus,
     trace_id: null,
     error_code: null,
     error_message: null,
@@ -149,10 +159,14 @@ const selectedRunForPanel = computed<WorkflowRunRead | null>(() => {
     latest_checkpoint: null,
     node_executions: [],
     can_resume: liveRunStatus.value === 'interrupted',
+    interrupt: liveInterrupt.value ?? null,
   }
 })
 
 const selectedRunEventsForPanel = computed<WorkflowEventRead[]>(() => {
+  if (streamFeedMode.value === 'replay' && replayRunId.value && selectedRunId.value === replayRunId.value && replayRunEvents.value.length > 0) {
+    return replayRunEvents.value
+  }
   if (liveRunId.value && selectedRunId.value === liveRunId.value && liveRunEvents.value.length > 0) {
     return liveRunEvents.value
   }
@@ -171,7 +185,6 @@ const currentZoomLabel = computed(() => {
   const zoom = typeof draftGraph.value.viewport?.zoom === 'number' ? draftGraph.value.viewport.zoom : 1
   return `${Math.round(zoom * 100)}%`
 })
-const isLiveRunning = computed(() => Boolean(liveConnection.value) && (!liveRunStatus.value || liveRunStatus.value === 'running'))
 const activePanelWidth = computed(() => (testRunPanelOpen.value ? 372 : selectedNode.value ? 392 : 0))
 const bottomPanelHeight = computed(() => (problemsPanelOpen.value ? 230 : 0))
 const floatingRightInset = computed(() => activePanelWidth.value ? activePanelWidth.value + 32 : 16)
@@ -188,13 +201,6 @@ const latestRunStatusLabel = computed(() => {
     failed: '运行失败',
     cancelled: '运行取消',
     interrupted: '等待恢复',
-    PENDING: '排队中',
-    RUNNING: '运行中',
-    COMPLETED: '运行完成',
-    SUCCEEDED: '运行完成',
-    FAILED: '运行失败',
-    CANCELLED: '运行取消',
-    INTERRUPTED: '等待恢复',
   }
   return statusMap[run.status] ?? run.status
 })
@@ -245,6 +251,36 @@ watch(
 )
 
 watch(
+  () => instanceUuid.value,
+  () => {
+    hasAttemptedRunRestore.value = false
+    resetAllStreams({ clearPersistedRunId: true })
+    selectedRunId.value = null
+  },
+)
+
+watch(
+  [() => instanceUuid.value, () => runsQuery.data.value],
+  ([currentInstanceUuid, runs]) => {
+    if (!currentInstanceUuid || hasAttemptedRunRestore.value) {
+      return
+    }
+    hasAttemptedRunRestore.value = true
+    if (!(runs ?? []).length) {
+      return
+    }
+    void Promise.resolve()
+      .then(() => restorePersistedRunningRun(runs ?? []))
+      .catch((error: unknown) => {
+        runSession.persistRunId(null)
+        workbenchError.value = error instanceof Error ? error.message : '恢复实时运行失败。'
+        props.onError?.(error)
+      })
+  },
+  { immediate: true },
+)
+
+watch(
   () => selectedNodeId.value,
   (nodeId) => {
     if (!nodeId) {
@@ -281,125 +317,34 @@ const invalidateWorkflowQueries = async (): Promise<void> => {
   await Promise.all(invalidations)
 }
 
-const closeLiveConnection = (): void => {
-  liveConnection.value?.close()
-  liveConnection.value = null
-}
+const {
+  liveRunEvents,
+  replayRunId,
+  replayRunEvents,
+  streamFeedMode,
+  isLiveRunning,
+  closeAllStreams,
+  resetAllStreams,
+  startLiveRunStream,
+  startReplayRunStream,
+  startWorkflowExecutionStream,
+  startWorkflowResumeStream,
+  startWorkflowDebugStream,
+  restorePersistedRunningRun,
+  selectRun,
+} = useWorkflowRunStreams({
+  client: props.client,
+  instanceUuid,
+  selectedRunId,
+  runSession,
+  invalidateQueries: invalidateWorkflowQueries,
+  setWorkbenchError,
+  onError: props.onError,
+  openTestRunPanel: () => {
+    testRunPanelOpen.value = true
+  },
+})
 
-const resetLiveState = (): void => {
-  liveRunId.value = null
-  liveThreadId.value = null
-  liveRunStatus.value = null
-  liveRunEvents.value = []
-  liveLastSeq.value = 0
-}
-
-const appendLiveEvent = (event: WorkflowStreamEvent): void => {
-  const parsedSeq = Number.parseInt(String(event.id ?? ''), 10)
-  const nextSeq = Number.isFinite(parsedSeq) ? parsedSeq : liveLastSeq.value + 1
-  liveLastSeq.value = Math.max(liveLastSeq.value, nextSeq)
-  liveRunEvents.value = [
-    ...liveRunEvents.value,
-    {
-      sequence_no: nextSeq,
-      event_type: event.event,
-      payload: event.data,
-      created_at: new Date().toISOString(),
-    },
-  ]
-}
-
-const finalizeLiveStream = async (): Promise<void> => {
-  closeLiveConnection()
-  await invalidateWorkflowQueries()
-}
-
-const handleWorkflowStreamEvent = (event: WorkflowStreamEvent): void => {
-  appendLiveEvent(event)
-
-  if (event.event === 'start') {
-    const runId = typeof event.data.run_id === 'string' ? event.data.run_id : liveRunId.value
-    const threadId = typeof event.data.thread_id === 'string' ? event.data.thread_id : liveThreadId.value
-    if (runId) {
-      liveRunId.value = runId
-      selectedRunId.value = runId
-    }
-    liveThreadId.value = threadId ?? null
-    liveRunStatus.value = 'running'
-    return
-  }
-
-  if (event.event === 'interrupt') {
-    liveRunStatus.value = 'interrupted'
-    void finalizeLiveStream()
-    return
-  }
-
-  if (event.event === 'error') {
-    liveRunStatus.value = 'failed'
-    void finalizeLiveStream()
-    return
-  }
-
-  if (event.event === 'finish') {
-    const outcome = typeof event.data.outcome === 'string' ? event.data.outcome : 'success'
-    liveRunStatus.value = outcome === 'cancelled' ? 'cancelled' : 'succeeded'
-    void finalizeLiveStream()
-  }
-}
-
-const startLiveRunStream = async (runId: string, afterSeq = 0): Promise<void> => {
-  closeLiveConnection()
-  liveRunId.value = runId
-  selectedRunId.value = runId
-  liveRunStatus.value = 'running'
-  if (afterSeq <= 0) {
-    liveRunEvents.value = []
-    liveLastSeq.value = 0
-  } else {
-    liveLastSeq.value = afterSeq
-  }
-  liveConnection.value = await props.client.workflow.attachLiveRun(runId, {
-    onEvent: handleWorkflowStreamEvent,
-    onServerError: (message) => {
-      workbenchError.value = message
-      liveRunStatus.value = 'failed'
-      void finalizeLiveStream()
-    },
-    onError: (error) => {
-      workbenchError.value = error instanceof Error ? error.message : '连接工作流实时流失败。'
-      props.onError?.(error)
-      liveRunStatus.value = 'failed'
-      void finalizeLiveStream()
-    },
-  }, afterSeq)
-}
-
-const startWorkflowExecutionStream = async (payload: Record<string, unknown>): Promise<void> => {
-  if (!instanceUuid.value) {
-    throw new Error('未找到 workspace instance uuid。')
-  }
-  closeLiveConnection()
-  resetLiveState()
-  testRunPanelOpen.value = true
-  workbenchError.value = null
-  liveConnection.value = await props.client.workflow.streamExecute(instanceUuid.value, {
-    inputs: payload,
-  }, {
-    onEvent: handleWorkflowStreamEvent,
-    onServerError: (message) => {
-      workbenchError.value = message
-      liveRunStatus.value = 'failed'
-      void finalizeLiveStream()
-    },
-    onError: (error) => {
-      workbenchError.value = error instanceof Error ? error.message : '启动工作流流式执行失败。'
-      props.onError?.(error)
-      liveRunStatus.value = 'failed'
-      void finalizeLiveStream()
-    },
-  })
-}
 
 const saveMutation = useMutation({
   mutationFn: async () => {
@@ -483,20 +428,33 @@ const debugMutation = useMutation({
       throw new Error('请选择需要调试的节点。')
     }
     const payload = parseJsonObject(debugInputText.value)
-    return props.client.workflow.debugNode(instanceUuid.value, selectedNode.value.id, {
-      inputs: payload,
-    })
+    await startWorkflowDebugStream(selectedNode.value.id, payload)
   },
-  onSuccess: async (response) => {
-    if (response.data.run_id) {
-      selectedRunId.value = response.data.run_id
-    }
+  onSuccess: async () => {
     workbenchError.value = null
     testRunPanelOpen.value = true
-    await invalidateWorkflowQueries()
   },
   onError: (error) => {
     workbenchError.value = error instanceof Error ? error.message : '调试节点失败。'
+    props.onError?.(error)
+  },
+})
+
+const resumeMutation = useMutation({
+  mutationFn: async () => {
+    const runId = selectedRunId.value
+    if (!runId) {
+      throw new Error('请选择需要恢复的运行。')
+    }
+    const payload = parseJsonObject(resumePayloadText.value)
+    await startWorkflowResumeStream(runId, payload)
+  },
+  onSuccess: () => {
+    workbenchError.value = null
+    testRunPanelOpen.value = true
+  },
+  onError: (error) => {
+    workbenchError.value = error instanceof Error ? error.message : '恢复运行失败。'
     props.onError?.(error)
   },
 })
@@ -577,6 +535,10 @@ const handleDebugSelectedNode = async (): Promise<void> => {
   await debugMutation.mutateAsync()
 }
 
+const handleResumeSelectedRun = async (): Promise<void> => {
+  await resumeMutation.mutateAsync()
+}
+
 const handlePublish = async (): Promise<void> => {
   try {
     await saveIfDirty()
@@ -587,21 +549,15 @@ const handlePublish = async (): Promise<void> => {
 }
 
 const handleSelectRun = async (runId: string): Promise<void> => {
-  selectedRunId.value = runId
-  const targetSummary = (runsQuery.data.value ?? []).find(run => run.run_id === runId) ?? null
-  if (!targetSummary) {
+  await selectRun(runId, runsQuery.data.value ?? [])
+}
+
+const handleReplaySelectedRun = async (): Promise<void> => {
+  const runId = selectedRunId.value
+  if (!runId) {
     return
   }
-
-  if (targetSummary.status === 'running') {
-    const afterSeq = liveRunId.value === runId ? liveLastSeq.value : 0
-    await startLiveRunStream(runId, afterSeq)
-    return
-  }
-
-  if (liveRunId.value && liveRunId.value !== runId) {
-    closeLiveConnection()
-  }
+  await startReplayRunStream(runId)
 }
 
 const handleAddNodeAt = (definition: WorkflowNodeDefRead, position?: { x: number; y: number }): void => {
@@ -859,7 +815,7 @@ watch(
 
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', onBeforeUnload)
-  closeLiveConnection()
+  closeAllStreams()
 })
 
 const isLoading = computed(() =>
@@ -948,24 +904,30 @@ const isLoadFailed = computed(() =>
           <div class="pointer-events-auto">
             <WorkflowTestRunPanel
               :open="testRunPanelOpen"
-              :running="executeMutation.isPending.value || executeAsyncMutation.isPending.value || isLiveRunning"
+              :running="executeMutation.isPending.value || executeAsyncMutation.isPending.value || resumeMutation.isPending.value || isLiveRunning"
               :debugging="debugMutation.isPending.value"
               :can-debug="Boolean(selectedNode)"
               :selected-node-name="selectedNode?.data.name ?? null"
               :input-text="runInputText"
+              :resume-input-text="resumePayloadText"
               :workflow-input-schemas="workflowInputSchemas"
               :selected-run-id="selectedRunId"
               :runs="runsQuery.data.value ?? []"
               :selected-run="selectedRunForPanel"
               :selected-run-events="selectedRunEventsForPanel"
+              :attach-state="runAttachState"
+              :event-feed-mode="streamFeedMode"
               :loading-run-detail="selectedRunQuery.isLoading.value && !(selectedRunId && selectedRunId === liveRunId && selectedRunForPanel)"
               :loading-run-events="selectedRunEventsQuery.isLoading.value && !(selectedRunId && selectedRunId === liveRunId && selectedRunEventsForPanel.length)"
               @update:open="testRunPanelOpen = $event"
               @update:input-text="runInputText = $event"
+              @update:resume-input-text="resumePayloadText = $event"
               @run="handleRun"
               @run-async="handleRunAsync"
               @debug-node="handleDebugSelectedNode"
               @select-run="handleSelectRun"
+              @replay-run="handleReplaySelectedRun"
+              @resume-run="handleResumeSelectedRun"
               @cancel-run="cancelRunMutation.mutate($event)"
             />
           </div>
@@ -1007,3 +969,5 @@ const isLoadFailed = computed(() =>
     </div>
   </div>
 </template>
+
+

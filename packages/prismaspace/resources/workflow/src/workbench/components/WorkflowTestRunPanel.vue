@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Bot, CheckCircle2, FileText, Play, Sparkles, X, XCircle } from 'lucide-vue-next'
+import { Bot, CheckCircle2, FileText, History, Play, RotateCcw, Sparkles, X, XCircle } from 'lucide-vue-next'
 import type {
   WorkflowEventRead,
   WorkflowParameterSchema,
@@ -22,11 +22,14 @@ const props = withDefaults(defineProps<{
   canDebug?: boolean
   selectedNodeName?: string | null
   inputText: string
+  resumeInputText?: string
   workflowInputSchemas: WorkflowParameterSchema[]
   runs?: WorkflowRunSummaryRead[]
   selectedRunId?: string | null
   selectedRun?: WorkflowRunRead | null
   selectedRunEvents?: WorkflowEventRead[]
+  attachState?: 'idle' | 'connecting' | 'attached' | 'replaying' | 'detached' | 'error'
+  eventFeedMode?: 'history' | 'live' | 'replay'
   loadingRunDetail?: boolean
   loadingRunEvents?: boolean
 }>(), {
@@ -35,10 +38,13 @@ const props = withDefaults(defineProps<{
   debugging: false,
   canDebug: false,
   selectedNodeName: null,
+  resumeInputText: '{}',
   runs: () => [],
   selectedRunId: null,
   selectedRun: null,
   selectedRunEvents: () => [],
+  attachState: 'idle',
+  eventFeedMode: 'history',
   loadingRunDetail: false,
   loadingRunEvents: false,
 })
@@ -46,16 +52,22 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (event: 'update:open', value: boolean): void
   (event: 'update:input-text', value: string): void
+  (event: 'update:resume-input-text', value: string): void
   (event: 'run'): void
   (event: 'run-async'): void
   (event: 'debug-node'): void
   (event: 'select-run', runId: string): void
+  (event: 'replay-run'): void
+  (event: 'resume-run'): void
   (event: 'cancel-run', runId: string): void
 }>()
 
 const formModel = ref<Record<string, unknown>>({})
 const jsonMode = ref(false)
 const keepAsTestset = ref(false)
+const showAllResultEvents = ref(false)
+const showAllRunEvents = ref(false)
+const showAllNodeExecutions = ref(false)
 
 const schema = computed(() => buildFormItemsFromParameterSchemas(props.workflowInputSchemas, 'workflow-test-run'))
 
@@ -89,10 +101,51 @@ watch(
   { deep: true },
 )
 
+watch(
+  () => props.selectedRunId,
+  () => {
+    showAllResultEvents.value = false
+    showAllRunEvents.value = false
+    showAllNodeExecutions.value = false
+  },
+)
+
 const latestResultText = computed(() => {
   const nodeExecutions = props.selectedRun?.node_executions ?? []
   const latestNodeExecution = nodeExecutions.length ? nodeExecutions[nodeExecutions.length - 1] : null
   return formatJson(latestNodeExecution?.result ?? props.selectedRun)
+})
+
+const latestInterruptText = computed(() => formatJson(props.selectedRun?.interrupt ?? null))
+const latestCheckpointText = computed(() => formatJson(props.selectedRun?.latest_checkpoint ?? null))
+
+const resultEvents = computed(() =>
+  showAllResultEvents.value
+    ? props.selectedRunEvents
+    : props.selectedRunEvents.slice(-20),
+)
+
+const runEvents = computed(() =>
+  showAllRunEvents.value
+    ? props.selectedRunEvents
+    : props.selectedRunEvents.slice(-24),
+)
+
+const nodeExecutions = computed(() => {
+  const items = props.selectedRun?.node_executions ?? []
+  return showAllNodeExecutions.value ? items : items.slice(0, 8)
+})
+
+const streamPreviewText = computed(() => {
+  const chunks = props.selectedRunEvents
+    .filter(eventItem => eventItem.event_type === 'stream.delta')
+    .map((eventItem) => {
+      const payload = eventItem.payload ?? {}
+      const value = payload.content ?? payload.delta ?? payload.text ?? payload.value
+      return typeof value === 'string' ? value : ''
+    })
+    .filter(Boolean)
+  return chunks.join('')
 })
 
 const debugButtonLabel = computed(() => {
@@ -153,6 +206,42 @@ const formatDateTime = (value?: string | null): string => {
     return value
   }
 }
+
+const attachStateLabel = computed(() => {
+  switch (props.attachState) {
+    case 'connecting':
+      return '连接中'
+    case 'attached':
+      return '已附着'
+    case 'replaying':
+      return '回放中'
+    case 'detached':
+      return '已断开'
+    case 'error':
+      return '连接异常'
+    default:
+      return '未连接'
+  }
+})
+
+const eventFeedModeLabel = computed(() => {
+  switch (props.eventFeedMode) {
+    case 'live':
+      return '实时流'
+    case 'replay':
+      return '回放流'
+    default:
+      return '历史事件'
+  }
+})
+
+const latestCheckpointLabel = computed(() => {
+  const checkpoint = props.selectedRun?.latest_checkpoint
+  if (!checkpoint) {
+    return '暂无 checkpoint'
+  }
+  return `#${checkpoint.id} · ${checkpoint.reason}`
+})
 </script>
 
 <template>
@@ -208,13 +297,21 @@ const formatDateTime = (value?: string | null): string => {
         <div class="rounded-2xl border border-black/6 bg-[#fafafc] p-4">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm font-semibold text-[#1f2335]">运行结果</p>
-            <span
-              class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs"
-              :class="statusClass(selectedRun?.status)"
-            >
-              <CheckCircle2 class="size-3.5" />
-              {{ formatStatusLabel(selectedRun?.status) }}
-            </span>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs text-[#697085]">
+                {{ eventFeedModeLabel }}
+              </span>
+              <span class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs text-[#697085]">
+                {{ attachStateLabel }}
+              </span>
+              <span
+                class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs"
+                :class="statusClass(selectedRun?.status)"
+              >
+                <CheckCircle2 class="size-3.5" />
+                {{ formatStatusLabel(selectedRun?.status) }}
+              </span>
+            </div>
           </div>
 
           <div class="mt-4 space-y-4">
@@ -226,14 +323,49 @@ const formatDateTime = (value?: string | null): string => {
               <pre class="min-h-24 overflow-auto rounded-2xl border border-[#e9eaf1] bg-white px-4 py-3 text-xs text-[#4a5063]">{{ latestResultText || '暂无运行结果' }}</pre>
             </div>
 
-            <div v-if="selectedRunEvents?.length" class="space-y-2">
+            <div v-if="streamPreviewText" class="space-y-2">
               <div class="flex items-center gap-2 text-sm font-medium text-[#1f2335]">
                 <Sparkles class="size-4 text-[#7f8498]" />
-                运行日志
+                实时流输出
+              </div>
+              <pre class="min-h-24 overflow-auto whitespace-pre-wrap rounded-2xl border border-[#e9eaf1] bg-white px-4 py-3 text-xs text-[#4a5063]">{{ streamPreviewText }}</pre>
+            </div>
+
+            <div v-if="selectedRun?.interrupt" class="space-y-2">
+              <div class="flex items-center gap-2 text-sm font-medium text-[#1f2335]">
+                <XCircle class="size-4 text-[#c17d00]" />
+                中断信息
+              </div>
+              <pre class="min-h-20 overflow-auto rounded-2xl border border-[#f4dfaa] bg-[#fffdf6] px-4 py-3 text-xs text-[#7a5d00]">{{ latestInterruptText }}</pre>
+            </div>
+
+            <div v-if="selectedRun?.latest_checkpoint" class="space-y-2">
+              <div class="flex items-center gap-2 text-sm font-medium text-[#1f2335]">
+                <History class="size-4 text-[#7f8498]" />
+                最新 Checkpoint
+              </div>
+              <div class="rounded-2xl border border-[#ececf4] bg-white px-4 py-3">
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-xs font-semibold text-[#1f2335]">{{ latestCheckpointLabel }}</p>
+                  <span class="text-[11px] text-[#8b91a4]">{{ formatDateTime(selectedRun.latest_checkpoint.created_at) }}</span>
+                </div>
+                <pre class="mt-2 overflow-auto text-[11px] text-[#555b6d]">{{ latestCheckpointText }}</pre>
+              </div>
+            </div>
+
+            <div v-if="selectedRunEvents?.length" class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 text-sm font-medium text-[#1f2335]">
+                  <Sparkles class="size-4 text-[#7f8498]" />
+                  运行日志
+                </div>
+                <Button size="sm" variant="ghost" class="h-7 rounded-xl px-2 text-xs" @click="showAllResultEvents = !showAllResultEvents">
+                  {{ showAllResultEvents ? '收起' : `展开全部 (${selectedRunEvents.length})` }}
+                </Button>
               </div>
               <div class="space-y-2">
                 <div
-                  v-for="eventItem in selectedRunEvents.slice(-8)"
+                  v-for="eventItem in resultEvents"
                   :key="`${eventItem.sequence_no}-${eventItem.event_type}`"
                   class="rounded-2xl border border-[#ececf4] bg-white px-4 py-3"
                 >
@@ -289,16 +421,22 @@ const formatDateTime = (value?: string | null): string => {
                 <p class="text-sm font-medium text-[#1f2335]">当前查看</p>
                 <p class="mt-1 text-xs text-[#8b91a4]">{{ formatDateTime(selectedRun.started_at) }}</p>
               </div>
-              <Button
-                v-if="selectedRun.status?.toLowerCase() === 'running'"
-                size="sm"
-                variant="destructive"
-                class="rounded-xl"
-                @click="emit('cancel-run', selectedRun.run_id)"
-              >
-                <XCircle class="mr-1.5 size-4" />
-                取消
-              </Button>
+              <div class="flex items-center gap-2">
+                <Button size="sm" variant="outline" class="rounded-xl" @click="emit('replay-run')">
+                  <History class="mr-1.5 size-4" />
+                  回放
+                </Button>
+                <Button
+                  v-if="selectedRun.status?.toLowerCase() === 'running'"
+                  size="sm"
+                  variant="destructive"
+                  class="rounded-xl"
+                  @click="emit('cancel-run', selectedRun.run_id)"
+                >
+                  <XCircle class="mr-1.5 size-4" />
+                  取消
+                </Button>
+              </div>
             </div>
 
             <div v-if="loadingRunDetail" class="mt-3 text-sm text-[#8b91a4]">正在加载运行详情...</div>
@@ -314,11 +452,37 @@ const formatDateTime = (value?: string | null): string => {
                 </div>
               </div>
 
+              <div class="grid grid-cols-1 gap-3 text-xs">
+                <div class="rounded-2xl border border-[#ececf4] bg-[#fafafc] px-3 py-3">
+                  <p class="text-[#8b91a4]">Run / Thread / Trace</p>
+                  <div class="mt-1 space-y-1 font-medium text-[#1f2335]">
+                    <p class="break-all">{{ selectedRun.run_id }}</p>
+                    <p class="break-all text-[#697085]">{{ selectedRun.thread_id }}</p>
+                    <p v-if="selectedRun.trace_id" class="break-all text-[#697085]">{{ selectedRun.trace_id }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="selectedRun.latest_checkpoint" class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-[#1f2335]">Checkpoint</p>
+                  <Badge variant="outline" class="rounded-full border-[#ececf4] bg-white">
+                    {{ latestCheckpointLabel }}
+                  </Badge>
+                </div>
+                <pre class="overflow-auto rounded-2xl border border-[#ececf4] bg-[#fafafc] px-3 py-3 text-[11px] text-[#555b6d]">{{ latestCheckpointText }}</pre>
+              </div>
+
               <div v-if="selectedRun.node_executions?.length" class="space-y-2">
-                <p class="text-sm font-medium text-[#1f2335]">节点执行</p>
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-[#1f2335]">节点执行</p>
+                  <Button size="sm" variant="ghost" class="h-7 rounded-xl px-2 text-xs" @click="showAllNodeExecutions = !showAllNodeExecutions">
+                    {{ showAllNodeExecutions ? '收起' : `展开全部 (${selectedRun.node_executions.length})` }}
+                  </Button>
+                </div>
                 <div class="space-y-2">
                   <div
-                    v-for="nodeExecution in selectedRun.node_executions.slice(0, 4)"
+                    v-for="nodeExecution in nodeExecutions"
                     :key="`${nodeExecution.node_id}-${nodeExecution.attempt}`"
                     class="rounded-2xl border border-[#ececf4] bg-[#fafafc] px-3 py-3"
                   >
@@ -329,16 +493,51 @@ const formatDateTime = (value?: string | null): string => {
                       </div>
                       <Badge variant="outline" class="rounded-full border-[#ececf4] bg-white">{{ formatStatusLabel(nodeExecution.status) }}</Badge>
                     </div>
+                    <div class="mt-2 grid grid-cols-2 gap-2 text-[11px] text-[#697085]">
+                      <div>耗时 {{ nodeExecution.executed_time }} ms</div>
+                      <div>{{ formatDateTime(nodeExecution.finished_at ?? nodeExecution.started_at) }}</div>
+                    </div>
+                    <pre v-if="nodeExecution.result" class="mt-2 overflow-auto rounded-xl border border-[#ececf4] bg-white px-3 py-2 text-[11px] text-[#555b6d]">{{ formatJson(nodeExecution.result) }}</pre>
+                    <p v-if="nodeExecution.error_message" class="mt-2 text-[11px] text-[#d0534d]">{{ nodeExecution.error_message }}</p>
                   </div>
                 </div>
               </div>
 
+              <div v-if="selectedRun.can_resume" class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-[#1f2335]">恢复运行</p>
+                  <Badge variant="outline" class="rounded-full border-[#f4dfaa] bg-[#fffdf6] text-[#a46a00]">
+                    需要恢复
+                  </Badge>
+                </div>
+                <textarea
+                  :value="resumeInputText"
+                  class="min-h-28 w-full rounded-2xl border border-[#e9eaf1] bg-[#fafafc] px-4 py-3 font-mono text-xs outline-none"
+                  @input="emit('update:resume-input-text', String(($event.target as HTMLTextAreaElement).value))"
+                />
+                <Button class="h-10 rounded-2xl bg-[#1f2335] text-white hover:bg-[#131723]" :disabled="running" @click="emit('resume-run')">
+                  <RotateCcw class="mr-1.5 size-4" />
+                  {{ running ? '恢复中' : '提交恢复' }}
+                </Button>
+              </div>
+
               <div class="space-y-2">
-                <p class="text-sm font-medium text-[#1f2335]">事件流</p>
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-[#1f2335]">事件流</p>
+                  <Button
+                    v-if="selectedRunEvents.length"
+                    size="sm"
+                    variant="ghost"
+                    class="h-7 rounded-xl px-2 text-xs"
+                    @click="showAllRunEvents = !showAllRunEvents"
+                  >
+                    {{ showAllRunEvents ? '收起' : `展开全部 (${selectedRunEvents.length})` }}
+                  </Button>
+                </div>
                 <div v-if="loadingRunEvents" class="text-sm text-[#8b91a4]">正在加载运行事件...</div>
                 <div v-else class="space-y-2">
                   <div
-                    v-for="eventItem in selectedRunEvents.slice(-6)"
+                    v-for="eventItem in runEvents"
                     :key="`${eventItem.sequence_no}-${eventItem.event_type}`"
                     class="rounded-2xl border border-[#ececf4] bg-[#fafafc] px-3 py-3"
                   >
