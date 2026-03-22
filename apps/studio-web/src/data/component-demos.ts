@@ -11,6 +11,7 @@ import MdEditorDemo from "@app/components/demo-playground/expression-md-editor/m
 import MonacoEditorDemo from "@app/components/demo-playground/MonacoEditorDemo.vue"
 import ParamSchemaEditorsDemo from "@app/components/demo-playground/param-schema-editor/ParamSchemaEditorsDemo.vue"
 import SaaSPlatformMvpDemo from "@app/components/demo-playground/SaaSPlatformMvpDemo.vue"
+import WorkflowWorkbenchDemo from "@app/components/demo-playground/workflow-workbench/WorkflowWorkbenchDemo.vue"
 
 export type ComponentDemo = {
   slug: string
@@ -104,6 +105,13 @@ export const componentDemos: ComponentDemo[] = [
     description: "知识库文档解析与分块管理工作台",
     tags: ["knowledgebase", "rag", "workbench"],
     component: KnowledgeWorkbenchDemo,
+  },
+  {
+    slug: "workflow-workbench",
+    title: "Workflow Workbench",
+    description: "Mocked WorkflowWorkbench：覆盖节点 registry、资源契约回填和事件驱动画布状态。",
+    tags: ["workflow", "workbench", "registry", "runtime"],
+    component: WorkflowWorkbenchDemo,
   },
 ]
 

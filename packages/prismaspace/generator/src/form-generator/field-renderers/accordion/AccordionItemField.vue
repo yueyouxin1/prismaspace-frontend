@@ -6,6 +6,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@prismaspace/ui-shadcn/components/ui/accordion";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@prismaspace/ui-shadcn/components/ui/tooltip';
 import { cn } from "@prismaspace/ui-shadcn/lib/utils";
 import { formGeneratorHeaderActionsPortalKey } from "../../injection-keys";
 
@@ -43,12 +49,20 @@ provide(formGeneratorHeaderActionsPortalKey, {
   <AccordionItem :value="value" :disabled="disabled" :class="cn(props.class)">
     <AccordionTrigger :class="cn('items-center py-2 hover:no-underline', props.triggerClass)">
       <div class="min-w-0 flex-1 text-left">
-        <div class="truncate text-sm font-semibold text-foreground">
-          {{ title }}
-        </div>
-        <p v-if="description" class="mt-1 text-xs font-normal text-muted-foreground">
-          {{ description }}
-        </p>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <span class="truncate text-sm font-semibold text-foreground">
+                {{ title }}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p v-if="description">
+                {{ description }}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <div ref="headerActionsTarget" class="flex shrink-0 items-center gap-2" @click.stop />
     </AccordionTrigger>

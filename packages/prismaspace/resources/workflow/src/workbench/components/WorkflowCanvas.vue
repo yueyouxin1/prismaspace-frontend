@@ -13,6 +13,7 @@ import {
 } from '@vue-flow/core'
 import WorkflowCanvasNode from './WorkflowCanvasNode.vue'
 import { buildEdgeId } from '../utils/workflow-helpers'
+import type { WorkflowNodeRuntimeState } from '../types/workflow-ide'
 
 interface WorkflowViewport {
   x: number
@@ -33,6 +34,7 @@ export interface WorkflowCanvasExposed {
 const props = withDefaults(defineProps<{
   graph: WorkflowGraphRead
   selectedNodeId?: string | null
+  nodeRuntimeMap?: Record<string, WorkflowNodeRuntimeState>
 }>(), {
   graph: () => ({
     nodes: [],
@@ -40,6 +42,7 @@ const props = withDefaults(defineProps<{
     viewport: { x: 0, y: 0, zoom: 1 },
   }),
   selectedNodeId: null,
+  nodeRuntimeMap: () => ({}),
 })
 
 const emit = defineEmits<{
@@ -107,6 +110,8 @@ const flowNodes = computed(() => props.graph.nodes.map(node => ({
   selected: props.selectedNodeId === node.id,
   data: {
     workflowNode: node,
+    graph: props.graph,
+    runtimeState: props.nodeRuntimeMap?.[node.id] ?? null,
     onSelect: () => selectNode(node.id),
   },
   draggable: true,

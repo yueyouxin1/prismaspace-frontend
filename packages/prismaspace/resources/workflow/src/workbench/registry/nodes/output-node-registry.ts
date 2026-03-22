@@ -3,11 +3,12 @@ import type { WorkflowNodeRegistry } from '../types'
 import {
   createAccordionSection,
   createDefaultSingleInputPort,
+  createDefaultSingleOutputPort,
 } from '../helpers'
 
-const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
+const buildOutputPanelSchema = (valueRefTree: unknown): FormItem[] => ([
   {
-    id: 'end-return-type',
+    id: 'output-return-type',
     type: 'form',
     control: 'tabs',
     modelPath: 'nodeData.config.returnType',
@@ -17,70 +18,57 @@ const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
     },
     children: [
       {
-        id: 'end-return-object',
+        id: 'output-return-object',
         type: 'layout',
         control: 'tabs-item',
         props: {
           value: 'Object',
-          title: '返回变量',
+          title: '结构化输出',
         },
       },
       {
-        id: 'end-return-text',
+        id: 'output-return-text',
         type: 'layout',
         control: 'tabs-item',
         props: {
           value: 'Text',
-          title: '返回文本',
+          title: '文本输出',
         },
       },
     ],
   },
   createAccordionSection({
-    id: 'end-config',
+    id: 'output-config',
     items: [
       {
-        id: 'end-output-object',
-        title: '输出变量',
-        description: '定义工作流最终输出结构，并为每个变量绑定来源。',
+        id: 'output-inputs',
+        title: '输出内容',
+        description: '中间输出节点会把这里解析后的结果写入运行日志和节点预览。',
         defaultOpen: true,
         children: [
           {
-            id: 'end-inputs-editor',
+            id: 'output-inputs-editor',
             type: 'form',
             control: 'param-schema-editor',
             modelPath: 'nodeData.inputs',
             props: {
               runtimeMode: 'refine',
-              headerTitle: 'RETURN VARIABLES',
+              headerTitle: 'OUTPUT PAYLOAD',
               valueRefTree
             },
           },
-        ],
-      },
-      {
-        id: 'end-output-text',
-        title: '回答内容',
-        description: '返回文本模式下，可用模板组合变量生成最终回复。',
-        defaultOpen: true,
-        visible: "{{ model.nodeData.config.returnType === 'Text' }}",
-        children: [
           {
-            id: 'end-stream',
-            type: 'form',
-            control: 'switch',
-            label: '流式输出',
-            modelPath: 'nodeData.config.stream',
-          },
-          {
-            id: 'end-content-template',
+            id: 'output-content-template',
             type: 'form',
             control: 'textarea',
             label: '文本模板',
             modelPath: 'nodeData.config.content',
+            state: {
+              visible: "{{ model.nodeData.config.returnType === 'Text' }}",
+            },
             props: {
-              rows: 7,
-              placeholder: '例如：工作流结果：\n{{result}}',
+              rows: 5,
+              placeholder: '例如：处理中：{{summary}}',
             },
           },
         ],
@@ -89,10 +77,10 @@ const buildEndPanelSchema = (valueRefTree: unknown): FormItem[] => ([
   }),
 ])
 
-export const endNodeRegistry: WorkflowNodeRegistry = {
-  registryId: 'End',
+export const outputNodeRegistry: WorkflowNodeRegistry = {
+  registryId: 'Output',
   panel: {
-    buildSchema: (context) => buildEndPanelSchema(context.valueRefTree),
+    buildSchema: (context) => buildOutputPanelSchema(context.valueRefTree),
   },
   canvas: {
     width: 360,
@@ -100,15 +88,18 @@ export const endNodeRegistry: WorkflowNodeRegistry = {
       context.node.data.inputs?.[0]?.label || context.node.data.inputs?.[0]?.name || '输入',
       context.node.data.inputs?.[0] ?? null,
     ),
-    getOutputPorts: () => [],
+    getOutputPorts: (context) => createDefaultSingleOutputPort(
+      context.node.data.outputs?.[0]?.label || context.node.data.outputs?.[0]?.name || '输出',
+      context.node.data.outputs?.[0] ?? null,
+    ),
     getSummaryLines: (context) => [
       {
-        label: '返回变量',
-        value: context.node.data.inputs?.length ? `${context.node.data.inputs.length} 项` : '未配置',
+        label: '输出模式',
+        value: context.node.data.config?.returnType === 'Text' ? '文本' : '对象',
       },
       {
-        label: '返回模式',
-        value: context.node.data.config?.returnType === 'Text' ? '文本' : '结构化对象',
+        label: '字段数',
+        value: context.node.data.inputs?.length ? `${context.node.data.inputs.length} 项` : '未配置',
       },
     ],
     getResultPreview: (context) => {
@@ -118,15 +109,15 @@ export const endNodeRegistry: WorkflowNodeRegistry = {
       }
       if (runState.errorMessage) {
         return {
-          label: '结果',
+          label: '输出',
           content: runState.errorMessage,
           tone: 'danger',
         }
       }
       return {
-        label: '结果',
+        label: '输出',
         content: runState.streamPreview || runState.outputPreview || '',
-        tone: runState.status === 'interrupted' ? 'warning' : 'success',
+        tone: 'success',
       }
     },
   },

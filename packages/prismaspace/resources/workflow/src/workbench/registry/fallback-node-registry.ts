@@ -68,8 +68,7 @@ export const buildFallbackNodePanelSchema = (
             modelPath: 'nodeData.inputs',
             props: {
               runtimeMode: 'define',
-              headerTitle: 'INPUTS',
-              class: 'h-[420px] min-h-0 rounded-[10px] border border-[#ececf4] bg-white',
+              headerTitle: 'INPUTS'
             },
           },
         ],
@@ -88,8 +87,7 @@ export const buildFallbackNodePanelSchema = (
             props: {
               runtimeMode: 'define',
               headerTitle: 'OUTPUTS',
-              valueRefTree: context.valueRefTree,
-              class: 'h-[420px] min-h-0 rounded-[10px] border border-[#ececf4] bg-white',
+              valueRefTree: context.valueRefTree
             },
           },
         ],

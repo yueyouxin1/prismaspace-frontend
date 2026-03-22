@@ -69,6 +69,30 @@ export interface WorkflowVariableEntry {
   }
 }
 
+export type WorkflowNodeRuntimeStatus =
+  | 'idle'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'skipped'
+  | 'interrupted'
+  | 'cancelled'
+
+export interface WorkflowNodeRuntimeState {
+  nodeId: string
+  status: WorkflowNodeRuntimeStatus
+  statusLabel: string
+  isActive: boolean
+  lastSequence: number
+  durationMs?: number | null
+  durationLabel?: string | null
+  inputPreview?: string | null
+  outputPreview?: string | null
+  streamPreview?: string | null
+  errorMessage?: string | null
+  checkpointLabel?: string | null
+}
+
 export interface WorkflowWorkbenchSeed {
   resource: ResourceRead
   instance: WorkflowRead

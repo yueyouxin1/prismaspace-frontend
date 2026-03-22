@@ -24,8 +24,10 @@ import WorkflowHeaderBar from './components/WorkflowHeaderBar.vue'
 import WorkflowNodeSidePanel from './components/WorkflowNodeSidePanel.vue'
 import WorkflowProblemPanel from './components/WorkflowProblemPanel.vue'
 import WorkflowTestRunPanel from './components/WorkflowTestRunPanel.vue'
+import { useWorkflowRunPresentation } from './composables/useWorkflowRunPresentation'
 import { useWorkflowRunSession } from './composables/useWorkflowRunSession'
 import { useWorkflowRunStreams } from './composables/useWorkflowRunStreams'
+import { getWorkflowNodeRegistry } from './registry'
 import type { WorkflowValidationResult } from './types/workflow-ide'
 import {
   buildWorkflowModelOptions,
@@ -173,6 +175,11 @@ const selectedRunEventsForPanel = computed<WorkflowEventRead[]>(() => {
   return selectedRunEventsQuery.data.value ?? []
 })
 
+const { nodeRuntimeMap } = useWorkflowRunPresentation({
+  selectedRun: selectedRunForPanel,
+  selectedRunEvents: selectedRunEventsForPanel,
+})
+
 const selectedNode = computed(() => draftGraph.value.nodes.find(node => node.id === selectedNodeId.value) ?? null)
 const selectedNodeDefinition = computed(() => getNodeDefinitionForNode(nodeDefsQuery.data.value ?? [], selectedNode.value) ?? null)
 const paletteGroups = computed(() => buildWorkflowPaletteGroups(nodeDefsQuery.data.value ?? []))
@@ -278,16 +285,6 @@ watch(
       })
   },
   { immediate: true },
-)
-
-watch(
-  () => selectedNodeId.value,
-  (nodeId) => {
-    if (!nodeId) {
-      return
-    }
-    void nodeDefsQuery.refetch()
-  },
 )
 
 watch(
@@ -560,6 +557,37 @@ const handleReplaySelectedRun = async (): Promise<void> => {
   await startReplayRunStream(runId)
 }
 
+const patchNode = (
+  nodeId: string,
+  updater: (node: WorkflowNodeRead) => WorkflowNodeRead,
+): void => {
+  let didPatch = false
+  const nextNodes = draftGraph.value.nodes.map((node) => {
+    if (node.id !== nodeId) {
+      return node
+    }
+    didPatch = true
+    return updater(node)
+  })
+  if (!didPatch) {
+    return
+  }
+  draftGraph.value = {
+    ...draftGraph.value,
+    nodes: nextNodes,
+  }
+}
+
+const patchNodeData = (
+  nodeId: string,
+  updater: (nodeData: WorkflowNodeRead['data'], node: WorkflowNodeRead) => WorkflowNodeRead['data'],
+): void => {
+  patchNode(nodeId, (node) => ({
+    ...node,
+    data: updater(node.data, node),
+  }))
+}
+
 const handleAddNodeAt = (definition: WorkflowNodeDefRead, position?: { x: number; y: number }): void => {
   const registryId = definition.node.registryId
   if ((registryId === 'Start' || registryId === 'End')
@@ -638,20 +666,13 @@ const handleRemoveEdges = (edgeIds: string[]): void => {
 }
 
 const handleUpdateNodePosition = (payload: { id: string; x: number; y: number }): void => {
-  draftGraph.value = {
-    ...draftGraph.value,
-    nodes: draftGraph.value.nodes.map(node =>
-      node.id === payload.id
-        ? {
-            ...node,
-            position: {
-              x: payload.x,
-              y: payload.y,
-            },
-          }
-        : node,
-    ),
-  }
+  patchNode(payload.id, (node) => ({
+    ...node,
+    position: {
+      x: payload.x,
+      y: payload.y,
+    },
+  }))
 }
 
 const handleAutoLayout = (): void => {
@@ -736,34 +757,33 @@ const handleAutoLayout = (): void => {
 }
 
 const applyInstanceContractsToNode = async (nodeId: string, nextNodeData: WorkflowNodeRead['data']): Promise<void> => {
-  const targetInstanceUuid = String(nextNodeData.config?.resource_instance_uuid ?? '').trim()
-  if (!targetInstanceUuid) {
-    return
-  }
-  if (!['ToolNode', 'WorkflowNode'].includes(nextNodeData.registryId)) {
+  const registry = getWorkflowNodeRegistry(nextNodeData.registryId)
+  const instanceUuid = registry?.hydrate?.resolveInstanceUuid?.(nextNodeData)
+  if (!registry?.hydrate?.applyInstance || !instanceUuid) {
     return
   }
 
   try {
-    const instance = await props.client.resource.getInstance(targetInstanceUuid) as AnyInstanceRead
-    draftGraph.value = {
-      ...draftGraph.value,
-      nodes: draftGraph.value.nodes.map((node) => {
-        if (node.id !== nodeId) {
-          return node
-        }
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            name: typeof instance.name === 'string' && instance.name ? instance.name : node.data.name,
-            description: typeof instance.description === 'string' ? instance.description : node.data.description,
-            inputs: Array.isArray(instance.inputs_schema) ? cloneJson(instance.inputs_schema) : node.data.inputs,
-            outputs: Array.isArray(instance.outputs_schema) ? cloneJson(instance.outputs_schema) : node.data.outputs,
-          },
-        }
-      }),
+    const instance = await props.client.resource.getInstance(instanceUuid) as AnyInstanceRead
+    const targetNode = draftGraph.value.nodes.find(node => node.id === nodeId) ?? null
+    if (!targetNode) {
+      return
     }
+    const patch = registry.hydrate.applyInstance({
+      node: targetNode,
+      instance,
+      formContext: {
+        resourceOptionsByType: resourceOptionsByType.value,
+        modelOptions: modelOptions.value,
+      },
+    })
+    if (!patch) {
+      return
+    }
+    patchNodeData(nodeId, (nodeData) => ({
+      ...nodeData,
+      ...cloneJson(patch),
+    }))
   } catch (error) {
     props.onError?.(error)
   }
@@ -774,20 +794,11 @@ const handleUpdateSelectedNodeData = (value: WorkflowNodeRead['data']): void => 
     return
   }
   const previous = cloneJson(selectedNode.value.data)
-  draftGraph.value = {
-    ...draftGraph.value,
-    nodes: draftGraph.value.nodes.map(node =>
-      node.id === selectedNode.value?.id
-        ? {
-            ...node,
-            data: cloneJson(value),
-          }
-        : node,
-    ),
-  }
+  patchNodeData(selectedNode.value.id, () => cloneJson(value))
 
-  const previousResourceInstance = String(previous.config?.resource_instance_uuid ?? '')
-  const nextResourceInstance = String(value.config?.resource_instance_uuid ?? '')
+  const registry = getWorkflowNodeRegistry(value.registryId)
+  const previousResourceInstance = registry?.hydrate?.resolveInstanceUuid?.(previous) ?? null
+  const nextResourceInstance = registry?.hydrate?.resolveInstanceUuid?.(value) ?? null
   if (previousResourceInstance !== nextResourceInstance) {
     void applyInstanceContractsToNode(selectedNode.value.id, value)
   }
@@ -877,6 +888,7 @@ const isLoadFailed = computed(() =>
             ref="canvasRef"
             :graph="draftGraph"
             :selected-node-id="selectedNodeId"
+            :node-runtime-map="nodeRuntimeMap"
             @select-node="selectedNodeId = $event; testRunPanelOpen = false"
             @clear-selection="selectedNodeId = null"
             @connect="handleConnect"
