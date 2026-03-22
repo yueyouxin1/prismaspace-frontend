@@ -43,7 +43,7 @@ export const branchNodeRegistry: WorkflowNodeRegistry = {
       const branchs = Array.isArray(context.node.data.config?.branchs)
         ? context.node.data.config.branchs
         : []
-      const dynamicPorts = branchs.map((branch, index) => createDefaultPort(
+      const dynamicPorts = branchs.map((_, index) => createDefaultPort(
         String(index),
         `分支 ${index + 1}`,
         null,

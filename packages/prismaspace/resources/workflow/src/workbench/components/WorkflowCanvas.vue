@@ -3,8 +3,10 @@ import { computed, markRaw, onBeforeUnmount, ref, watch } from 'vue'
 import type { WorkflowGraphRead } from '@prismaspace/contracts'
 import { Canvas } from '@prismaspace/ui-ai-elements'
 import {
+  getRectOfNodes,
   MarkerType,
   useVueFlow,
+  Position,
   type Connection,
   type EdgeChange,
   type NodeChange,
@@ -12,6 +14,9 @@ import {
   type NodeMouseEvent,
 } from '@vue-flow/core'
 import WorkflowCanvasNode from './WorkflowCanvasNode.vue'
+import WorkflowCanvasConnectionLine from './WorkflowCanvasConnectionLine.vue'
+import WorkflowCanvasEdge from './WorkflowCanvasEdge.vue'
+import WorkflowLoopBodyNode from './WorkflowLoopBodyNode.vue'
 import { buildEdgeId } from '../utils/workflow-helpers'
 import type { WorkflowNodeRuntimeState } from '../types/workflow-ide'
 
@@ -59,10 +64,19 @@ const emit = defineEmits<{
   (event: 'remove-edges', edgeIds: string[]): void
   (event: 'drop-node-template', payload: { definitionKey: string; x: number; y: number }): void
   (event: 'update-viewport', viewport: WorkflowViewport): void
+  (event: 'update-loop-body-layout', payload: { loopBodyId: string; x: number; y: number; width: number; height: number }): void
 }>()
 
 const nodeInteractionGuard = ref(false)
 let interactionGuardTimer: ReturnType<typeof setTimeout> | null = null
+
+const cloneJson = <T>(value: T): T => {
+  try {
+    return JSON.parse(JSON.stringify(value)) as T
+  } catch {
+    return value
+  }
+}
 
 const normalizeViewport = (value: WorkflowGraphRead['viewport']): WorkflowViewport => ({
   x: typeof value?.x === 'number' ? value.x : 0,
@@ -79,6 +93,7 @@ const hasSavedViewport = computed(() => {
 
 const {
   screenToFlowCoordinate,
+  getNodes,
   zoomIn,
   zoomOut,
   zoomTo,
@@ -89,7 +104,24 @@ const {
 
 const nodeTypes = {
   workflow: markRaw(WorkflowCanvasNode),
+  'loop-body': markRaw(WorkflowLoopBodyNode),
 }
+
+const edgeTypes = {
+  workflow: markRaw(WorkflowCanvasEdge),
+}
+
+const localNodes = ref(cloneJson(props.graph.nodes))
+const localEdges = ref(cloneJson(props.graph.edges))
+
+watch(
+  () => JSON.stringify({ nodes: props.graph.nodes, edges: props.graph.edges }),
+  () => {
+    localNodes.value = cloneJson(props.graph.nodes)
+    localEdges.value = cloneJson(props.graph.edges)
+  },
+  { deep: true, immediate: true },
+)
 
 const selectNode = (nodeId: string): void => {
   nodeInteractionGuard.value = true
@@ -103,35 +135,129 @@ const selectNode = (nodeId: string): void => {
   }, 180)
 }
 
-const flowNodes = computed(() => props.graph.nodes.map(node => ({
-  id: node.id,
-  type: 'workflow',
-  position: node.position ?? { x: 0, y: 0 },
-  selected: props.selectedNodeId === node.id,
-  data: {
-    workflowNode: node,
-    graph: props.graph,
-    runtimeState: props.nodeRuntimeMap?.[node.id] ?? null,
-    onSelect: () => selectNode(node.id),
-  },
-  draggable: true,
-  connectable: true,
-  deletable: node.data.registryId !== 'Start' && node.data.registryId !== 'End',
-  selectable: true,
-})))
+const flowGraph = computed<WorkflowGraphRead>(() => ({
+  nodes: localNodes.value,
+  edges: localEdges.value,
+  viewport: props.graph.viewport,
+}))
 
-const flowEdges = computed(() => props.graph.edges.map(edge => ({
+const getLocalNodeDataConfig = (nodeId: string): Record<string, any> | undefined => {
+  const localNode = localNodes.value.find(node => node.id === nodeId)
+  return localNode?.data?.config as Record<string, any> | undefined
+}
+
+const updateLocalNodePosition = (nodeId: string, position: { x: number; y: number }): void => {
+  localNodes.value = localNodes.value.map((node) =>
+    node.id === nodeId
+      ? {
+          ...node,
+          position: {
+            x: position.x,
+            y: position.y,
+          },
+        }
+      : node,
+  )
+}
+
+const shiftLocalLoopChildren = (loopBodyId: string, delta: { x: number; y: number }): void => {
+  if (!delta.x && !delta.y) {
+    return
+  }
+  localNodes.value = localNodes.value.map((node) => {
+    const canvasMeta = (node.data.config as Record<string, any> | undefined)?.__canvas as Record<string, any> | undefined
+    if (canvasMeta?.parentBodyId !== loopBodyId) {
+      return node
+    }
+    return {
+      ...node,
+      position: {
+        x: (node.position?.x ?? 0) + delta.x,
+        y: (node.position?.y ?? 0) + delta.y,
+      },
+    }
+  })
+}
+
+const updateLocalLoopBodyLayout = (
+  loopBodyId: string,
+  layout: { x: number; y: number; width: number; height: number },
+): void => {
+  localNodes.value = localNodes.value.map((node) => {
+    if (node.id !== loopBodyId) {
+      return node
+    }
+    return {
+      ...node,
+      position: {
+        x: layout.x,
+        y: layout.y,
+      },
+      data: {
+        ...node.data,
+        config: {
+          ...(cloneJson(node.data.config ?? {}) as Record<string, unknown>),
+          __canvas: {
+            ...(((node.data.config ?? {}) as Record<string, any>).__canvas ?? {}),
+            width: layout.width,
+            height: layout.height,
+          },
+        },
+      },
+    }
+  })
+}
+
+const flowNodes = computed(() => flowGraph.value.nodes.map((node) => {
+  const canvasMeta = (node.data.config as Record<string, any> | undefined)?.__canvas as Record<string, any> | undefined
+  const isLoopBody = node.data.registryId === 'LoopBody' || canvasMeta?.kind === 'loop-body'
+  const isLoopChild = canvasMeta?.kind === 'loop-child'
+  const width = typeof canvasMeta?.width === 'number' ? canvasMeta.width : undefined
+  const height = typeof canvasMeta?.height === 'number' ? canvasMeta.height : undefined
+  const loopId = String((canvasMeta?.loopId as string | undefined) ?? '')
+  const runtimeNodeId = isLoopBody && loopId ? loopId : node.id
+
+  return {
+    id: node.id,
+    type: isLoopBody ? 'loop-body' : 'workflow',
+    position: node.position ?? { x: 0, y: 0 },
+    selected: props.selectedNodeId === node.id,
+    data: {
+      workflowNode: isLoopBody
+        ? flowGraph.value.nodes.find(item => item.id === canvasMeta?.loopId) ?? node
+        : node,
+      containerNode: isLoopBody ? node : undefined,
+      graph: flowGraph.value,
+      runtimeState: props.nodeRuntimeMap?.[runtimeNodeId] ?? null,
+      onSelect: () => selectNode(node.id),
+    },
+    draggable: true,
+    connectable: true,
+    deletable: !isLoopBody && node.data.registryId !== 'Start' && node.data.registryId !== 'End',
+    selectable: true,
+    style: width || height
+      ? { width: width ? `${width}px` : undefined, height: height ? `${height}px` : undefined }
+      : undefined,
+    zIndex: isLoopBody ? 0 : 10,
+  }
+}))
+
+const flowEdges = computed(() => flowGraph.value.edges.map(edge => ({
   id: buildEdgeId(edge),
   source: edge.sourceNodeID,
   target: edge.targetNodeID,
   sourceHandle: edge.sourcePortID,
   targetHandle: edge.targetPortID,
+  type: 'workflow',
   animated: false,
   selectable: true,
-  markerEnd: MarkerType.ArrowClosed,
+  markerEnd: edge.targetPortID === 'loop-function-input' ? undefined : MarkerType.ArrowClosed,
+  sourcePosition: edge.sourcePortID === 'loop-output-to-function' ? Position.Bottom : undefined,
+  targetPosition: edge.targetPortID === 'loop-function-input' ? Position.Top : undefined,
   style: {
-    stroke: '#5b63ff',
-    strokeWidth: 2.2,
+    stroke: edge.sourcePortID === 'loop-output-to-function' ? '#91b7c0' : '#5b63ff',
+    strokeWidth: edge.sourcePortID === 'loop-output-to-function' ? 1.6 : 2.2,
+    strokeDasharray: edge.sourcePortID === 'loop-output-to-function' ? '5 4' : undefined,
   },
 })))
 
@@ -168,14 +294,57 @@ const handleNodeDragStop = ({ node }: NodeDragEvent): void => {
     x: node.position.x,
     y: node.position.y,
   })
+  const canvasMeta = (node.data as { workflowNode?: WorkflowGraphRead['nodes'][number] } | undefined)?.workflowNode?.data?.config
+  const parentBodyId = ((canvasMeta as Record<string, any> | undefined)?.__canvas as Record<string, any> | undefined)?.parentBodyId as string | undefined
+  if ((canvasMeta as Record<string, any> | undefined)?.__canvas?.kind === 'loop-body') {
+    updateLocalNodePosition(node.id, {
+      x: node.position.x,
+      y: node.position.y,
+    })
+  }
+  if (parentBodyId) {
+    queueMicrotask(() => syncLoopBodyLayout(parentBodyId))
+  }
 }
 
 const handleNodesChange = (changes: NodeChange[]): void => {
+  const added = changes
+    .filter(change => change.type === 'add')
+    .map(change => change.item)
+  const parentBodyIds = new Set<string>()
   const removed = changes
     .filter(change => change.type === 'remove')
     .map(change => change.id)
+  if (added.length) {
+    localNodes.value = [
+      ...localNodes.value,
+      ...cloneJson(added),
+    ]
+  }
+  if (removed.length) {
+    localNodes.value = localNodes.value.filter(node => !removed.includes(node.id))
+  }
+  changes.forEach((change) => {
+    if (change.type === 'position') {
+      return
+    }
+    const changedNode = change.type === 'remove'
+      ? props.graph.nodes.find(node => node.id === change.id)
+      : change.type === 'add'
+        ? change.item
+        : props.graph.nodes.find(node => node.id === change.id)
+    const canvasMeta = (changedNode?.data?.config as Record<string, any> | undefined)?.__canvas as Record<string, any> | undefined
+    if (canvasMeta?.parentBodyId) {
+      parentBodyIds.add(String(canvasMeta.parentBodyId))
+    }
+  })
   if (removed.length) {
     emit('remove-nodes', removed)
+  }
+  if (parentBodyIds.size) {
+    queueMicrotask(() => {
+      parentBodyIds.forEach(syncLoopBodyLayout)
+    })
   }
 }
 
@@ -184,6 +353,7 @@ const handleEdgesChange = (changes: EdgeChange[]): void => {
     .filter(change => change.type === 'remove')
     .map(change => change.id)
   if (removed.length) {
+    localEdges.value = localEdges.value.filter(edge => !removed.includes(buildEdgeId(edge)))
     emit('remove-edges', removed)
   }
 }
@@ -213,6 +383,30 @@ const handleDrop = (event: DragEvent): void => {
     definitionKey,
     x: position.x,
     y: position.y,
+  })
+}
+
+const syncLoopBodyLayout = (loopBodyId: string): void => {
+  const childNodes = getNodes.value.filter((node) => {
+    const canvasMeta = (node.data as { workflowNode?: WorkflowGraphRead['nodes'][number] } | undefined)?.workflowNode?.data?.config
+    return ((canvasMeta as Record<string, any> | undefined)?.__canvas as Record<string, any> | undefined)?.parentBodyId === loopBodyId
+  })
+  if (!childNodes.length) {
+    return
+  }
+  const rect = getRectOfNodes(childNodes)
+  const width = Math.max(1120, rect.width + 168)
+  const height = Math.max(440, rect.height + 152)
+  const nextLayout = {
+    x: rect.x - 84,
+    y: rect.y - 96,
+    width,
+    height,
+  }
+  updateLocalLoopBodyLayout(loopBodyId, nextLayout)
+  emit('update-loop-body-layout', {
+    loopBodyId,
+    ...nextLayout,
   })
 }
 
@@ -283,6 +477,7 @@ onBeforeUnmount(() => {
       :nodes="flowNodes"
       :edges="flowEdges"
       :node-types="nodeTypes"
+      :edge-types="edgeTypes"
       :default-viewport="initialViewport"
       :fit-view-on-init="!hasSavedViewport"
       :min-zoom="0.3"
@@ -295,6 +490,10 @@ onBeforeUnmount(() => {
       @nodes-change="handleNodesChange"
       @edges-change="handleEdgesChange"
       @viewport-change-end="handleViewportChangeEnd"
-    />
+    >
+      <template #connection-line="connectionLineProps">
+        <WorkflowCanvasConnectionLine v-bind="connectionLineProps" />
+      </template>
+    </Canvas>
   </div>
 </template>

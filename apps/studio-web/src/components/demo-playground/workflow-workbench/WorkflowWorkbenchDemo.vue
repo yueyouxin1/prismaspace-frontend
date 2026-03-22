@@ -60,6 +60,7 @@ const nodeDefinitions = ref<WorkflowNodeDefRead[]>([
   nodeDef(8, 'AgentNode', 'agent', 'cpu', { registryId: 'AgentNode', name: 'Agent 智能体', description: '调用 Agent 资源', config: { resource_instance_uuid: 'agent-instance-demo', input_query: '{{query}}', input_content_parts: null, history: [], enable_session: false, session_uuid: '' }, inputs: [schema('query')], outputs: [schema('response')] }),
   nodeDef(9, 'ToolNode', 'tool', 'tool', { registryId: 'ToolNode', name: '工具', description: '调用工具资源', config: { resource_instance_uuid: 'tool-instance-demo', executionPolicy: { switch: true, timeoutMs: 180000, retryTimes: 0, processType: 3, dataOnErr: '' } }, inputs: [schema('url')], outputs: [schema('content')] }),
   nodeDef(10, 'WorkflowNode', 'logic', 'git-branch', { registryId: 'WorkflowNode', name: '子工作流', description: '调用工作流资源', config: { resource_instance_uuid: 'child-workflow-instance-demo', executionPolicy: { switch: true, timeoutMs: 180000, retryTimes: 0, processType: 2, dataOnErr: '{"analysis":"fallback"}' } }, inputs: [schema('query')], outputs: [schema('analysis')] }),
+  nodeDef(11, 'SetVariable', 'logic', 'refresh-cw', { registryId: 'SetVariable', name: '设置变量', description: '在循环体内重置中间变量。', config: { assignments: [] }, inputs: [], outputs: [] }),
 ])
 
 const workflowInstance = ref<WorkflowRead>({

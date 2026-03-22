@@ -36,11 +36,24 @@ import {
   cloneJson,
   createWorkflowNodeFromDefinition,
   ensureWorkflowGraph,
-  findWorkflowNodeByRegistryId,
   getNodeDefinitionForNode,
   isProtectedWorkflowNode,
   parseJsonObject,
 } from './utils/workflow-helpers'
+import {
+  addWorkflowEdgeToGraph,
+  addWorkflowNodeToGraph,
+  expandWorkflowGraphForCanvas,
+  findWorkflowNodeById,
+  findWorkflowNodeLocation,
+  getActiveLoopContextId,
+  getLoopBodyDropContext,
+  removeWorkflowEdgesByIds,
+  removeWorkflowNodesByIds,
+  updateLoopBodyLayout,
+  updateWorkflowNodeById,
+  updateWorkflowNodePositionById,
+} from './utils/workflow-loop-graph'
 
 const props = defineProps<{
   client: PrismaspaceClient
@@ -180,13 +193,27 @@ const { nodeRuntimeMap } = useWorkflowRunPresentation({
   selectedRunEvents: selectedRunEventsForPanel,
 })
 
-const selectedNode = computed(() => draftGraph.value.nodes.find(node => node.id === selectedNodeId.value) ?? null)
+const selectedNode = computed(() => findWorkflowNodeById(draftGraph.value, selectedNodeId.value))
 const selectedNodeDefinition = computed(() => getNodeDefinitionForNode(nodeDefsQuery.data.value ?? [], selectedNode.value) ?? null)
-const paletteGroups = computed(() => buildWorkflowPaletteGroups(nodeDefsQuery.data.value ?? []))
+const insertionLoopContextId = computed(() => getActiveLoopContextId(draftGraph.value, selectedNodeId.value))
+const loopPaletteContextActive = computed(() => {
+  if (!selectedNode.value) {
+    return false
+  }
+  const location = findWorkflowNodeLocation(draftGraph.value, selectedNode.value.id)
+  return selectedNode.value.data.registryId === 'Loop' || Boolean(location?.parentLoopId)
+})
+const paletteGroups = computed(() => buildWorkflowPaletteGroups(
+  nodeDefsQuery.data.value ?? [],
+  {
+    loopContextActive: loopPaletteContextActive.value,
+  },
+))
 const resourceOptionsByType = computed(() => buildWorkflowResourceOptionsByType(workspaceResourcesQuery.data.value ?? []))
 const modelOptions = computed(() => buildWorkflowModelOptions(modelOptionsQuery.data.value ?? []))
-const workflowInputSchemas = computed(() => findWorkflowNodeByRegistryId(draftGraph.value, 'Start')?.data.outputs ?? [])
+const workflowInputSchemas = computed(() => draftGraph.value.nodes.find(node => node.data.registryId === 'Start')?.data.outputs ?? [])
 const isDirty = computed(() => JSON.stringify(draftGraph.value) !== baselineGraphSnapshot.value)
+const canvasGraph = computed(() => expandWorkflowGraphForCanvas(draftGraph.value))
 const latestRunSummary = computed(() => runsQuery.data.value?.[0] ?? null)
 const currentZoomLabel = computed(() => {
   const zoom = typeof draftGraph.value.viewport?.zoom === 'number' ? draftGraph.value.viewport.zoom : 1
@@ -561,21 +588,7 @@ const patchNode = (
   nodeId: string,
   updater: (node: WorkflowNodeRead) => WorkflowNodeRead,
 ): void => {
-  let didPatch = false
-  const nextNodes = draftGraph.value.nodes.map((node) => {
-    if (node.id !== nodeId) {
-      return node
-    }
-    didPatch = true
-    return updater(node)
-  })
-  if (!didPatch) {
-    return
-  }
-  draftGraph.value = {
-    ...draftGraph.value,
-    nodes: nextNodes,
-  }
+  draftGraph.value = updateWorkflowNodeById(draftGraph.value, nodeId, updater)
 }
 
 const patchNodeData = (
@@ -588,18 +601,30 @@ const patchNodeData = (
   }))
 }
 
-const handleAddNodeAt = (definition: WorkflowNodeDefRead, position?: { x: number; y: number }): void => {
+const handleAddNodeAt = (
+  definition: WorkflowNodeDefRead,
+  position?: { x: number; y: number },
+  options?: { parentLoopId?: string | null },
+): void => {
   const registryId = definition.node.registryId
   if ((registryId === 'Start' || registryId === 'End')
     && draftGraph.value.nodes.some(node => node.data.registryId === registryId)) {
     workbenchError.value = `${registryId} 节点只能存在一个。`
     return
   }
-  const nextNode = createWorkflowNodeFromDefinition(definition, draftGraph.value.nodes.length, position)
-  draftGraph.value = {
-    ...draftGraph.value,
-    nodes: [...draftGraph.value.nodes, nextNode],
+  if (registryId === 'SetVariable' && !options?.parentLoopId) {
+    workbenchError.value = '设置变量节点只能添加到循环体内。'
+    return
   }
+  const nextNode = createWorkflowNodeFromDefinition(definition, draftGraph.value.nodes.length, position)
+  if (options?.parentLoopId && !position) {
+    nextNode.position = undefined
+  }
+  draftGraph.value = addWorkflowNodeToGraph(
+    draftGraph.value,
+    nextNode,
+    { parentLoopId: options?.parentLoopId ?? null },
+  )
   selectedNodeId.value = nextNode.id
   testRunPanelOpen.value = false
 }
@@ -609,7 +634,13 @@ const handleDropNodeTemplate = (payload: { definitionKey: string; x: number; y: 
   if (!definition) {
     return
   }
-  handleAddNodeAt(definition, { x: payload.x, y: payload.y })
+  handleAddNodeAt(
+    definition,
+    { x: payload.x, y: payload.y },
+    {
+      parentLoopId: getLoopBodyDropContext(canvasGraph.value, { x: payload.x, y: payload.y }),
+    },
+  )
 }
 
 const handleConnect = (payload: {
@@ -618,24 +649,12 @@ const handleConnect = (payload: {
   sourcePortID: string
   targetPortID: string
 }): void => {
-  const exists = draftGraph.value.edges.some(edge =>
-    edge.sourceNodeID === payload.sourceNodeID
-    && edge.targetNodeID === payload.targetNodeID
-    && edge.sourcePortID === payload.sourcePortID
-    && edge.targetPortID === payload.targetPortID,
-  )
-  if (exists) {
-    return
-  }
-  draftGraph.value = {
-    ...draftGraph.value,
-    edges: [...draftGraph.value.edges, payload],
-  }
+  draftGraph.value = addWorkflowEdgeToGraph(draftGraph.value, payload)
 }
 
 const handleRemoveNodes = (nodeIds: string[]): void => {
   const blockedIds = new Set(
-    draftGraph.value.nodes
+    canvasGraph.value.nodes
       .filter(node => isProtectedWorkflowNode(node))
       .map(node => node.id),
   )
@@ -643,13 +662,7 @@ const handleRemoveNodes = (nodeIds: string[]): void => {
   if (!removableIds.length) {
     return
   }
-  draftGraph.value = {
-    ...draftGraph.value,
-    nodes: draftGraph.value.nodes.filter(node => !removableIds.includes(node.id)),
-    edges: draftGraph.value.edges.filter(edge =>
-      !removableIds.includes(edge.sourceNodeID) && !removableIds.includes(edge.targetNodeID),
-    ),
-  }
+  draftGraph.value = removeWorkflowNodesByIds(draftGraph.value, removableIds)
   if (selectedNodeId.value && removableIds.includes(selectedNodeId.value)) {
     selectedNodeId.value = draftGraph.value.nodes.find(node => !isProtectedWorkflowNode(node))?.id
       ?? draftGraph.value.nodes[0]?.id
@@ -658,21 +671,18 @@ const handleRemoveNodes = (nodeIds: string[]): void => {
 }
 
 const handleRemoveEdges = (edgeIds: string[]): void => {
-  const ids = new Set(edgeIds)
-  draftGraph.value = {
-    ...draftGraph.value,
-    edges: draftGraph.value.edges.filter(edge => !ids.has(`${edge.sourceNodeID}:${edge.sourcePortID}->${edge.targetNodeID}:${edge.targetPortID}`)),
-  }
+  draftGraph.value = removeWorkflowEdgesByIds(draftGraph.value, edgeIds)
 }
 
 const handleUpdateNodePosition = (payload: { id: string; x: number; y: number }): void => {
-  patchNode(payload.id, (node) => ({
-    ...node,
-    position: {
+  draftGraph.value = updateWorkflowNodePositionById(
+    draftGraph.value,
+    payload.id,
+    {
       x: payload.x,
       y: payload.y,
     },
-  }))
+  )
 }
 
 const handleAutoLayout = (): void => {
@@ -765,7 +775,7 @@ const applyInstanceContractsToNode = async (nodeId: string, nextNodeData: Workfl
 
   try {
     const instance = await props.client.resource.getInstance(instanceUuid) as AnyInstanceRead
-    const targetNode = draftGraph.value.nodes.find(node => node.id === nodeId) ?? null
+    const targetNode = findWorkflowNodeById(draftGraph.value, nodeId)
     if (!targetNode) {
       return
     }
@@ -886,7 +896,7 @@ const isLoadFailed = computed(() =>
         <div class="relative h-full min-h-0">
           <WorkflowCanvas
             ref="canvasRef"
-            :graph="draftGraph"
+            :graph="canvasGraph"
             :selected-node-id="selectedNodeId"
             :node-runtime-map="nodeRuntimeMap"
             @select-node="selectedNodeId = $event; testRunPanelOpen = false"
@@ -895,9 +905,10 @@ const isLoadFailed = computed(() =>
             @drop-node-template="handleDropNodeTemplate"
             @update-node-position="handleUpdateNodePosition"
             @update-viewport="handleViewportUpdate"
-            @remove-nodes="handleRemoveNodes"
-            @remove-edges="handleRemoveEdges"
-          />
+        @remove-nodes="handleRemoveNodes"
+        @remove-edges="handleRemoveEdges"
+        @update-loop-body-layout="draftGraph = updateLoopBodyLayout(draftGraph, $event.loopBodyId, { x: $event.x, y: $event.y, width: $event.width, height: $event.height })"
+      />
         </div>
 
         <div class="pointer-events-none absolute inset-0 z-30">
@@ -976,7 +987,7 @@ const isLoadFailed = computed(() =>
       <WorkflowAddNodeDialog
         v-model:open="addNodeDialogOpen"
         :groups="paletteGroups"
-        @select="handleAddNodeAt"
+        @select="handleAddNodeAt($event, undefined, { parentLoopId: insertionLoopContextId })"
       />
     </div>
   </div>

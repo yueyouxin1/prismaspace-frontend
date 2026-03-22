@@ -15,7 +15,7 @@
 
 ## 本轮目标
 
-1. 前端工作台覆盖后端当前已支持的全部节点：`Start / End / Output / Branch / Loop / Interrupt / LLMNode / AgentNode / ToolNode / WorkflowNode`。
+1. 前端工作台覆盖后端当前已支持的全部节点：`Start / End / Output / Branch / Loop / Interrupt / LLMNode / AgentNode / ToolNode / WorkflowNode / SetVariable`。
 2. 节点配置面板全部走前端 registry + schema 驱动表单生成，不在通用 UI 中耦合节点专有逻辑。
 3. 画布与运行面板共享同一套 run 事实来源，支持 live / history / replay 的节点状态高亮、底部结果预览和事件流驱动反馈。
 4. 修正常规节点因为 `inputs_schema` 变化而生成多余 handle 的错误，端口策略改为节点类型驱动。
@@ -38,7 +38,7 @@
 ### A. 节点覆盖与 registry 收敛
 
 - [x] 将 `WorkflowNodeRegistry` 扩展为可承载 `panel schema / port strategy / canvas summary / result preview / resource hydration / fault tolerance visibility`。
-- [x] 为 `Start / End / Output / Branch / Loop / Interrupt / LLMNode / AgentNode / ToolNode / WorkflowNode` 建立专用 registry。
+- [x] 为 `Start / End / Output / Branch / Loop / Interrupt / LLMNode / AgentNode / ToolNode / WorkflowNode / SetVariable` 建立专用 registry。
 - [x] 将当前只覆盖 `Start / End` 的 registry 集合升级为全后端节点集合。
 - [x] 保留未知节点 fallback，但明确与已支持节点主链路隔离。
 
@@ -48,7 +48,9 @@
 - [x] `End` 面板收敛为返回模式 + 输出变量 + 文本模板 + 流式开关。
 - [x] `Output` 面板补齐中间输出配置。
 - [x] `Branch` 面板补齐条件分支编辑器与否则语义。
-- [x] `Loop` 面板补齐循环类型、数组/次数来源、串并行、最大并发、循环输出与子流程 JSON 入口。
+- [x] `Loop` 面板补齐循环类型、数组/次数来源、中间变量、输出与异常处理配置，并回到 `param-schema-editor` 主链路。
+- [x] `Loop` 已升级为“外层节点 + 循环体容器 + 内层子流程节点”模式，不再停留在 JSON 占位入口。
+- [x] `SetVariable` 循环变量设置节点已补齐前后端。
 - [x] `Interrupt` 面板补齐 `reason / message / resume_output_key / outputs`。
 - [x] `LLMNode` 面板补齐模型、提示词、输入绑定、输出、response format、deep thinking 与异常处理。
 - [x] `AgentNode` 面板补齐资源选择、query / content parts / history / session / outputs`。
@@ -134,7 +136,7 @@
 
 ## 下一轮精修入口
 
-1. 把 `Loop` 子流程 JSON 入口升级成真正的嵌套画布编辑体验。
-2. 为 `Branch / Loop / Interrupt / ToolNode / WorkflowNode` 补更细的前端单测与交互回归。
+1. 继续精修 `Loop` 循环体的布局、拖拽边界、内层自动排版与细节交互，使其更接近 Coze。
+2. 为 `SetVariable / Loop / Branch / Interrupt / ToolNode / WorkflowNode` 补更细的前端单测与交互回归。
 3. 继续向 Coze 级历史 / trace / replay 可视化细节对齐。
 4. 基于真实后端环境完成保存 / 重载 / validate / execute / replay / resume 全链路验收并全部勾满。

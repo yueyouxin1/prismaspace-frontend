@@ -19,6 +19,7 @@ import WorkflowParamSchemaEditorField from './fields/WorkflowParamSchemaEditorFi
 import WorkflowParameterSchemaEditorField from './fields/WorkflowParameterSchemaEditorField.vue'
 import WorkflowOptionSelectField from './fields/WorkflowOptionSelectField.vue'
 import WorkflowJsonValueField from './fields/WorkflowJsonValueField.vue'
+import WorkflowSetVariableField from './fields/WorkflowSetVariableField.vue'
 import type { WorkflowFormRuntimeContext } from '../types/workflow-ide'
 import {
   buildWorkflowVariableEntries,
@@ -50,6 +51,32 @@ const syncingFromProps = ref(false)
 const Icon = computed(() => resolveWorkflowIcon(props.selectedNodeDefinition?.icon || props.selectedNode.data.registryId))
 const variableEntries = computed(() => buildWorkflowVariableEntries(props.graph, props.selectedNode.id))
 const valueRefTree = computed(() => buildWorkflowVariableTree(variableEntries.value))
+
+const filterVariableEntriesByScope = (scope: string | undefined) => {
+  if (!scope) {
+    return variableEntries.value
+  }
+  if (scope === 'loop-array-source') {
+    return variableEntries.value.filter(entry =>
+      entry.schema.type === 'array'
+      && entry.category !== 'loop-variable'
+      && entry.refValue.content.source !== 'loop-block-output',
+    )
+  }
+  if (scope === 'loop-middle-variable') {
+    return variableEntries.value.filter(entry =>
+      entry.category !== 'loop-variable'
+      && entry.refValue.content.source !== 'loop-block-output',
+    )
+  }
+  if (scope === 'loop-output') {
+    return variableEntries.value.filter(entry =>
+      entry.category === 'loop-variable'
+      || entry.refValue.content.source === 'loop-block-output',
+    )
+  }
+  return variableEntries.value
+}
 
 watch(
   () => props.selectedNode,
@@ -99,15 +126,25 @@ const optionFieldRenderer: FieldRendererDefinition = {
 
 const parameterSchemaFieldRenderer: FieldRendererDefinition = {
   component: WorkflowParameterSchemaEditorField,
-  getProps: (ctx) => ({
-    fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
-    variableEntries: variableEntries.value,
-  }),
+  getProps: (ctx) => {
+    const scope = String(ctx.item.props?.variableScope ?? '')
+    return {
+      fieldProps: ctx.resolveDynamic(ctx.item.props ?? {}),
+      variableEntries: filterVariableEntriesByScope(scope),
+    }
+  },
 }
 
 const workflowParamSchemaEditorFieldRenderer: FieldRendererDefinition = {
   component: WorkflowParamSchemaEditorField,
-  getProps: (ctx) => ctx.resolveDynamic(ctx.item.props ?? {}),
+  getProps: (ctx) => {
+    const scope = String(ctx.item.props?.variableScope ?? '')
+    const filteredEntries = filterVariableEntriesByScope(scope)
+    return {
+      ...ctx.resolveDynamic(ctx.item.props ?? {}),
+      valueRefTree: buildWorkflowVariableTree(filteredEntries),
+    }
+  },
   transformInput: (value) => Array.isArray(value) ? value : [],
   transformOutput: (value) => Array.isArray(value) ? value : [],
 }
@@ -128,6 +165,15 @@ const workflowBranchFieldRenderer: FieldRendererDefinition = {
   transformOutput: (value) => Array.isArray(value) ? value : [],
 }
 
+const workflowSetVariableFieldRenderer: FieldRendererDefinition = {
+  component: WorkflowSetVariableField,
+  getProps: () => ({
+    variableEntries: variableEntries.value,
+  }),
+  transformInput: (value) => Array.isArray(value) ? value : [],
+  transformOutput: (value) => Array.isArray(value) ? value : [],
+}
+
 const fieldRenderers = computed<Record<string, FieldRendererDefinition>>(() => ({
   resource_selector: optionFieldRenderer,
   model_selector: optionFieldRenderer,
@@ -135,6 +181,7 @@ const fieldRenderers = computed<Record<string, FieldRendererDefinition>>(() => (
   'param-schema-editor': workflowParamSchemaEditorFieldRenderer,
   workflow_json: jsonFieldRenderer,
   workflow_branches: workflowBranchFieldRenderer,
+  workflow_set_variable: workflowSetVariableFieldRenderer,
 }))
 
 const panelSchema = computed(() => resolveWorkflowNodePanelSchema({

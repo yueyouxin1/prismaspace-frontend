@@ -25,10 +25,10 @@ const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
             label: '循环类型',
             modelPath: 'nodeData.config.loopType',
             props: {
-              defaultValue: 'count',
+              defaultValue: 'list',
               options: [
-                { label: '使用次数循环', value: 'count' },
-                { label: '遍历数组循环', value: 'list' },
+                { label: '使用数组循环', value: 'list' },
+                { label: '指定循环次数', value: 'count' },
               ],
             },
           },
@@ -55,7 +55,21 @@ const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
               visible: "{{ model.nodeData.config.loopType === 'list' }}",
             },
             props: {
-              valueRefTree,
+              variableScope: 'loop-array-source',
+              runtimeMode: 'refine',
+              headerTitle: 'LOOP ARRAY',
+              singleRoot: true,
+              fieldVisibility: {
+                refine: {
+                  regularInline: {
+                    name: true,
+                    type: true,
+                    required: false,
+                    valueField: 'value',
+                    actions: false,
+                  },
+                },
+              },
             },
           },
           {
@@ -91,9 +105,51 @@ const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
         ],
       },
       {
+        id: 'loop-middle-variables',
+        title: '中间变量',
+        description: '定义循环过程中可被读取和重置的中间变量。',
+        defaultOpen: true,
+        children: [
+          {
+            id: 'loop-middle-variables-editor',
+            type: 'form',
+            control: 'param-schema-editor',
+            modelPath: 'nodeData.inputs',
+            props: {
+              variableScope: 'loop-middle-variable',
+              runtimeMode: 'refine',
+              headerTitle: 'MIDDLE VARIABLES',
+              class: 'h-[320px] min-h-0 rounded-[10px] border border-[#ececf4] bg-white',
+              fieldVisibility: {
+                refine: {
+                  regularInline: {
+                    name: true,
+                    type: true,
+                    required: false,
+                    valueField: 'value',
+                    actions: true,
+                  },
+                  regularDetail: {
+                    default: false,
+                    description: false,
+                    label: false,
+                    role: false,
+                    enum: false,
+                    meta: false,
+                    open: false,
+                    value: false,
+                    arrayItemType: false,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      {
         id: 'loop-outputs',
-        title: '循环输出',
-        description: '定义循环聚合后的对外输出。',
+        title: '输出',
+        description: '定义循环结束后对外输出的聚合结果。',
         defaultOpen: true,
         children: [
           {
@@ -102,40 +158,42 @@ const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
             control: 'param-schema-editor',
             modelPath: 'nodeData.outputs',
             props: {
-              runtimeMode: 'define',
+              variableScope: 'loop-output',
+              runtimeMode: 'refine',
               headerTitle: 'LOOP OUTPUTS',
-              valueRefTree
+              class: 'h-[320px] min-h-0 rounded-[10px] border border-[#ececf4] bg-white',
+              fieldVisibility: {
+                refine: {
+                  regularInline: {
+                    name: true,
+                    type: true,
+                    required: false,
+                    valueField: 'value',
+                    actions: true,
+                  },
+                  regularDetail: {
+                    default: false,
+                    description: false,
+                    label: false,
+                    role: false,
+                    enum: false,
+                    meta: false,
+                    open: false,
+                    value: false,
+                    arrayItemType: false,
+                  },
+                },
+              },
             },
           },
         ],
       },
       {
-        id: 'loop-subgraph',
+        id: 'loop-body-note',
         title: '循环体',
-        description: '当前版本先使用 JSON 维护子流程 blocks/edges，后续再升级为嵌套画布编辑。',
+        description: '循环体已经升级为真实子流程容器，请直接在画布中的循环体区域拖拽和连线。',
         defaultOpen: false,
-        children: [
-          {
-            id: 'loop-blocks',
-            type: 'form',
-            control: 'workflow_json',
-            label: '子节点 blocks',
-            modelPath: 'nodeData.blocks',
-            props: {
-              placeholder: '[\n  {\n    "id": "node_1"\n  }\n]',
-            },
-          },
-          {
-            id: 'loop-edges',
-            type: 'form',
-            control: 'workflow_json',
-            label: '子连线 edges',
-            modelPath: 'nodeData.edges',
-            props: {
-              placeholder: '[\n  {\n    "sourceNodeID": "loop"\n  }\n]',
-            },
-          },
-        ],
+        children: [],
       },
       {
         id: 'loop-fault-tolerance',
@@ -160,16 +218,27 @@ export const loopNodeRegistry: WorkflowNodeRegistry = {
       context.node.data,
       createDefaultSingleOutputPort('输出', context.node.data.outputs?.[0] ?? null),
     ),
-    getSummaryLines: (context) => [
-      {
-        label: '循环类型',
-        value: context.node.data.config?.loopType === 'list' ? '数组循环' : '次数循环',
-      },
-      {
-        label: '执行模式',
-        value: context.node.data.config?.executionMode === 'parallel' ? `并行 (${context.node.data.config?.maxConcurrency ?? 1})` : '串行',
-      },
-    ],
+    getSummaryLines: (context) => {
+      const config = (context.node.data.config ?? {}) as Record<string, any>
+      const loopList = (config.loopList ?? null) as Record<string, any> | null
+      const loopCount = (config.loopCount ?? null) as Record<string, any> | null
+      return [
+        {
+          label: '输入',
+          value: config.loopType === 'list'
+            ? String(loopList?.name || '未配置')
+            : String(loopCount?.name || 'count'),
+        },
+        {
+          label: '中间变量',
+          value: context.node.data.inputs?.length ? `${context.node.data.inputs.length} 项` : '无',
+        },
+        {
+          label: '输出',
+          value: context.node.data.outputs?.length ? `${context.node.data.outputs.length} 项` : '无',
+        },
+      ]
+    },
   },
   faultTolerance: {
     visible: true,

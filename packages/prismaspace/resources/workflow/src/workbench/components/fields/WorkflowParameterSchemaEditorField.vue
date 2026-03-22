@@ -4,17 +4,12 @@ import {
   ParamSchemaRegularEditor,
   exportParameterSchema,
   importParameterSchema,
+  type ParamSchemaFieldVisibilityOverrides,
+  type ParamSchemaRuntimeMode,
+  type SchemaNode,
   useParamSchemaEditor,
 } from '@prismaspace/editor'
 import type { WorkflowParameterSchema } from '@prismaspace/contracts'
-import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@prismaspace/ui-shadcn/components/ui/dialog'
-import { Maximize2 } from 'lucide-vue-next'
 import type { WorkflowVariableEntry } from '../../types/workflow-ide'
 import { buildWorkflowVariableTree, cloneJson } from '../../utils/workflow-helpers'
 
@@ -24,6 +19,12 @@ const props = withDefaults(defineProps<{
     placeholder?: string
     default_schema?: unknown
     disabled?: boolean
+    runtimeMode?: ParamSchemaRuntimeMode
+    fieldVisibility?: ParamSchemaFieldVisibilityOverrides
+    headerTitle?: string
+    showHeader?: boolean
+    singleRoot?: boolean
+    canEdit?: (node: SchemaNode) => boolean
   }
   variableEntries?: WorkflowVariableEntry[]
 }>(), {
@@ -68,6 +69,17 @@ const { state, dispatch } = useParamSchemaEditor({
 })
 
 const variableTree = computed(() => buildWorkflowVariableTree(props.variableEntries))
+const resolvedRuntimeMode = computed<ParamSchemaRuntimeMode>(() => props.fieldProps?.runtimeMode ?? 'define')
+const resolvedCanEdit = (node: SchemaNode): boolean => {
+  const rootId = state.value.tree.id
+  if (props.fieldProps?.singleRoot && node.id === rootId) {
+    return false
+  }
+  if (typeof props.fieldProps?.canEdit === 'function') {
+    return props.fieldProps.canEdit(node)
+  }
+  return true
+}
 const currentSourceSnapshot = computed(() => JSON.stringify(
   isSchemaCollection.value ? initialSchemaList.value : initialSchemaList.value[0] ?? null,
 ))
@@ -111,8 +123,12 @@ watch(
     <ParamSchemaRegularEditor
       :state="state"
       :dispatch="dispatch"
-      runtime-mode="define"
+      :runtime-mode="resolvedRuntimeMode"
       :value-ref-tree="variableTree"
+      :field-visibility="fieldProps?.fieldVisibility"
+      :header-title="fieldProps?.headerTitle"
+      :show-header="fieldProps?.showHeader"
+      :can-edit="resolvedCanEdit"
       class="h-[440px] min-h-[360px]"
     />
 </template>

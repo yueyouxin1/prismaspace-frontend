@@ -4,6 +4,7 @@ import {
   GitBranch,
   PauseCircle,
   Play,
+  RefreshCw,
   Split,
   SquareTerminal,
   StopCircle,
@@ -18,6 +19,7 @@ const workflowIconMap: Record<string, LucideIcon> = {
   tool: Wrench,
   'git-branch': GitBranch,
   'pause-circle': PauseCircle,
+  'refresh-cw': RefreshCw,
   branch: Split,
   interrupt: PauseCircle,
   output: SquareTerminal,
@@ -31,6 +33,7 @@ const workflowIconMap: Record<string, LucideIcon> = {
   Branch: Split,
   Loop: Play,
   Interrupt: PauseCircle,
+  SetVariable: RefreshCw,
 }
 
 export const resolveWorkflowIcon = (icon?: string | null): LucideIcon => {

@@ -30,9 +30,12 @@ const registryId = computed(() => workflowNode.value.data.registryId)
 const isStart = computed(() => registryId.value === 'Start')
 const isEnd = computed(() => registryId.value === 'End')
 const isLlm = computed(() => registryId.value === 'LLMNode')
+const isLoop = computed(() => registryId.value === 'Loop')
+const isSetVariable = computed(() => registryId.value === 'SetVariable')
 const nodeWidthClass = computed(() => 'w-[360px]')
 const iconClass = computed(() => {
   if (isLlm.value) return 'bg-[#111827] text-white'
+  if (isLoop.value || isSetVariable.value) return 'bg-[#e8faf6] text-[#109a77]'
   if (isStart.value || isEnd.value) return 'bg-[#eef2ff] text-[#4e40e5]'
   if (registryId.value === 'WorkflowNode') return 'bg-[#34c759] text-white'
   return 'bg-[#f5f6ff] text-[#5f66ff]'
@@ -191,7 +194,6 @@ const nodeStateClass = computed(() => {
   <div
     class="relative cursor-pointer rounded-[8px] border bg-white shadow-[0_2px_6px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.02)] transition-all"
     :class="[nodeWidthClass, nodeStateClass]"
-    @mousedown="props.data.onSelect?.()"
   >
     <Handle
       v-for="(port, index) in inputPorts"
@@ -210,6 +212,14 @@ const nodeStateClass = computed(() => {
       :position="Position.Right"
       :style="{ top: portOffset(index, outputPorts.length) }"
       class="!h-2.5 !w-2.5 !border-2 !border-white !bg-[#5b63ff]"
+    />
+    <Handle
+      v-if="isLoop"
+      id="loop-output-to-function"
+      type="source"
+      :position="Position.Bottom"
+      class="!h-2.5 !w-2.5 !border-2 !border-white !bg-[#91b7c0] opacity-0"
+      :connectable="false"
     />
 
     <div class="space-y-3 px-4 py-3">

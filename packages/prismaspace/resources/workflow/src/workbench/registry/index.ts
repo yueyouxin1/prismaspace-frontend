@@ -6,6 +6,7 @@ import { interruptNodeRegistry } from './nodes/interrupt-node-registry'
 import { llmNodeRegistry } from './nodes/llm-node-registry'
 import { loopNodeRegistry } from './nodes/loop-node-registry'
 import { outputNodeRegistry } from './nodes/output-node-registry'
+import { setVariableNodeRegistry } from './nodes/set-variable-node-registry'
 import { startNodeRegistry } from './nodes/start-node-registry'
 import { toolNodeRegistry } from './nodes/tool-node-registry'
 import { workflowNodeRegistry } from './nodes/workflow-node-registry'
@@ -24,6 +25,7 @@ const workflowNodeRegistries: WorkflowNodeRegistry[] = [
   llmNodeRegistry,
   loopNodeRegistry,
   outputNodeRegistry,
+  setVariableNodeRegistry,
   toolNodeRegistry,
   workflowNodeRegistry,
 ]

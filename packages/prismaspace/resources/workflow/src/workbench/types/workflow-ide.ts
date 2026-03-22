@@ -56,7 +56,7 @@ export interface WorkflowVariableEntry {
   key: string
   nodeId: string
   nodeName: string
-  category: 'workflow-input' | 'node-output'
+  category: 'workflow-input' | 'node-output' | 'loop-variable'
   schema: WorkflowParameterSchema
   path: string
   refValue: {

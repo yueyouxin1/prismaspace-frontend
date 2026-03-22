@@ -55,9 +55,11 @@ const copyText = async (key: string, text: string): Promise<void> => {
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
               <p class="truncate text-sm font-medium">{{ entry.path }}</p>
-              <Badge variant="outline">{{ entry.category === 'workflow-input' ? 'Input' : 'Output' }}</Badge>
+              <Badge variant="outline">
+                {{ entry.category === 'workflow-input' ? 'Input' : entry.category === 'loop-variable' ? 'Loop' : 'Output' }}
+              </Badge>
             </div>
             <p class="mt-1 text-xs text-muted-foreground">{{ entry.nodeName }} · {{ entry.schema.type }}</p>
           </div>
