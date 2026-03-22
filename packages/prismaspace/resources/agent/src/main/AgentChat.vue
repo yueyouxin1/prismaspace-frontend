@@ -16,6 +16,8 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import AgentChatHeader from './components/AgentChatHeader.vue'
 import AgentComposer from './components/AgentComposer.vue'
 import AgentConversationView from './components/AgentConversationView.vue'
+import AgentMobileHeader from './components/AgentMobileHeader.vue'
+import AgentMobileSessionDrawer from './components/AgentMobileSessionDrawer.vue'
 import AgentSessionList from './components/AgentSessionList.vue'
 
 const props = defineProps<{
@@ -39,6 +41,7 @@ const emit = defineEmits<{
 const HOST_ACCESS_TOKEN_KEY = 'prismaspace.session.access_token'
 const MAX_SESSIONS = 100
 const MAX_MESSAGES = 100
+const COMPACT_LAYOUT_MAX_WIDTH = 720
 
 const instanceDetail = ref<AnyInstanceRead | null>(null)
 const sessions = ref<AgentSessionRead[]>([])
@@ -52,13 +55,17 @@ const shellError = ref<string | null>(null)
 const useWebSearch = ref(false)
 const renamingSessionId = ref<string | null>(null)
 const renamingTitle = ref('')
+const shellRef = ref<HTMLElement | null>(null)
 const currentRunId = ref<string | null>(null)
 const currentAssistantMessageId = ref<string | null>(null)
 const streamAbortController = shallowRef<AbortController | null>(null)
 const streamConnection = shallowRef<{ close?: () => void } | null>(null)
 const streamingStoppedByUser = ref(false)
+const containerWidth = ref(0)
+const mobileDrawerOpen = ref(false)
 
 let initializeTicket = 0
+let shellResizeObserver: ResizeObserver | null = null
 
 const readHostAccessToken = (): string | null => {
   if (typeof window === 'undefined') {
@@ -324,6 +331,7 @@ const visibleSuggestions = computed(() => {
 })
 
 const showSidebar = computed(() => !isPinnedThreadMode.value)
+const isCompactLayout = computed(() => containerWidth.value > 0 && containerWidth.value <= COMPACT_LAYOUT_MAX_WIDTH)
 const showIntro = computed(() => !loadingMessages.value && messages.value.length === 0)
 const showAuthFallbackNotice = computed(() => !props.client && !props.accessToken && !!instanceUuid.value)
 const conversationViewKey = computed(() => activeThreadId.value || (showIntro.value ? 'empty-state' : 'chat-view'))
@@ -995,6 +1003,30 @@ function handleSuggestionClick(suggestion: string): void {
   void handleSubmit({ text: suggestion, files: [] })
 }
 
+function syncShellWidth(element: HTMLElement | null): void {
+  containerWidth.value = element ? Math.round(element.getBoundingClientRect().width) : 0
+}
+
+watch(shellRef, (next) => {
+  shellResizeObserver?.disconnect()
+  shellResizeObserver = null
+  syncShellWidth(next)
+  if (!next || typeof ResizeObserver === 'undefined') {
+    return
+  }
+  shellResizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    containerWidth.value = Math.round(entry?.contentRect.width || next.getBoundingClientRect().width)
+  })
+  shellResizeObserver.observe(next)
+}, { immediate: true })
+
+watch(isCompactLayout, (value) => {
+  if (!value) {
+    mobileDrawerOpen.value = false
+  }
+}, { immediate: true })
+
 watch(
   [instanceUuid, explicitThreadId, () => props.client, () => props.accessToken, baseUrl, resolvedLocale],
   async () => {
@@ -1050,72 +1082,143 @@ watch(
 onBeforeUnmount(() => {
   streamAbortController.value?.abort()
   streamConnection.value?.close?.()
+  shellResizeObserver?.disconnect()
+  shellResizeObserver = null
 })
 </script>
 
 <template>
-  <SidebarProvider
-    class="h-full min-h-0 w-full font-['Geist','Inter','Segoe_UI',sans-serif]"
-    :style="{
-      '--sidebar-width': 'calc(var(--spacing) * 72)',
-    }"
+  <div
+    ref="shellRef"
+    class="relative flex h-full min-h-0 w-full overflow-hidden bg-background font-['Geist','Inter','Segoe_UI',sans-serif]"
   >
-    <AgentSessionList
-      v-if="showSidebar"
-      :loading="loadingSessions"
-      :creating="creatingSession"
-      :session-groups="sessionGroups"
-      :active-thread-id="activeThreadId"
-      :renaming-session-id="renamingSessionId"
-      :renaming-title="renamingTitle"
-      :copy="copy"
-      @create="handleNewSession"
-      @select="activateThread($event, { closeSidebar: true })"
-      @begin-rename="beginRename"
-      @submit-rename="submitRename"
-      @cancel-rename="cancelRename"
-      @delete="deleteSession"
-      @update:renaming-title="renamingTitle = $event"
-    />
+    <template v-if="isCompactLayout">
+      <div class="relative flex min-h-0 min-w-0 w-full flex-col bg-background">
+        <AgentMobileHeader
+          :title="instanceName"
+          :can-create-session="showSidebar"
+          :creating-session="creatingSession"
+          :drawer-label="copy.session"
+          :new-chat-label="copy.newChat"
+          @toggle-drawer="mobileDrawerOpen = true"
+          @new-session="handleNewSession"
+        />
 
-    <SidebarInset class="min-h-0">
-      <div class="flex min-h-0 flex-1 flex-col">
-      <AgentChatHeader
-        :title="instanceName"
-        :show-sidebar-trigger="showSidebar"
-        :can-create-session="showSidebar"
-        :creating-session="creatingSession"
-        :sidebar-label="copy.session"
-        :new-chat-label="copy.newChat"
-        @new-session="handleNewSession"
-      />
+        <AgentConversationView
+          :conversation-key="conversationViewKey"
+          :messages="messages"
+          :shell-error="shellError"
+          :show-auth-fallback-notice="showAuthFallbackNotice"
+          :show-intro="showIntro"
+          :empty-title="emptyStateText.title"
+          :empty-subtitle="emptyStateText.subtitle"
+          :loading-messages="loadingMessages"
+          :copy="copy"
+          compact
+        />
 
-      <AgentConversationView
-        :conversation-key="conversationViewKey"
-        :messages="messages"
-        :shell-error="shellError"
-        :show-auth-fallback-notice="showAuthFallbackNotice"
-        :show-intro="showIntro"
-        :empty-title="emptyStateText.title"
-        :empty-subtitle="emptyStateText.subtitle"
-        :loading-messages="loadingMessages"
-        :copy="copy"
-      />
+        <AgentComposer
+          :copy="copy"
+          :placeholder="copy.inputPlaceholder"
+          :suggestions="visibleSuggestions"
+          :show-suggestions="showIntro"
+          :use-web-search="useWebSearch"
+          :is-streaming="isStreaming"
+          compact
+          @submit="handleSubmit"
+          @error="handlePromptInputError"
+          @toggle-web-search="toggleWebSearch"
+          @stop-streaming="stopStreaming"
+          @suggestion-click="handleSuggestionClick"
+        />
 
-      <AgentComposer
-        :copy="copy"
-        :placeholder="copy.inputPlaceholder"
-        :suggestions="visibleSuggestions"
-        :show-suggestions="showIntro"
-        :use-web-search="useWebSearch"
-        :is-streaming="isStreaming"
-        @submit="handleSubmit"
-        @error="handlePromptInputError"
-        @toggle-web-search="toggleWebSearch"
-        @stop-streaming="stopStreaming"
-        @suggestion-click="handleSuggestionClick"
-      />
+        <AgentMobileSessionDrawer
+          v-if="showSidebar"
+          :open="mobileDrawerOpen"
+          :loading="loadingSessions"
+          :creating="creatingSession"
+          :session-groups="sessionGroups"
+          :active-thread-id="activeThreadId"
+          :renaming-session-id="renamingSessionId"
+          :renaming-title="renamingTitle"
+          :copy="copy"
+          @update:open="mobileDrawerOpen = $event"
+          @create="handleNewSession"
+          @select="activateThread($event, { closeSidebar: true })"
+          @begin-rename="beginRename"
+          @submit-rename="submitRename"
+          @cancel-rename="cancelRename"
+          @delete="deleteSession"
+          @update:renaming-title="renamingTitle = $event"
+        />
       </div>
-    </SidebarInset>
-  </SidebarProvider>
+    </template>
+
+    <template v-else>
+      <SidebarProvider
+        class="h-full min-h-0 w-full"
+        :style="{
+          '--sidebar-width': 'calc(var(--spacing) * 72)',
+        }"
+      >
+        <AgentSessionList
+          v-if="showSidebar"
+          :loading="loadingSessions"
+          :creating="creatingSession"
+          :session-groups="sessionGroups"
+          :active-thread-id="activeThreadId"
+          :renaming-session-id="renamingSessionId"
+          :renaming-title="renamingTitle"
+          :copy="copy"
+          @create="handleNewSession"
+          @select="activateThread($event, { closeSidebar: true })"
+          @begin-rename="beginRename"
+          @submit-rename="submitRename"
+          @cancel-rename="cancelRename"
+          @delete="deleteSession"
+          @update:renaming-title="renamingTitle = $event"
+        />
+
+        <SidebarInset class="min-h-0">
+          <div class="flex min-h-0 flex-1 flex-col">
+            <AgentChatHeader
+              :title="instanceName"
+              :show-sidebar-trigger="showSidebar"
+              :can-create-session="showSidebar"
+              :creating-session="creatingSession"
+              :sidebar-label="copy.session"
+              :new-chat-label="copy.newChat"
+              @new-session="handleNewSession"
+            />
+
+            <AgentConversationView
+              :conversation-key="conversationViewKey"
+              :messages="messages"
+              :shell-error="shellError"
+              :show-auth-fallback-notice="showAuthFallbackNotice"
+              :show-intro="showIntro"
+              :empty-title="emptyStateText.title"
+              :empty-subtitle="emptyStateText.subtitle"
+              :loading-messages="loadingMessages"
+              :copy="copy"
+            />
+
+            <AgentComposer
+              :copy="copy"
+              :placeholder="copy.inputPlaceholder"
+              :suggestions="visibleSuggestions"
+              :show-suggestions="showIntro"
+              :use-web-search="useWebSearch"
+              :is-streaming="isStreaming"
+              @submit="handleSubmit"
+              @error="handlePromptInputError"
+              @toggle-web-search="toggleWebSearch"
+              @stop-streaming="stopStreaming"
+              @suggestion-click="handleSuggestionClick"
+            />
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </template>
+  </div>
 </template>

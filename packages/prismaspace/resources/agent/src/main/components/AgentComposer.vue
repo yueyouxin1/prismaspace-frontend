@@ -29,6 +29,7 @@ const props = defineProps<{
   showSuggestions: boolean
   useWebSearch: boolean
   isStreaming: boolean
+  compact?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -72,10 +73,13 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
 </script>
 
 <template>
-  <div class="agent-chat-composer-shell sticky bottom-0 z-20 mt-auto px-4 pb-2 md:px-8 md:pb-3">
+  <div
+    class="agent-chat-composer-shell sticky bottom-0 z-20 mt-auto px-4 pb-2 md:px-8 md:pb-3"
+    :class="props.compact ? 'px-3 pb-1.5 md:px-3 md:pb-1.5' : ''"
+  >
     <div class="pointer-events-none absolute inset-x-0 bottom-full z-0 h-8 bg-gradient-to-t from-background via-background/90 to-transparent" />
 
-    <div class="mx-auto flex w-full max-w-4xl flex-col gap-3">
+    <div class="mx-auto flex w-full max-w-4xl flex-col gap-3" :class="props.compact ? 'max-w-full gap-2' : ''">
       <div v-if="showSuggestions && suggestionCards.length" class="space-y-2">
         <div class="hidden md:block">
           <Suggestions class="grid w-full grid-cols-3 gap-3">
@@ -85,6 +89,7 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
               :suggestion="suggestion.raw"
               variant="ghost"
               class="h-auto rounded-[18px] bg-[#f3f4f6] px-4 py-3 text-left transition-all duration-150 hover:-translate-y-0.5 hover:bg-[#eceff3] active:scale-[0.98]"
+              :class="props.compact ? 'rounded-[14px] px-3 py-2.5' : ''"
               @click="emit('suggestion-click', suggestion.raw)"
             >
               <div class="w-full">
@@ -104,6 +109,7 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
             :suggestion="suggestion.raw"
             variant="ghost"
             class="h-auto w-[176px] shrink-0 rounded-[18px] bg-[#f3f4f6] px-4 py-3 text-left transition-all duration-150 active:scale-[0.98]"
+            :class="props.compact ? 'w-[148px] rounded-[14px] px-3 py-2.5' : ''"
             @click="emit('suggestion-click', suggestion.raw)"
           >
             <div class="w-full">
@@ -123,7 +129,7 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
         @submit="emit('submit', $event)"
         @error="emit('error', $event)"
       >
-        <PromptInputHeader v-if="prompt.files.value.length" class="w-full px-3 pt-2.5">
+        <PromptInputHeader v-if="prompt.files.value.length" class="w-full px-3 pt-2.5" :class="props.compact ? 'px-2 pt-2' : ''">
           <PromptInputAttachments class="w-full p-0">
             <template #default="{ file }">
               <PromptInputAttachment :file="file" class="rounded-full border-slate-200 bg-slate-50" />
@@ -136,21 +142,25 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
             :placeholder="placeholder"
             rows="1"
             class="min-h-[32px] max-h-[max(30svh,5rem)] max-h-52 px-4 pt-3 pb-0 text-[15px] leading-6 text-slate-900 shadow-none outline-none focus-visible:ring-0 md:text-[15px]"
+            :class="props.compact ? 'min-h-[30px] max-h-40 px-3 pt-2 pb-0 text-[14px] leading-6' : ''"
           />
         </PromptInputBody>
 
-        <PromptInputFooter class="border-0 px-3 pb-2.5 pt-0.5">
+        <PromptInputFooter class="border-0 px-3 pb-2.5 pt-0.5" :class="props.compact ? 'px-2 pb-2 pt-0' : ''">
           <div class="flex items-center gap-2">
             <PromptInputButton
               :title="copy.webSearchEnabled"
               variant="ghost"
               class="size-8 rounded-full transition-all duration-150 active:scale-95"
-              :class="useWebSearch
-                ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'"
+              :class="[
+                props.compact ? 'size-7' : '',
+                useWebSearch
+                  ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
+              ]"
               @click="emit('toggle-web-search')"
             >
-              <GlobeIcon class="size-3.5" />
+              <GlobeIcon class="size-3.5" :class="props.compact ? 'size-3' : ''" />
             </PromptInputButton>
           </div>
 
@@ -159,9 +169,10 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
               :title="copy.attachFile"
               variant="ghost"
               class="size-8 rounded-full text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
+              :class="props.compact ? 'size-7' : ''"
               @click="prompt.openFileDialog"
             >
-              <PlusIcon class="size-3.5" />
+              <PlusIcon class="size-3.5" :class="props.compact ? 'size-3' : ''" />
             </PromptInputButton>
 
             <Button
@@ -169,9 +180,10 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
               type="button"
               size="icon"
               class="size-9 rounded-full bg-slate-900 text-white shadow-none hover:bg-slate-950"
+              :class="props.compact ? 'size-8' : ''"
               @click="emit('stop-streaming')"
             >
-              <SquareIcon class="size-3" />
+              <SquareIcon class="size-3" :class="props.compact ? 'size-2.5' : ''" />
             </Button>
 
             <Button
@@ -179,18 +191,21 @@ const suggestionCards = computed<SuggestionCard[]>(() => {
               type="submit"
               size="icon"
               class="size-9 rounded-full shadow-none"
-              :class="canSubmit
-                ? 'bg-slate-900 text-white hover:bg-slate-950'
-                : 'bg-slate-100 text-slate-300 hover:bg-slate-100'"
+              :class="[
+                props.compact ? 'size-8' : '',
+                canSubmit
+                  ? 'bg-slate-900 text-white hover:bg-slate-950'
+                  : 'bg-slate-100 text-slate-300 hover:bg-slate-100',
+              ]"
               :disabled="!canSubmit"
             >
-              <ArrowUpIcon class="size-3" />
+              <ArrowUpIcon class="size-3" :class="props.compact ? 'size-2.5' : ''" />
             </Button>
           </div>
         </PromptInputFooter>
       </PromptInput>
 
-      <p class="pt-0.5 text-center text-xs text-slate-400">
+      <p class="pt-0.5 text-center text-xs text-slate-400" :class="props.compact ? 'pt-0 text-[11px]' : ''">
         {{ copy.disclaimer }}
       </p>
     </div>
