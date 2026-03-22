@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { AgentSessionRead } from '@prismaspace/contracts'
+import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
+import { Input } from '@prismaspace/ui-shadcn/components/ui/input'
 import type { SessionGroup } from '../agent-chat.types'
 import {
   Sidebar,
@@ -58,15 +60,14 @@ function handleSelect(threadId: string): void {
         {{ copy.session }}
       </p>
 
-      <button
-        type="button"
+      <Button
         class="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-sidebar-primary text-sm font-medium text-sidebar-primary-foreground transition-all duration-150 hover:opacity-95 active:scale-[0.99] disabled:opacity-60"
         :disabled="creating"
         @click="handleCreate"
       >
         <PlusIcon class="size-4" />
         {{ copy.newChat }}
-      </button>
+      </Button>
     </SidebarHeader>
 
     <SidebarContent class="px-3 pb-3">
@@ -92,15 +93,15 @@ function handleSelect(threadId: string): void {
             >
               <template v-if="renamingSessionId === session.uuid">
                 <div class="rounded-xl bg-background px-3 py-2 shadow-sm ring-1 ring-sidebar-ring/30">
-                  <input
+                  <Input
                     :value="renamingTitle"
                     :placeholder="copy.renamePlaceholder"
-                    class="w-full bg-transparent text-[13px] font-medium text-foreground outline-none"
+                    class="h-8 border-0 bg-transparent px-0 py-0 text-[13px] font-medium text-foreground shadow-none focus-visible:ring-0"
                     @input="emit('update:renamingTitle', String(($event.target as HTMLInputElement).value || ''))"
                     @blur="emit('submit-rename', session)"
                     @keydown.enter.prevent="emit('submit-rename', session)"
                     @keydown.esc.prevent="emit('cancel-rename')"
-                  >
+                  />
                 </div>
               </template>
 
@@ -117,21 +118,25 @@ function handleSelect(threadId: string): void {
                 </SidebarMenuButton>
 
                 <div class="pointer-events-none absolute inset-y-0 right-2 hidden items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/menu-item:pointer-events-auto group-hover/menu-item:opacity-100 md:flex">
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     class="flex size-7 items-center justify-center rounded-full text-sidebar-foreground/45 transition-all duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:scale-95"
                     @click.stop="emit('begin-rename', session)"
                   >
                     <Edit3Icon class="size-3.5" />
-                  </button>
+                  </Button>
 
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     class="flex size-7 items-center justify-center rounded-full text-sidebar-foreground/45 transition-all duration-150 hover:bg-sidebar-accent hover:text-rose-600 active:scale-95"
                     @click.stop="emit('delete', session)"
                   >
                     <Trash2Icon class="size-3.5" />
-                  </button>
+                  </Button>
                 </div>
               </template>
             </SidebarMenuItem>

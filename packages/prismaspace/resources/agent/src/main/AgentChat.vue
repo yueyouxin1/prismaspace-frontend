@@ -215,6 +215,10 @@ function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function readRawString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
 function readBoolean(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
@@ -465,7 +469,6 @@ function createDisplayMessage(role: DisplayMessage['role'], content = ''): Displ
     createdAt: new Date().toISOString(),
     streaming: false,
     reasoningOpen: false,
-    sourcesOpen: false,
     sources: [],
     toolCalls: [],
     attachments: [],
@@ -856,14 +859,14 @@ async function submitToAgent(payload: RunAgentInputExtRequest): Promise<void> {
         const data = toRecord(event.data)
         const runId = currentRunId.value || payload.runId
         patchCurrentAssistant(runId, (message) => {
-          message.content += readString(data.delta)
+          message.content += readRawString(data.delta)
         })
       },
       onReasoningDelta: (event) => {
         const data = toRecord(event.data)
         const runId = currentRunId.value || payload.runId
         patchCurrentAssistant(runId, (message) => {
-          message.reasoning += readString(data.delta)
+          message.reasoning += readRawString(data.delta)
           message.reasoningOpen = true
         })
       },
@@ -885,7 +888,7 @@ async function submitToAgent(payload: RunAgentInputExtRequest): Promise<void> {
             message.toolCalls = upsertToolCall(message.toolCalls, {
               id: readString(data.toolCallId) || nanoid(),
               name: copy.value.toolChain,
-              args: readString(data.delta),
+              args: readRawString(data.delta),
               status: 'running',
             })
             return
@@ -896,7 +899,7 @@ async function submitToAgent(payload: RunAgentInputExtRequest): Promise<void> {
               id: readString(data.toolCallId) || nanoid(),
               name: copy.value.toolChain,
               args: '',
-              result: readString(data.content),
+              result: readRawString(data.content),
               status: 'success',
             })
             return

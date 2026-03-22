@@ -32,7 +32,6 @@ export interface DisplayMessage {
   createdAt: string
   streaming: boolean
   reasoningOpen: boolean
-  sourcesOpen: boolean
   sources: SourceSummary[]
   toolCalls: ToolCallView[]
   attachments: AttachmentSummary[]
