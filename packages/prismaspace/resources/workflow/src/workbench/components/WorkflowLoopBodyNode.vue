@@ -21,7 +21,7 @@ const isSelected = computed(() => props.selected || props.data.isLoopContextSele
 
 <template>
   <div
-    class="relative rounded-[18px] border bg-[linear-gradient(180deg,#eefbfc_0%,#f9fbfe_10%,#fbfbfe_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)] transition-all"
+    class="relative rounded-[18px] border bg-[linear-gradient(180deg,#eefbfc_0%,#f9fbfe_10%,#fbfbfe_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
     :class="isSelected ? 'border-[#24a7b3] shadow-[0_0_0_1px_rgba(36,167,179,0.22)]' : 'border-[#dbe9ec]'"
     :style="{ width: `${bodyWidth}px`, height: `${bodyHeight}px` }"
   >
@@ -31,21 +31,20 @@ const isSelected = computed(() => props.selected || props.data.isLoopContextSele
       :position="Position.Top"
       class="!h-2.5 !w-2.5 !border-2 !border-white !bg-[#91b7c0]"
       :connectable="false"
-      :style="{ top: '10px' }"
     />
     <Handle
       id="loop-function-inline-output"
       type="source"
       :position="Position.Left"
       class="!h-2.5 !w-2.5 !border-2 !border-white !bg-[#5b63ff]"
-      :style="{ top: '50%', transform: 'translate(10px,20px)' }"
+      :style="{ top: '50%' }"
     />
     <Handle
       id="loop-function-inline-input"
       type="target"
       :position="Position.Right"
       class="!h-2.5 !w-2.5 !border-2 !border-white !bg-[#5b63ff]"
-      :style="{ top: '50%', transform: 'translate(-10px,20px)' }"
+      :style="{ top: '50%' }"
     />
 
     <div class="pointer-events-none flex h-full flex-col overflow-hidden rounded-[18px]">

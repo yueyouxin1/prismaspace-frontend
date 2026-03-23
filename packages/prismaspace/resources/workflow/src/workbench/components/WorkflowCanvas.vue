@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, markRaw, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import type { WorkflowGraphRead } from '@prismaspace/contracts'
 import { Canvas } from '@prismaspace/ui-ai-elements'
 import {
@@ -150,12 +150,12 @@ const updateLocalNodePosition = (nodeId: string, position: { x: number; y: numbe
   localNodes.value = localNodes.value.map((node) =>
     node.id === nodeId
       ? {
-          ...node,
-          position: {
-            x: position.x,
-            y: position.y,
-          },
-        }
+        ...node,
+        position: {
+          x: position.x,
+          y: position.y,
+        },
+      }
       : node,
   )
 }
@@ -286,6 +286,25 @@ const handlePaneClick = (event: MouseEvent): void => {
     return
   }
   emit('clear-selection')
+}
+
+const handleNodeDrag = ({ node }: NodeDragEvent): void => {
+  emit('update-node-position', {
+    id: node.id,
+    x: node.position.x,
+    y: node.position.y,
+  })
+  const canvasMeta = (node.data as { workflowNode?: WorkflowGraphRead['nodes'][number] } | undefined)?.workflowNode?.data?.config
+  const parentBodyId = ((canvasMeta as Record<string, any> | undefined)?.__canvas as Record<string, any> | undefined)?.parentBodyId as string | undefined
+  if ((canvasMeta as Record<string, any> | undefined)?.__canvas?.kind === 'loop-body') {
+    updateLocalNodePosition(node.id, {
+      x: node.position.x,
+      y: node.position.y,
+    })
+  }
+  if (parentBodyId) {
+    queueMicrotask(() => syncLoopBodyLayout(parentBodyId))
+  }
 }
 
 const handleNodeDragStop = ({ node }: NodeDragEvent): void => {
@@ -465,32 +484,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="h-full min-h-0 w-full bg-[#fbfbfe]"
+  <div class="h-full min-h-0 w-full bg-[#fbfbfe]"
     style="background-image: radial-gradient(circle, rgba(143,149,175,0.28) 1px, transparent 1px); background-size: 24px 24px; background-position: 0 0;"
-    @dragover="handleDragOver"
-    @drop="handleDrop"
-  >
-    <Canvas
-      :id="FLOW_ID"
-      class="h-full min-h-0 w-full"
-      :nodes="flowNodes"
-      :edges="flowEdges"
-      :node-types="nodeTypes"
-      :edge-types="edgeTypes"
-      :default-viewport="initialViewport"
-      :fit-view-on-init="!hasSavedViewport"
-      :min-zoom="0.3"
-      :max-zoom="1.6"
-      :pan-on-drag="true"
-      @connect="handleConnect"
-      @node-click="handleNodeClick"
-      @pane-click="handlePaneClick"
-      @node-drag-stop="handleNodeDragStop"
-      @nodes-change="handleNodesChange"
-      @edges-change="handleEdgesChange"
-      @viewport-change-end="handleViewportChangeEnd"
-    >
+    @dragover="handleDragOver" @drop="handleDrop">
+    <Canvas :id="FLOW_ID" class="h-full min-h-0 w-full" :nodes="flowNodes" :edges="flowEdges" :node-types="nodeTypes"
+      :edge-types="edgeTypes" :default-viewport="initialViewport" :fit-view-on-init="!hasSavedViewport" :min-zoom="0.3"
+      :max-zoom="1.6" :pan-on-drag="true" @connect="handleConnect" @node-click="handleNodeClick"
+      @pane-click="handlePaneClick" @node-drag="handleNodeDrag" @node-drag-stop="handleNodeDragStop"
+      @nodes-change="handleNodesChange" @edges-change="handleEdgesChange"
+      @viewport-change-end="handleViewportChangeEnd">
       <template #connection-line="connectionLineProps">
         <WorkflowCanvasConnectionLine v-bind="connectionLineProps" />
       </template>
