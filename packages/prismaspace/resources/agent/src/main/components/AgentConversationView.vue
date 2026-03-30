@@ -248,7 +248,7 @@ function parseToolPayload(value?: string): unknown {
     <ConversationScrollButton
       v-if="messages.length > 0 && !showIntro"
       class="z-30 bottom-4 border-slate-200 bg-white/95 text-slate-600 shadow-[0_10px_28px_rgba(15,23,42,0.1)] hover:bg-white"
-      :class="props.compact ? 'bottom-3 right-3 left-auto translate-x-0' : ''"
+      :class="props.compact ? 'bottom-3' : ''"
     />
   </Conversation>
 </template>

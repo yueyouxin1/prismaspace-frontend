@@ -126,7 +126,7 @@ export const createWorkflowClient = (context: SdkContext): WorkflowClient => ({
   },
   async streamExecute(instanceUuid, payload, handlers = {}) {
     return connectSseStream({
-      url: context.transport.buildUrl(`/api/v1/workflow/${instanceUuid}/sse`),
+      url: context.transport.buildUrl(`/api/v1/workflow/${instanceUuid}/sse?profile=1`),
       method: 'POST',
       body: {
         protocol: DEFAULT_WORKFLOW_PROTOCOL,
