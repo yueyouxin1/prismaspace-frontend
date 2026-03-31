@@ -6,7 +6,7 @@ import { Button } from '@prismaspace/ui-shadcn/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@prismaspace/ui-shadcn/components/ui/card'
 import { Input } from '@prismaspace/ui-shadcn/components/ui/input'
 import type { WorkflowVariableEntry } from '../types/workflow-ide'
-import { formatJson } from '../utils/workflow-helpers'
+import { formatJson, formatWorkflowVariableEntryPath } from '../utils/workflow-helpers'
 
 const props = defineProps<{
   entries: WorkflowVariableEntry[]
@@ -56,7 +56,7 @@ const copyText = async (key: string, text: string): Promise<void> => {
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate text-sm font-medium">{{ entry.path }}</p>
+              <p class="truncate text-sm font-medium">{{ formatWorkflowVariableEntryPath(entry) }}</p>
               <Badge variant="outline">
                 {{ entry.category === 'workflow-input' ? 'Input' : entry.category === 'loop-variable' ? 'Loop' : 'Output' }}
               </Badge>

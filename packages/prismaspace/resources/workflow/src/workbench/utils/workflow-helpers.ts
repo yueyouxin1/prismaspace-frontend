@@ -266,6 +266,20 @@ const flattenSchemaPaths = (
   return current
 }
 
+const decorateLoopSegment = (segment: string, loopDepth = 0): string => {
+  let label = segment
+  for (let depth = 0; depth < loopDepth; depth += 1) {
+    label = `[${label}] * n`
+  }
+  return label
+}
+
+export const formatWorkflowVariableEntryPath = (entry: WorkflowVariableEntry): string =>
+  entry.path
+    .split('.')
+    .map(segment => decorateLoopSegment(segment, entry.loopDepth ?? 0))
+    .join('.')
+
 const buildTopLevelAncestors = (graph: WorkflowGraphRead, nodeId: string | null): Set<string> => {
   if (!nodeId) {
     return new Set(graph.nodes.map(node => node.id))
@@ -326,6 +340,7 @@ const pushSchemaEntries = (
   category: WorkflowVariableEntry['category'],
   schemas: WorkflowParameterSchema[],
   source?: string,
+  loopDepth = 0,
 ): void => {
   schemas.forEach((schema) => {
     flattenSchemaPaths(schema).forEach((item) => {
@@ -336,6 +351,7 @@ const pushSchemaEntries = (
         category,
         schema: item.schema,
         path: item.path,
+        loopDepth,
         refValue: {
           type: 'ref',
           content: {
@@ -349,9 +365,34 @@ const pushSchemaEntries = (
   })
 }
 
+const normalizeLoopListSchemas = (
+  value: unknown,
+): WorkflowParameterSchema[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value
+    .filter((item): item is WorkflowParameterSchema => Boolean(item) && typeof item === 'object')
+    .map(item => item)
+}
+
+const buildLoopItemVariableSchema = (schema: WorkflowParameterSchema): WorkflowParameterSchema => ({
+  name: schema.name,
+  type: schema.items?.type || 'string',
+  required: false,
+  open: true,
+  label: schema.label || schema.name,
+  description: schema.description,
+  items: schema.items?.items,
+  properties: schema.items?.properties,
+  meta: {
+    ...(schema.meta ?? {}),
+    loopMutable: false,
+  },
+})
+
 const buildLoopVariableSchemas = (loopNode: WorkflowNodeRead): WorkflowParameterSchema[] => {
   const loopConfig = (loopNode.data.config ?? {}) as Record<string, any>
-  const loopList = (loopConfig.loopList ?? null) as WorkflowParameterSchema | null
   const schemas: WorkflowParameterSchema[] = [
     {
       name: 'index',
@@ -363,16 +404,16 @@ const buildLoopVariableSchemas = (loopNode: WorkflowNodeRead): WorkflowParameter
         loopMutable: false,
       },
     },
-    {
-      name: 'item',
-      type: loopList?.items?.type || 'string',
-      required: false,
-      open: true,
-      label: 'item',
-      meta: {
-        loopMutable: false,
-      },
-    } as WorkflowParameterSchema,
+  ]
+
+  normalizeLoopListSchemas(loopConfig.loopList).forEach((schema) => {
+    if (!schema.name || schemas.some(existing => existing.name === schema.name)) {
+      return
+    }
+    schemas.push(buildLoopItemVariableSchema(schema))
+  })
+
+  schemas.push(
     ...(loopNode.data.inputs ?? []).map((schema) => ({
       ...cloneJson(schema),
       meta: {
@@ -380,22 +421,7 @@ const buildLoopVariableSchemas = (loopNode: WorkflowNodeRead): WorkflowParameter
         loopMutable: true,
       },
     })),
-  ]
-
-  if (loopList?.name && !schemas.some(schema => schema.name === loopList.name)) {
-    schemas.push({
-      name: loopList.name,
-      type: loopList.items?.type || 'string',
-      required: false,
-      open: true,
-      label: loopList.name,
-      items: loopList.items,
-      properties: loopList.properties,
-      meta: {
-        loopMutable: false,
-      },
-    } as WorkflowParameterSchema)
-  }
+  )
 
   return schemas
 }
@@ -477,15 +503,16 @@ export const buildWorkflowVariableEntries = (
     )
 
     ;(location.node.data.blocks ?? []).forEach((block) => {
-      pushSchemaEntries(
-        entries,
-        block.id,
-        block.data.name,
-        'node-output',
-        block.data.outputs ?? [],
-        'loop-block-output',
-      )
-    })
+        pushSchemaEntries(
+          entries,
+          block.id,
+          block.data.name,
+          'node-output',
+          block.data.outputs ?? [],
+          'loop-block-output',
+          1,
+        )
+      })
   }
 
   return entries
@@ -525,6 +552,7 @@ export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
       if (payload.blockID) existing.blockID = payload.blockID
       if (payload.source) existing.source = payload.source
       if (payload.schemaType) existing.schemaType = payload.schemaType
+      if (payload.label) existing.label = payload.label
       if (payload.selectable === true || existing.selectable === undefined) {
         existing.selectable = payload.selectable
       }
@@ -566,11 +594,12 @@ export const buildWorkflowVariableTree = (entries: WorkflowVariableEntry[]) => {
     segments.forEach((segment, index) => {
       currentPath = currentPath ? `${currentPath}.${segment}` : segment
       const isLeaf = index === segments.length - 1
+      const loopDepth = Math.max(entry.loopDepth ?? 0, 0)
       const node = ensureChildNode(cursor, {
         id: `${entry.nodeId}:${currentPath}`,
         key: `${entry.nodeId}:${currentPath}`,
         name: segment,
-        label: segment,
+        label: decorateLoopSegment(segment, loopDepth),
         ...(isLeaf
           ? {
               path: currentPath,

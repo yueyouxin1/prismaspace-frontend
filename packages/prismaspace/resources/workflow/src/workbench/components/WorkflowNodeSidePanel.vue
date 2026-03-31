@@ -20,6 +20,7 @@ import WorkflowParameterSchemaEditorField from './fields/WorkflowParameterSchema
 import WorkflowOptionSelectField from './fields/WorkflowOptionSelectField.vue'
 import WorkflowJsonValueField from './fields/WorkflowJsonValueField.vue'
 import WorkflowSetVariableField from './fields/WorkflowSetVariableField.vue'
+import WorkflowValueEditorField from './fields/WorkflowValueEditorField.vue'
 import type { WorkflowFormRuntimeContext } from '../types/workflow-ide'
 import {
   buildWorkflowVariableEntries,
@@ -149,6 +150,20 @@ const workflowParamSchemaEditorFieldRenderer: FieldRendererDefinition = {
   transformOutput: (value) => Array.isArray(value) ? value : [],
 }
 
+const workflowValueEditorFieldRenderer: FieldRendererDefinition = {
+  component: WorkflowValueEditorField,
+  getProps: (ctx) => {
+    const scope = String(ctx.item.props?.variableScope ?? '')
+    const filteredEntries = filterVariableEntriesByScope(scope)
+    return {
+      fieldProps: {
+        ...ctx.resolveDynamic(ctx.item.props ?? {}),
+        valueRefTree: buildWorkflowVariableTree(filteredEntries),
+      },
+    }
+  },
+}
+
 const jsonFieldRenderer: FieldRendererDefinition = {
   component: WorkflowJsonValueField,
   getProps: (ctx) => ({
@@ -179,6 +194,7 @@ const fieldRenderers = computed<Record<string, FieldRendererDefinition>>(() => (
   model_selector: optionFieldRenderer,
   parameter_schema: parameterSchemaFieldRenderer,
   'param-schema-editor': workflowParamSchemaEditorFieldRenderer,
+  'value-editor': workflowValueEditorFieldRenderer,
   workflow_json: jsonFieldRenderer,
   workflow_branches: workflowBranchFieldRenderer,
   workflow_set_variable: workflowSetVariableFieldRenderer,

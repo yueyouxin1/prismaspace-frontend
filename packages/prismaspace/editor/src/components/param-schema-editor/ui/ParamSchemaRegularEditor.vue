@@ -1035,7 +1035,7 @@ defineExpose({
 
     <ScrollArea class="min-h-0 flex-1">
       <div class="min-w-full" :style="{ minWidth: `${contentMinWidth}px` }">
-        <div
+        <div v-if="rootChildren.length"
           class="param-column sticky top-0 z-10 grid items-center gap-0 border-b border-[#eceaf2] bg-[#f6f6fb]/95 px-0.5 py-1 text-[11px] font-semibold text-[#8b8ca0] backdrop-blur"
           :style="{ gridTemplateColumns: layout.gridTemplate }"
         >
@@ -1053,9 +1053,9 @@ defineExpose({
           </div>
         </div>
 
-        <div v-if="!rootChildren.length" class="flex min-h-[220px] flex-col items-center justify-center gap-3 px-4 text-center">
+        <div v-if="!rootChildren.length" class="flex flex-col items-center justify-center gap-3 px-4 text-center">
           <p class="text-[13px] text-[#8e90a1]">还没有参数，先创建一个顶层字段。</p>
-          <Button
+          <!--<Button
             type="button"
             size="sm"
             variant="outline"
@@ -1065,7 +1065,7 @@ defineExpose({
           >
             <Plus class="mr-1 size-3.5" />
             新增参数
-          </Button>
+          </Button>-->
         </div>
 
         <div v-else ref="treeLayerRef" class="relative min-w-full">

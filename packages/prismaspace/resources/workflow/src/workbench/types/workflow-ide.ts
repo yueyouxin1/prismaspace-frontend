@@ -59,6 +59,7 @@ export interface WorkflowVariableEntry {
   category: 'workflow-input' | 'node-output' | 'loop-variable'
   schema: WorkflowParameterSchema
   path: string
+  loopDepth?: number
   refValue: {
     type: 'ref'
     content: {

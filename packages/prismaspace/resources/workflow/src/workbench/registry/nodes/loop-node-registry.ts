@@ -8,6 +8,30 @@ import {
   createExecutionPolicyChildren,
 } from '../helpers'
 
+const normalizeLoopListSchemas = (value: unknown): Array<Record<string, any>> => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value.filter((item): item is Record<string, any> => Boolean(item) && typeof item === 'object')
+}
+
+const formatLoopCountSummary = (value: unknown): string => {
+  if (!value || typeof value !== 'object') {
+    return '未配置'
+  }
+  const parameterValue = value as Record<string, any>
+  if (parameterValue.type === 'literal') {
+    return String(parameterValue.content ?? '未配置')
+  }
+  if (parameterValue.type === 'ref') {
+    return String(parameterValue.content?.path || '变量引用')
+  }
+  if (parameterValue.type === 'expr') {
+    return String(parameterValue.content || '表达式')
+  }
+  return '未配置'
+}
+
 const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
   createAccordionSection({
     id: 'loop-config',
@@ -35,20 +59,23 @@ const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
           {
             id: 'loop-count',
             type: 'form',
-            control: 'parameter_schema',
+            control: 'value-editor',
             label: '循环次数',
             modelPath: 'nodeData.config.loopCount',
             state: {
-              visible: "{{ model.nodeData.config.loopType !== 'list' }}",
+              visible: "{{ model.nodeData.config.loopType == 'count' }}",
             },
             props: {
+              schemaType: 'integer',
+              allowExpression: false,
+              placeholder: '输入循环次数或选择整数变量',
               valueRefTree,
             },
           },
           {
             id: 'loop-list',
             type: 'form',
-            control: 'parameter_schema',
+            control: 'param-schema-editor',
             label: '循环数组',
             modelPath: 'nodeData.config.loopList',
             state: {
@@ -57,19 +84,8 @@ const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
             props: {
               variableScope: 'loop-array-source',
               runtimeMode: 'refine',
-              headerTitle: 'LOOP ARRAY',
-              singleRoot: true,
-              fieldVisibility: {
-                refine: {
-                  regularInline: {
-                    name: true,
-                    type: true,
-                    required: false,
-                    valueField: 'value',
-                    actions: false,
-                  },
-                },
-              },
+              headerTitle: 'LOOP ARRAYS',
+              showHeader: false,
             },
           },
           {
@@ -119,29 +135,6 @@ const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
               variableScope: 'loop-middle-variable',
               runtimeMode: 'refine',
               headerTitle: 'MIDDLE VARIABLES',
-              class: 'h-[320px] min-h-0 rounded-[10px] border border-[#ececf4] bg-white',
-              fieldVisibility: {
-                refine: {
-                  regularInline: {
-                    name: true,
-                    type: true,
-                    required: false,
-                    valueField: 'value',
-                    actions: true,
-                  },
-                  regularDetail: {
-                    default: false,
-                    description: false,
-                    label: false,
-                    role: false,
-                    enum: false,
-                    meta: false,
-                    open: false,
-                    value: false,
-                    arrayItemType: false,
-                  },
-                },
-              },
             },
           },
         ],
@@ -161,29 +154,6 @@ const buildLoopPanelSchema = (valueRefTree: unknown): FormItem[] => ([
               variableScope: 'loop-output',
               runtimeMode: 'refine',
               headerTitle: 'LOOP OUTPUTS',
-              class: 'h-[320px] min-h-0 rounded-[10px] border border-[#ececf4] bg-white',
-              fieldVisibility: {
-                refine: {
-                  regularInline: {
-                    name: true,
-                    type: true,
-                    required: false,
-                    valueField: 'value',
-                    actions: true,
-                  },
-                  regularDetail: {
-                    default: false,
-                    description: false,
-                    label: false,
-                    role: false,
-                    enum: false,
-                    meta: false,
-                    open: false,
-                    value: false,
-                    arrayItemType: false,
-                  },
-                },
-              },
             },
           },
         ],
@@ -220,14 +190,15 @@ export const loopNodeRegistry: WorkflowNodeRegistry = {
     ),
     getSummaryLines: (context) => {
       const config = (context.node.data.config ?? {}) as Record<string, any>
-      const loopList = (config.loopList ?? null) as Record<string, any> | null
-      const loopCount = (config.loopCount ?? null) as Record<string, any> | null
+      const loopLists = normalizeLoopListSchemas(config.loopList)
       return [
         {
           label: '输入',
           value: config.loopType === 'list'
-            ? String(loopList?.name || '未配置')
-            : String(loopCount?.name || 'count'),
+            ? (loopLists.length
+                ? loopLists.map(schema => String(schema.name || 'array')).join(', ')
+                : '未配置')
+            : formatLoopCountSummary(config.loopCount),
         },
         {
           label: '中间变量',

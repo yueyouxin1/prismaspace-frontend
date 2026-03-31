@@ -13,7 +13,7 @@
 
 ---
 
-## 本轮目标
+## 本轮已交付
 
 1. 前端工作台覆盖后端当前已支持的全部节点：`Start / End / Output / Branch / Loop / Interrupt / LLMNode / AgentNode / ToolNode / WorkflowNode / SetVariable`。
 2. 节点配置面板全部走前端 registry + schema 驱动表单生成，不在通用 UI 中耦合节点专有逻辑。
@@ -21,6 +21,15 @@
 4. 修正常规节点因为 `inputs_schema` 变化而生成多余 handle 的错误，端口策略改为节点类型驱动。
 5. 补齐异常处理 / 降级配置 UI，并让运行结果正确映射 fallback / error branch / interrupt / cancelled。
 6. 输出 Demo、更新 TODO、完成自检，达到可继续精修的生产级基线。
+
+---
+
+## 下一轮目标
+
+1. 基于新 `Loop` 契约完成真实后端环境的保存 / validate / execute / debug / replay 回归，确认 `loopCount: ParameterValue` 与 `loopList: ParameterSchema[]` 全链路稳定。
+2. 为 `Loop` 新值编辑器、多数组 zip 执行与变量树 `[param] * n` 展示补齐前端单测与后端样例回归。
+3. 继续精修 `Loop` 循环体画布交互、拖拽边界、内层自动排版与配置面板细节，对齐 Coze / MVP 的生产体验。
+4. 基于真实后端继续补齐 history / trace / replay / resume 的联调验收，把剩余未勾项全部收口。
 
 ---
 
@@ -49,6 +58,7 @@
 - [x] `Output` 面板补齐中间输出配置。
 - [x] `Branch` 面板补齐条件分支编辑器与否则语义。
 - [x] `Loop` 面板补齐循环类型、数组/次数来源、中间变量、输出与异常处理配置，并回到 `param-schema-editor` 主链路。
+- [x] `Loop` 面板已改为 `loopCount -> value-editor`、`loopList -> param-schema-editor`，不再保留旧的单条 `parameter_schema` 入口。
 - [x] `Loop` 已升级为“外层节点 + 循环体容器 + 内层子流程节点”模式，不再停留在 JSON 占位入口。
 - [x] `SetVariable` 循环变量设置节点已补齐前后端。
 - [x] `Interrupt` 面板补齐 `reason / message / resume_output_key / outputs`。
@@ -99,6 +109,8 @@
 ### H. 自检与留档
 
 - [x] workflow 包 + demo 已通过聚焦 `vue-tsc` 检查。
+- [x] 后端 `Loop` 契约已收敛为 `loopCount: ParameterValue`、`loopList: ParameterSchema[]`，运行时按最长数组长度 zip 迭代。
+- [x] `Loop` 变量树已支持多数组别名与 `[param] * n` 展示，变量选择面板不再沿用旧单数组语义。
 - [ ] 继续补充更细粒度前端单测（registry / run presenter / hydration）。
 - [ ] 继续补充更强的保存 / 重载 / replay / resume 集成验证。
 - [x] 本轮 TODO 已更新为当前交付标准。
@@ -136,7 +148,7 @@
 
 ## 下一轮精修入口
 
-1. 继续精修 `Loop` 循环体的布局、拖拽边界、内层自动排版与细节交互，使其更接近 Coze。
-2. 为 `SetVariable / Loop / Branch / Interrupt / ToolNode / WorkflowNode` 补更细的前端单测与交互回归。
-3. 继续向 Coze 级历史 / trace / replay 可视化细节对齐。
-4. 基于真实后端环境完成保存 / 重载 / validate / execute / replay / resume 全链路验收并全部勾满。
+1. 在真实后端环境完成 `Loop` 新契约的保存 / 重载 / validate / execute / debug / replay 回归，覆盖 count/list 两类模式。
+2. 为 `Loop / SetVariable / Branch / Interrupt / ToolNode / WorkflowNode` 补更细的前端单测与交互回归。
+3. 继续精修 `Loop` 循环体布局、变量树细节与 side panel 信息层级，进一步贴近 Coze。
+4. 继续向 Coze 级历史 / trace / replay 可视化细节对齐，并完成 resume 真实链路验收。
